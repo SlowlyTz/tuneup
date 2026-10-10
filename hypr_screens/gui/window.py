@@ -535,7 +535,9 @@ class SettingsWindow(Adw.ApplicationWindow):
 
         rows = engine.screen_rows(self.cfg, self.connected)
         ids = [row["id"] for row in rows]
-        names = [f"{'★ ' if row['favorite'] else ''}{row['name']}" for row in rows]
+        # A connected external screen says so, so it stands out among the known ones.
+        names = [f"{'★ ' if row['favorite'] else ''}{row['name']}"
+                 + (f"  ·  {t('connected')}" if row["connected"] and not row["internal"] else "") for row in rows]
         picker = Adw.PreferencesGroup()
         combo = combo_row(t("Screen"), names)
         combo.add_prefix(Gtk.Image.new_from_icon_name("video-display-symbolic"))
