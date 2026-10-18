@@ -19,26 +19,34 @@ def literal_keys() -> set[str]:
     return keys
 
 
-# t("...") in the HTML settings window (hypr_screens/web/app.js): a double-quoted
-# string literal as the first argument. Anything else passed to t() is a text
-# the backend sends (already an English source text, translated elsewhere).
-WEB_APP = ROOT / "web" / "app.js"
+# t("...") in the HTML settings window (hypr_screens/web/**/*.js but the mock
+# and the bridge): a double-quoted string literal as the first argument.
+# Anything else passed to t() is a text the backend sends (already an English
+# source text, translated elsewhere).
 WEB_CALL = re.compile(r'(?<![\w.$])t\(\s*"((?:[^"\\\n]|\\.)*)"')
+
+
+def web_sources() -> list[Path]:
+    return [path for path in sorted((ROOT / "web").rglob("*.js")) if path.name not in ("mock.js", "bridge.js")]
+
+
+def web_source() -> str:
+    return "\n".join(path.read_text(encoding="utf-8") for path in web_sources())
 
 
 def web_keys() -> set[str]:
     """Texts of the HTML settings window."""
-    if not WEB_APP.exists():
-        return set()
-    return {json.loads(f'"{text}"') for text in WEB_CALL.findall(WEB_APP.read_text(encoding="utf-8"))}
+    return {json.loads(f'"{text}"') for text in WEB_CALL.findall(web_source())}
 
 
 def table_keys() -> set[str]:
     """Texts kept in tables: the backend sends them to the page (or the widgets),
     which translates them through t(variable)."""
-    from hypr_screens import api, look, samsung, sound, widget_schema, widgets
+    from hypr_screens import enforce, look, samsung, sound, widget_schema, widgets
+    from hypr_screens.api import shortcuts
 
-    keys = set(api.ACTION_TITLES.values()) | set(api.ACTION_HELP.values()) | set(api.DEFAULT_FIXED_LABELS.values())
+    keys = set(shortcuts.ACTION_TITLES.values()) | set(shortcuts.ACTION_HELP.values())
+    keys |= set(shortcuts.DEFAULT_FIXED_LABELS.values()) | set(enforce.WHAT.values())
     keys |= set(sound.PORT_LABELS.values())
     keys |= {label for _mode, label, _cpu in samsung.MODES} | set(samsung.ATTRIBUTES.values())
     keys |= set(look.PRESETS)

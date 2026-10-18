@@ -4,8 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Settings</title>
-  <link rel="stylesheet" href="app.css">
-  <!-- Texts: app.js sets them in the app's language (window.hyprBoot / api.translations()). -->
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/pages.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <!-- Texts: the app sets them in its language (window.hyprBoot / api.translations()). -->
 </head>
 <body>
   <div class="app">
@@ -43,8 +47,8 @@
   <dialog class="dialog" id="dialog"></dialog>
 
   <script src="bridge.js"></script>
-  <!-- Without the app's bridge (opened in a browser): fake data. -->
+  <!-- Without the app's bridge (opened in a browser): fake data. Both run before the app (a module). -->
   <script>if (!window.api) document.write('<script src="mock.js"><\/script>');</script>
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

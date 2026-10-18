@@ -5,7 +5,7 @@ import re
 import pytest
 
 from hypr_screens import config, i18n
-from i18n_keys import WEB_APP, all_keys, web_keys
+from i18n_keys import all_keys, web_keys, web_source
 
 TABLES = json.loads(i18n.LOCALES.read_text(encoding="utf-8"))
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
@@ -54,9 +54,9 @@ def test_the_language_is_kept_in_the_config():
 
 
 def test_the_web_window_passes_only_plain_texts_to_t():
-    """app.js: t("English text", {values}) – no template strings or sums, so
+    """The page's scripts: t("English text", {values}) – no template strings or sums, so
     every text is found (and translated) by web_keys()."""
-    source = WEB_APP.read_text(encoding="utf-8")
+    source = web_source()
     assert not re.findall(r"(?<![\w.$])t\(\s*`", source)
     assert not re.findall(r'(?<![\w.$])t\(\s*"(?:[^"\\]|\\.)*"\s*\+', source)
     assert len(web_keys()) > 300
