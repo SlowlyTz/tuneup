@@ -1005,17 +1005,3 @@ class SettingsWindow(Adw.ApplicationWindow):
             f"hl.dispatch(hl.dsp.window.resize({{ x = {w}, y = {h}, {window} }}))",
             f"hl.dispatch(hl.dsp.window.move({{ x = {x}, y = {y}, {window} }}))",
         ]))
-        address = client["address"]
-        scale = float(monitor.get("scale") or 1)
-        width, height = int(monitor["width"] / scale), int(monitor["height"] / scale)
-        if int(monitor.get("transform") or 0) % 2:
-            width, height = height, width
-        w, h = min(WIDTH, width - 80), min(HEIGHT, height - 80)
-        x, y = monitor["x"] + (width - w) // 2, monitor["y"] + (height - h) // 2
-        window = f"window = 'address:{address}'"
-        hypr.eval_lua("; ".join([
-            f"hl.dispatch(hl.dsp.window.float({{ action = 'enable', {window} }}))",
-            f"hl.dispatch(hl.dsp.window.resize({{ x = {w}, y = {h}, {window} }}))",
-            f"hl.dispatch(hl.dsp.window.move({{ x = {x}, y = {y}, {window} }}))",
-        ]))
-        return False
