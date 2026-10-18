@@ -1,4 +1,4 @@
-# hypr-screens settings window: the `window.api` contract
+# Tuneup settings window: the `window.api` contract
 
 The page (`index.html`, `app.js`) talks only to `window.api`. In the real
 window the WebKit bridge puts the Python backend `hypr_screens/api/` there;
@@ -29,7 +29,7 @@ produced by `hypr_screens.api` against a fake Hyprland).
 | `bad_args` | wrong number of arguments |
 | `bad_value` | a value is not allowed (message says what is) |
 | `unknown_method` | `call()` with a name that does not exist |
-| `config_unreadable` | `~/.config/hypr-screens/config.json` exists but is not valid; nothing is written over it |
+| `config_unreadable` | `~/.config/tuneup/config.json` exists but is not valid; nothing is written over it |
 | `unknown_screen` / `unknown_device` / `unknown_widget` / `unknown_layout` | that id/key/name is not known (any more) |
 | `connected_screen` | forgetting a screen that is plugged in |
 | `internal_screen` | forgetting the laptop screen |
@@ -45,6 +45,7 @@ produced by `hypr_screens.api` against a fake Hyprland).
 | `nothing_to_arrange` | arranging with no widget on the desktop |
 | `not_ready` | the widget plugin did not answer (just switched on) – try again |
 | `apply_failed` | the setting was **saved**, but making it live failed |
+| `busy` | `runUpdate()` while an update runs |
 | `internal` | anything unexpected (`"TypeError: …"`) |
 
 ---
@@ -145,7 +146,7 @@ Swaps which screen is fixed until the monitor is unplugged. Error `no_external`.
 ### `setKey(action, slot, combo)` → `Action & {conflicts: string[]}`
 `slot` 0/1; `combo` like `"SUPER + SHIFT + PERIOD"` (normalized), `""`/`null`
 removes. Another action of ours with the same key loses it. `conflicts` names
-the Hyprland binds it now replaces (while hypr-screens runs). The Lua file is
+the Hyprland binds it now replaces (while Tuneup runs). The Lua file is
 rewritten and the keys go live at once.
 
 ### `beginKeyCapture()` / `endKeyCapture()` → `{ok: true}` (new)
@@ -368,7 +369,7 @@ Installs cava (password). Error `cancelled`.
 
 ## Enforcement (new)
 
-hypr-screens keeps what it sets: the watcher (`hypr-screens watch`) audits every
+Tuneup keeps what it sets: the watcher (`tuneup watch`) audits every
 5 s, and soon after events that can mean drift, and puts back only what
 another app or a reload changed. An item that comes back more than 3 times in
 60 s is left alone for 30 s, then 60 s, 120 s … (at most 30 min). Force mute is
@@ -401,13 +402,50 @@ never left alone. On by default.
 still apply the settings; force mute and the Samsung charge limit / mode keep
 working, as their own settings). A screen without a picture is still reported.
 
+## Welcome, update, uninstall (new)
+
+### `welcome()` → `Welcome`
+```js
+{ show: true,                  // show the splash now
+  kind: "installed",           // "installed" (no version seen yet) | "updated" (seen < current) | null
+  from: null,                  // the version before the update ("updated" only)
+  to: "1.0.0",                 // this version
+  releasesUrl: "https://github.com/SlowlyTz/tuneup/releases" }
+```
+### `dismissWelcome()` → `Welcome` (`show: false`, `kind`/`from` null; stores `seen_version`)
+
+### `checkUpdate()` → `Update` (runs `git fetch`; a few seconds)
+```js
+{ current: "1.0.0", latest: "1.1.0",   // latest: origin's pyproject version (else its newest tag), null if unknown
+  available: true, commitsBehind: 7,
+  canUpdate: true,                     // available and nothing in the way
+  reason: null }                       // null | "not_git" | "local_changes" | "diverged" | "offline"
+```
+`not_git` and `offline` come even without an update; `local_changes` and
+`diverged` only when there is one.
+
+### `runUpdate()` → `{started: true}`
+Starts `tuneup update --report` detached (`git pull --ff-only` +
+`install.sh --update`). It restarts the tray – **the window closes** – and opens
+the window again at the end; then `welcome()` says `kind: "updated"`. Error `busy`.
+
+### `updateStatus()` → `{state, from, to, log, error}`
+`state`: `"idle" | "running" | "done" | "failed"`; `log`: the last lines
+(English, ≤ 40); `error`: a reason code from above or the failing step's last line.
+
+### `uninstall(keepSettings)` → `{started: true}`
+Starts `tuneup uninstall --yes [--keep-settings]` detached; it stops the tray,
+so the app is gone right after. The system packages stay. `bad_value` if
+`keepSettings` is not a boolean.
+
 ## General
 
 - `language()` → `{code: "de", items: [{code: "en", name: "English"}, {code: "de", name: "Deutsch"}, …]}`
 - `setLanguage(code)` → `language()`; also re-exports the widgets' own texts.
   The tray and the window keep their old texts until rebuilt.
 - `translations()` → `{code, texts: {"English text": "translation", …}}` (new; `{}` for English).
-- `about()` → `{version: "0.1.0", configDir: "~/.config/hypr-screens", configPath, configFile, guideUrl}`
+- `about()` → `{version: "1.0.0", configDir: "~/.config/tuneup", configPath, configFile, guideUrl, repoUrl, releasesUrl}`
+  (`repoUrl` = https://github.com/SlowlyTz/tuneup, `releasesUrl` = …/releases)
 - `openGuide()`, `openConfigFolder()` → `{ok: true}` (`xdg-open`; `unavailable`)
 - `theme()` → `{mode: "dark" | "light", colors: {background, foreground, accent, selection,
   lighter_background, dark_foreground, red, green, menu_background, menu_text, …the theme's colors.toml},

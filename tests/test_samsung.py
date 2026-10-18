@@ -229,7 +229,7 @@ def test_turning_off_restores_the_limit_and_forgets_the_settings(sysfs, ppd, mon
     assert samsung.teardown()
     assert battery(sysfs, "charge_control_end_threshold") == "80"
     assert config.load()["samsung"] == {"limit": None, "mode": None, "full_once": False}
-    assert f"rm -f {samsung.UDEV_RULE} {samsung.PPD_DROPIN}" in scripts[0]
+    assert f"rm -f {samsung.UDEV_RULE} {samsung.PPD_DROPIN} {samsung.OLD_UDEV_RULE}" in scripts[0]
     assert "systemctl try-restart power-profiles-daemon" in scripts[0]
 
 

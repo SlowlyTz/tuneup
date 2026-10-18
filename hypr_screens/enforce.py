@@ -1,4 +1,4 @@
-"""Enforcement: what hypr-screens sets stays set, even when another app (or a
+"""Enforcement: what Tuneup sets stays set, even when another app (or a
 reload) changes it. The watcher runs audit() every AUDIT_SECONDS and soon
 after events that can mean drift: it compares Hyprland's live state with what
 the settings want and puts back only what drifted, in one go.

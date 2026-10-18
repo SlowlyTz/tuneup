@@ -12,13 +12,14 @@ makes it live -- engine.sync() for screens, the Lua file and go_live for
 keys, widgets.apply() for widgets, look.apply() for the window look.
 
 One module per page: displays, shortcuts, appearance, audio, webcam,
-galaxy_book, desktop_widgets, enforcing, general; what they share is in core.
+galaxy_book, desktop_widgets, enforcing, general, maintenance (welcome,
+update, uninstall); what they share is in core.
 Every endpoint is also `api.<name>`. The shapes, the error codes and where
 they differ from the old mock are in hypr_screens/web/API.md; web/mock.js
 returns the same shapes.
 """
 from hypr_screens.api import (appearance, audio, desktop_widgets, displays, enforcing, galaxy_book,  # noqa: F401
-                              general, shortcuts, webcam)
+                              general, maintenance, shortcuts, webcam)
 from hypr_screens.api.core import METHODS, ApiError, call, endpoint  # noqa: F401
 
 globals().update(METHODS)

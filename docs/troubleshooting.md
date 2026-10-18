@@ -2,36 +2,49 @@
 
 ## Settings are not applied after plugging in
 
+Check that the background service runs, then apply everything once:
+
 ```bash
-pgrep -af "hypr-screens watch" || (hypr-screens watch &)   # watcher running?
-hypr-screens apply
+pgrep -af "tuneup (watch|tray)"   # both should be listed
+tuneup restart                    # restarts the background service and the tray
+tuneup apply
 ```
 
-Watcher log: run it in a terminal to see what it does:
+To see what the service does, run it in a terminal:
 
 ```bash
-pkill -f "hypr-screens watch"; hypr-screens watch
+pkill -f "tuneup watch"; tuneup watch
 ```
 
-## A key does nothing / fires twice
+## "The background service is not running" (General page)
+
+Nothing is kept in force and nothing is applied on plug or unplug while it does not run. Start it with `tuneup restart`. It starts with Hyprland by itself; if it does not, check that the line loading Tuneup is still in `~/.config/hypr/hyprland.lua` (next section).
+
+## A key does nothing or fires twice
 
 ```bash
-grep -n hypr_screens ~/.config/hypr/hyprland.lua   # must show the require line
+grep -n tuneup ~/.config/hypr/hyprland.lua   # must show require("hypr.tuneup")
 hyprctl configerrors
-hypr-screens setup                                  # rewrites the Lua file
+tuneup setup                                  # writes Tuneup's Hyprland file again, keeps your settings
 ```
 
 ## No tray icon
 
 ```bash
-pgrep -af "hypr-screens tray" || (hypr-screens tray &)
+pgrep -af "tuneup tray" || tuneup restart
 ```
 
-Omarchy: the tray is folded behind the `<` in the bar. The window needs GTK 4 + libadwaita + PyGObject:
+On Omarchy the tray is folded behind the `<` in the bar. You can always open the app with `tuneup settings`.
+
+## The app does not open
+
+It needs WebKitGTK 6.0, GTK 4, libadwaita and PyGObject; the installer installs them. Check:
 
 ```bash
-python3 -c 'import gi; gi.require_version("Gtk","4.0"); gi.require_version("Adw","1")' && echo ok
+python3 -c 'import gi; gi.require_version("Gtk","4.0"); gi.require_version("Adw","1"); gi.require_version("WebKit","6.0")' && echo ok
 ```
+
+If that fails, run the installer again (see [install.md](install.md)); `--dry-run` shows what it would change.
 
 ## The window menu opens with the old look
 
@@ -44,38 +57,37 @@ omarchy-restart-shell
 ## Desktops end up on the wrong screen
 
 ```bash
-hypr-screens status
-hypr-screens apply
+tuneup status
+tuneup apply
 ```
 
-Forget a swap: unplug and plug in again, or
+To forget a swap, unplug and plug in again, or:
 
 ```bash
-rm "$XDG_RUNTIME_DIR/hypr-screens/fixed.json" && hypr-screens apply
+rm "$XDG_RUNTIME_DIR/tuneup/fixed.json" && tuneup apply
 ```
 
-## Another app keeps changing a screen, gaps or a key
+## Another app keeps changing a screen, the gaps or a key
 
-The watcher puts back what hypr-screens sets (every 5 s, and right after a
-reload or a hotplug). When another app keeps changing the same thing back, it
-gives up on it for a while (30 s, then longer) instead of fighting:
+Tuneup puts back what it sets. When another app keeps changing the same thing back, Tuneup gives up on it for a while instead of fighting (see [keep-settings.md](keep-settings.md)):
 
 ```bash
-hypr-screens enforce        # recent fixes and what it gave up on for now
-hypr-screens enforce off    # leave it to the other app
+tuneup enforce        # recent corrections and what it leaves alone for now
+tuneup enforce off    # leave it to the other app
 ```
 
 ## A screen stays dark after unplugging a dock
 
-A known Hyprland (aquamarine) bug: the dock's screen is gone but still holds
-the graphics output, and the screen plugged in next gets nothing. The watcher
-notices it, switches the screen off and on once and, if it stays dark, says
-so. What helps then: unplug and plug in again; or switch to another console
-and back (`Ctrl+Alt+F2`, then `Ctrl+Alt+F1`); or log out and in.
+This is a known Hyprland (aquamarine) bug. The dock's screen is gone but still holds the graphics output, so the screen you plug in next gets nothing. Tuneup notices this, switches the screen off and on once, and tells you if it stays dark.
+
+What helps then:
+- unplug and plug in again,
+- or switch to another console and back (`Ctrl+Alt+F2`, then `Ctrl+Alt+F1`),
+- or log out and in.
 
 ## Stuck in "press the new shortcut"
 
-Press `Esc`. Still stuck:
+Press `Esc`. If it is still stuck:
 
 ```bash
 hyprctl dispatch 'hl.dsp.submap("reset")'
@@ -90,6 +102,6 @@ hypr-minimizer stash   # or SUPER + M on it
 ## Start over
 
 ```bash
-cp ~/.config/hypr-screens/config.json ~/hypr-screens-config.backup.json
-rm ~/.config/hypr-screens/config.json && hypr-screens setup
+cp ~/.config/tuneup/config.json ~/tuneup-config.backup.json
+rm ~/.config/tuneup/config.json && tuneup setup && tuneup restart
 ```

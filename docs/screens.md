@@ -1,73 +1,70 @@
 # Screens
 
-Every monitor you ever plug in is remembered. Each one gets its own settings.
+Every monitor you ever plug in is remembered, and each one keeps its own settings. Screens are recognised by make, model and serial number, not by the port, so a monitor keeps its settings on any cable or dock.
 
-## Open the settings
+![The Screens page](images/screens.png)
 
-Click the **monitor icon in the tray** (Omarchy: the `<` in the bar opens the tray).
-Right-click: *Einstellungen öffnen* · *Festen Bildschirm tauschen* · *Beenden*.
+## The Screens page
 
-From a terminal: `hypr-screens settings`
+At the top the connected screens stand as they do on your desk.
 
-The window speaks English, German, Spanish, French or Italian (Settings → Language; English when a text is missing) and works with mouse or keyboard. Every change is saved and applied at once. Translations live in `hypr_screens/locales.json`, keyed by the English text.
+- **Drag a screen** to another edge of the laptop, and the mouse crosses there. Arrow keys work too: select a screen, then press an arrow.
+- **Click a screen** to see its settings below the picture.
+- **Known screens:** monitors you used before but that are not connected now are in the row below the picture. Their settings apply as soon as they come back.
+- **Swap the fixed screen** at the top right: see [one-desktop.md](one-desktop.md).
+- **For new monitors**, below the picture: which screen gets the fixed desktop when an unknown monitor is plugged in (for all screens).
 
-## Page "Bildschirme"
+The settings of the screen you clicked:
 
-1. Click a screen card at the top (● = connected, ★ = favorite).
-2. Each setting has a short explanation and two dropdowns:
-   - **Einstellung**: the value
-   - **Gilt**: *Immer* (always) or *Nur mit „<other screen>“* (only while that screen is connected)
-
-| Setting | Values |
+| Setting | Choices |
 |---|---|
-| Drehung (rotation) | Standard · 0° · 90° · 180° · 270° |
-| Größe (scale) | Standard · automatic · 100–200 % |
-| Auflösung (resolution) | Standard · recommended · every mode the screen offers |
-| Platz neben dem Laptop (position) | Standard · left · right · above · below (external screens only) |
-| Nur ein Desktop | Standard · yes · no — see [one-desktop.md](one-desktop.md) |
+| Position | left, above, below or right of the laptop (external screens; also by dragging) |
+| Rotation | Normal · Portrait, right · Upside down · Portrait, left |
+| Scaling | Auto · 100 % · 125 % · 150 % · 200 % |
+| Resolution | every mode the screen offers, the recommended one first, each with its refresh rates |
+| Always shows the same desktop | on or off, see [one-desktop.md](one-desktop.md) |
 
-"Standard" = hypr-screens leaves it to your Hyprland config.
+A setting you never touched shows **Not set**, with what Hyprland does now. **Reset** takes your value back, and Hyprland's own config decides again.
 
-**Gilt** only offers screens that are connected right now (plus one you already picked, marked *nicht angeschlossen*).
+Under **Advanced**:
+- **Favorite:** favorites are listed first.
+- **Forget:** only while the screen is unplugged, and it asks first.
 
-**Safety net:** when a change makes a screen take new values (rotation, scale, resolution, position), a dialog asks *Einstellung behalten?*. Without a click on **Behalten** it goes back after 20 seconds — like the display settings of other desktops.
+### Safety net
 
-Also on this page: **Favorit** switch, **Vergessen** (forget; only when the screen is unplugged, asks first).
+When a change gives a screen new values (rotation, scaling, resolution, place), Tuneup asks whether to keep it. Without a click on **Keep** it goes back after 15 seconds, like the display settings of other desktops.
 
-## Conditions
+## Settings tied to a monitor
 
-Example: rotate the laptop only at the desk dock.
-In the window: Laptop → Drehung → *180° – kopfüber* → Gilt → *Nur mit „HP 32f“*.
-Or in a terminal:
+Every setting can apply **Always** or only while a certain other screen is connected. Use the chip **Always ▾** next to the setting.
 
-```bash
-hypr-screens set Laptop rotation 180
-hypr-screens when Laptop rotation "HP 32f"
-```
+Example: turn the laptop upside down only at the desk with the HP monitor. Click Laptop, choose Rotation → *Upside down*, then the chip → *Only with HP 32f*.
 
-Unplug the HP → the laptop goes back to normal. Plug it in → rotated again.
+Unplug the HP and the laptop goes back to normal. Plug it in, and it turns again.
 
 ## From the terminal
 
-Screens can be named by name, connector or id:
+A screen can be named by its name, its connector or its id:
 
 ```bash
-hypr-screens list
-hypr-screens set "HP 32f" scale 1.25
-hypr-screens set DP-3 position left
-hypr-screens set Laptop rotation unset
-hypr-screens favorite "HP 32f"
-hypr-screens forget "Fujitsu B27-9 TS QHD"
+tuneup list                                  # ● connected, ★ favorite
+tuneup set "HP 32f" scale 1.25
+tuneup set DP-3 position left
+tuneup set Laptop rotation 180
+tuneup set Laptop rotation unset             # back to Hyprland's own config
+tuneup when Laptop rotation "HP 32f"         # only while HP 32f is connected
+tuneup when Laptop rotation always
+tuneup favorite "HP 32f"
+tuneup forget "Fujitsu B27-9 TS QHD"
 ```
 
-## How it works (short)
+## How it works
 
-- `hypr-screens tray` = the tray icon + window. `hypr-screens watch` = the background part that applies settings on plug/unplug and config reloads. Both start with Hyprland from `~/.config/hypr/hypr_screens.lua`.
-- Settings are applied with `hl.monitor`. If a setting stops applying, the Hyprland config is reloaded once to get your normal values back.
-- Screens are recognised by make, model and serial number, not by the port.
-- The window needs GTK 4, libadwaita and PyGObject (on Omarchy: already there). It takes colors and font from your Omarchy theme.
+- `tuneup watch`, the background service, applies the settings when a screen is plugged in or out, and after a Hyprland reload. It starts with Hyprland.
+- Settings are applied with `hl.monitor`, edge to edge with the laptop. If a setting stops applying, Hyprland's config is reloaded once to get your normal values back.
+- If another app changes a screen, Tuneup puts it back: see [keep-settings.md](keep-settings.md).
 
 | What | Where |
 |---|---|
-| settings, known screens, keys | `~/.config/hypr-screens/config.json` |
-| what is applied right now | `$XDG_RUNTIME_DIR/hypr-screens/applied.json` |
+| settings and known screens | `~/.config/tuneup/config.json` |
+| what is applied right now | `$XDG_RUNTIME_DIR/tuneup/applied.json` |

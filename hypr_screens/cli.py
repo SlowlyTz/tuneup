@@ -1,4 +1,4 @@
-"""Command line entry point of hypr-screens."""
+"""Command line entry point of Tuneup (`tuneup`, also `hypr-screens`, its old name)."""
 import argparse
 import json
 import sys
@@ -21,7 +21,7 @@ def change(mutate) -> int:
     try:
         config.update(work)
     except config.ConfigError as error:
-        print(f"hypr-screens: {error}", file=sys.stderr)
+        print(f"tuneup: {error}", file=sys.stderr)
         return 1
     except (ValueError, RuntimeError) as error:
         print_state(config.load(), f"error: {error}")
@@ -35,7 +35,7 @@ def gui(tray: bool) -> int:
     try:
         from hypr_screens.gui import app
     except (ImportError, ValueError) as error:
-        print(f"hypr-screens: the settings window needs GTK 4, libadwaita, WebKitGTK 6.0 and PyGObject ({error})", file=sys.stderr)
+        print(f"tuneup: the settings window needs GTK 4, libadwaita, WebKitGTK 6.0 and PyGObject ({error})", file=sys.stderr)
         return 1
     return app.run(tray)
 
@@ -95,7 +95,7 @@ def power(args: argparse.Namespace) -> int:
     try:
         config.update(lambda cfg: samsung.set_mode(cfg, args.mode or ""))
     except (ValueError, RuntimeError) as error:
-        print(f"hypr-screens: {error}", file=sys.stderr)
+        print(f"tuneup: {error}", file=sys.stderr)
         return 1
     return 0
 
@@ -111,12 +111,12 @@ def camera_command(args: argparse.Namespace) -> int:
         work = camera.setup if args.action == "setup" else camera.teardown
         return 0 if work(graphical=not sys.stdin.isatty()) else 1
     if args.degrees not in camera.ROTATIONS:
-        print(f"hypr-screens: rotation must be one of {camera.ROTATIONS}", file=sys.stderr)
+        print(f"tuneup: rotation must be one of {camera.ROTATIONS}", file=sys.stderr)
         return 1
     try:
         config.update(lambda cfg: cfg["camera"].__setitem__("rotation", args.degrees))
     except config.ConfigError as error:
-        print(f"hypr-screens: {error}", file=sys.stderr)
+        print(f"tuneup: {error}", file=sys.stderr)
         return 1
     return 0
 
@@ -125,7 +125,7 @@ def samsung_command(args: argparse.Namespace) -> int:
     from hypr_screens import config, samsung
 
     if not samsung.present():
-        print("hypr-screens: not a Samsung Galaxy Book (or the samsung-galaxybook driver is not loaded)",
+        print("tuneup: not a Samsung Galaxy Book (or the samsung-galaxybook driver is not loaded)",
               file=sys.stderr)
         return 1
     if args.action == "status":
@@ -147,7 +147,7 @@ def samsung_command(args: argparse.Namespace) -> int:
     try:
         config.update(work)
     except (ValueError, RuntimeError) as error:
-        print(f"hypr-screens: {error}", file=sys.stderr)
+        print(f"tuneup: {error}", file=sys.stderr)
         return 1
     return 0
 
@@ -159,7 +159,7 @@ def enforce_command(args: argparse.Namespace) -> int:
         cfg = config.read() if args.action == "status" else \
             config.update(lambda fresh: fresh.__setitem__("enforce", args.action == "on"))
     except config.ConfigError as error:
-        print(f"hypr-screens: {error}", file=sys.stderr)
+        print(f"tuneup: {error}", file=sys.stderr)
         return 1
     print(json.dumps(enforce.view(cfg), indent=2))
     return 0
@@ -167,13 +167,25 @@ def enforce_command(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="hypr-screens",
-        description="Per-monitor settings and one fixed screen for Hyprland.",
+        prog="tuneup",
+        description="Tuneup – the settings app Omarchy is missing.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("settings", help="open the settings window")
     sub.add_parser("tray", help="tray icon (started by the generated Lua file)")
-    sub.add_parser("setup", help="run the setup wizard")
+    sub.add_parser("setup", help="wire Tuneup into Hyprland and Omarchy (the installer runs it; keeps your settings)")
+    restart = sub.add_parser("restart", help="start the watcher and the tray anew")
+    restart.add_argument("--open", action="store_true", help="open the window too")
+    update = sub.add_parser("update", help="update Tuneup from GitHub (git pull + install.sh --update)")
+    update.add_argument("--check", action="store_true", help="only say whether there is an update")
+    update.add_argument("--report", action="store_true", help=argparse.SUPPRESS)  # for the settings window
+    uninstall = sub.add_parser("uninstall", help="remove Tuneup (the system packages stay)")
+    uninstall.add_argument("--keep-settings", action="store_true", help="keep ~/.config/tuneup")
+    uninstall.add_argument("--yes", action="store_true", help="do not ask")
+    helper = sub.add_parser("installer", help=argparse.SUPPRESS)  # for install.sh
+    helper.add_argument("action", choices=["packages", "root-script", "choices", "remember", "galaxy-book",
+                                           "set-up", "version"])
+    helper.add_argument("values", nargs="*")
     sub.add_parser("watch", help="background watcher (started by the generated Lua file)")
     sub.add_parser("apply", help="apply all settings now")
     sub.add_parser("state", help="print everything as JSON")
@@ -218,7 +230,7 @@ def build_parser() -> argparse.ArgumentParser:
     cycle = sub.add_parser("cycle", help="focus the next visible window")
     cycle.add_argument("direction", nargs="?", choices=["prev"])
     sub.add_parser("status", help="fixed screen status as JSON")
-    enforce = sub.add_parser("enforce", help="keep what hypr-screens sets: status | on | off")
+    enforce = sub.add_parser("enforce", help="keep what Tuneup sets: status | on | off")
     enforce.add_argument("action", nargs="?", default="status", choices=["status", "on", "off"])
     cam = sub.add_parser("camera", help="the turned virtual camera: status | setup | teardown | rotate 0|90|180|270")
     cam.add_argument("action", choices=["status", "setup", "teardown", "rotate"])
@@ -257,7 +269,7 @@ def desktop_command(args: argparse.Namespace) -> int:
 
 
 def unreadable(error: Exception) -> int:
-    print(f"hypr-screens: {error}", file=sys.stderr)
+    print(f"tuneup: {error}", file=sys.stderr)
     return 1
 
 
@@ -293,7 +305,7 @@ def widgets_command(args: argparse.Namespace) -> int:
     try:
         placements = json.loads(args.placements)
     except json.JSONDecodeError:
-        print("hypr-screens: placements must be JSON", file=sys.stderr)
+        print("tuneup: placements must be JSON", file=sys.stderr)
         return 1
     try:
         cfg = config.update(lambda cfg: widgets.save_placements(cfg, placements if isinstance(placements, dict) else {}))
@@ -441,18 +453,50 @@ HANDLERS = {
 }
 
 
+def setup_command(args: argparse.Namespace) -> int:
+    from hypr_screens import setup
+
+    return setup.main()
+
+
+def restart_command(args: argparse.Namespace) -> int:
+    from hypr_screens import install
+
+    for line in install.restart(open_window=args.open):
+        print(f"  {line}")
+    return 0
+
+
+def update_command(args: argparse.Namespace) -> int:
+    from hypr_screens import updates
+
+    if not args.check:
+        return updates.run(report=args.report)
+    state = updates.check()
+    print(json.dumps(state, indent=2))
+    return 0 if state["reason"] in (None,) else 1
+
+
+def uninstall_command(args: argparse.Namespace) -> int:
+    from hypr_screens import uninstall
+
+    return uninstall.main(keep_settings=args.keep_settings, yes=args.yes)
+
+
+def installer_command(args: argparse.Namespace) -> int:
+    from hypr_screens import installer
+
+    return installer.main(args.action, args.values)
+
+
+HANDLERS.update({"setup": setup_command, "restart": restart_command, "update": update_command,
+                 "uninstall": uninstall_command, "installer": installer_command})
+
+
 def run(args: argparse.Namespace) -> int:
     command = args.command
     if command in DESKTOP_COMMANDS:  # the hot path: desktop keys fire on every keypress
         return desktop_command(args)
-    from hypr_screens import config, setup
-
-    if command == "setup":
-        return setup.run()
-    if not config.exists() and sys.stdin.isatty() and command in ("settings", "apply", "list", "state"):
-        setup.run()
-        if command != "settings":
-            return 0
     if command in ("settings", "tray"):
         return gui(tray=command == "tray")
     return HANDLERS[command](args) if command in HANDLERS else 1

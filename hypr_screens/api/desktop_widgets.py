@@ -165,7 +165,7 @@ def set_layout_auto(name: str, on: bool) -> dict:
 @endpoint
 def arrange_widgets() -> dict:
     """Starts arranging on the desktop (drag, resize, turn, colors); the overlay
-    saves by itself (`hypr-screens widgets save`)."""
+    saves by itself (`tuneup widgets save`)."""
     cfg = settings()
     need(any(widgets_mod.on_desktop(cfg["widgets"][kind], kind) for kind in widgets_mod.KINDS), "nothing_to_arrange",
          "switch a widget on first")

@@ -1,6 +1,7 @@
 /* Numbers, times and error texts in the app's language. */
 import { NB } from "./dom.js";
 import { loc, t } from "./i18n.js";
+import { S } from "./state.js";
 
 export const nf = (n, digits = 0) => new Intl.NumberFormat(loc(), { maximumFractionDigits: digits }).format(n);
 export const pct = (n) => new Intl.NumberFormat(loc(), { style: "percent", maximumFractionDigits: 0 }).format(n / 100);
@@ -32,7 +33,7 @@ export function ago(epoch, now = Date.now()) {
 
 /* What the backend's error codes mean (else its English message). */
 const ERRORS = {
-  config_unreadable: () => t("The settings file cannot be read. Fix or remove ~/.config/hypr-screens/config.json."),
+  config_unreadable: () => t("The settings file cannot be read. Fix or remove {file}.", { file: (S.about && S.about.configFile) || "config.json" }),
   unknown_screen: () => t("This screen is not known any more."),
   unknown_device: () => t("This device is gone."),
   unknown_widget: () => t("This widget is not known."),
@@ -51,5 +52,6 @@ const ERRORS = {
   nothing_to_arrange: () => t("Switch a widget on first."),
   not_ready: () => t("The widgets are not ready yet. Try again in a moment."),
   apply_failed: () => t("Saved, but it could not be applied right now."),
+  busy: () => t("An update is already running."),
 };
 export const errText = (err) => (err && ERRORS[err.code] ? ERRORS[err.code]() : (err && err.message) || t("Something went wrong."));

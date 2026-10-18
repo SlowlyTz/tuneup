@@ -4,7 +4,7 @@ system, drawn by the Omarchy shell plugin in omarchy-widgets/
 sit in the bar, right of the desktops.
 
 The settings live in config["widgets"]. export() writes what the plugin reads:
-~/.config/hypr-screens/widgets.json (it watches that file) and the cava config
+~/.config/tuneup/widgets.json (it watches that file) and the cava config
 for the visualizer. Placement is a point on the screen as a fraction of its
 size plus a rotation, the same on every chosen monitor; the size is set by
 pulling the edges and corners while arranging ("width" 0: from the size).

@@ -22,7 +22,7 @@ Item {
   property var cache: ({})
   readonly property bool wanted: service.enabled("lyrics")
   readonly property bool wordsWanted: wanted && service.widget("lyrics") && service.widget("lyrics").highlight === "word"
-  readonly property var userAgent: ({ "User-Agent": "hypr-screens (https://github.com/SlowlyTz/hypr-minimizer)" })
+  readonly property var userAgent: ({ "User-Agent": "Tuneup (https://github.com/SlowlyTz/tuneup)" })
 
   Timer {
     interval: 250

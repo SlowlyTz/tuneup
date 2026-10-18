@@ -14,7 +14,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from hypr_screens import apply, hypr
+from hypr_screens import apply, brand, hypr
 from hypr_screens.i18n import t
 
 SYSFS = Path("/sys")
@@ -69,7 +69,7 @@ def tell_user(name: str) -> None:
              "Unplug it and plug it in again; if it stays dark, switch to another console and back "
              "(Ctrl+Alt+F2, then Ctrl+Alt+F1) or log out and in.", screen=name)
     try:
-        subprocess.run([notify, "-a", "hypr-screens", t("Screen without a picture"), body],
+        subprocess.run([notify, "-a", brand.NAME, t("Screen without a picture"), body],
                        check=False, capture_output=True, timeout=5)
     except (OSError, subprocess.TimeoutExpired):
         pass

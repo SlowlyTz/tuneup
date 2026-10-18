@@ -1,20 +1,39 @@
-# hypr-minimizer + hypr-screens
+# Tuneup
 
-Two small tools for [Hyprland](https://hyprland.org/), made for [Omarchy](https://omarchy.org/), in one repo:
+**The settings app Omarchy is missing.**
 
-- **hypr-minimizer** — minimize windows per desktop and get them back (last in, first out), undo, a window menu with icons, and **peek**: a minimized window slides in over your desktop without touching the layout.
-- **hypr-screens** — remembers every monitor you plug in and gives each one its own **rotation, scale, resolution and position**, optionally only while another monitor is connected. Plus **one desktop**: with an external monitor, one screen keeps a single fixed desktop and desktops 1–10 live on the other. And **sound**: volume per device and per app, and force mute that keeps a device silent. On a **Samsung Galaxy Book**: charge limit, the four performance modes and the firmware switches, like Samsung Settings on Windows.
+![Tuneup: the Home page](docs/images/home.png)
 
-Only window keys go on the keyboard. All settings are in a window (English, German, Spanish, French or Italian; mouse or keyboard) that opens from a **tray icon**.
+| Feature | What you get |
+|---|---|
+| **Screens & desktops** | Every monitor is remembered with its own rotation, scaling, resolution and place. Drag screens into position. A setting can apply only while a certain monitor is connected. Optionally, one screen keeps one fixed desktop. |
+| **Window look** | Gaps, corners, borders, blur, transparency and animation speed, with a live preview and presets. Some apps can get their own transparency. |
+| **Desktop widgets** | Clock, lyrics, a music visualizer, now playing, weather, calendar, system, battery, network and disks. You arrange and color them right on the desktop and save layouts per desk. |
+| **Sound** | Volume for every device and every app, the default device, and which output each app uses. Force Mute keeps a device silent for good. |
+| **Camera** | Turns the camera picture for every app (Discord, Zoom, the browser), like a monitor. |
+| **Minimize windows** | `SUPER + M` hides a window and `SUPER + I` brings it back. A window menu lets you **peek** at a hidden window without touching your layout. |
+| **Keeps your settings in force** | When another app or a reload changes something you set, Tuneup puts it back. |
+| **Galaxy Book support** | Samsung Settings on Linux: charge limit, the four performance modes, keyboard light and the firmware switches. Every other laptop works fully too. |
+
+One window, opened from the tray. English, German, Spanish, French or Italian, with a search, and it works by mouse or keyboard.
+
+> Unofficial – not part of Omarchy.
 
 ## Install
 
 ```bash
-git clone https://github.com/SlowlyTz/hypr-minimizer.git ~/hypr-minimizer
-~/hypr-minimizer/install.sh
+curl -fsSL https://raw.githubusercontent.com/SlowlyTz/tuneup/master/install.sh | bash
 ```
 
-The setup wizard asks for your shortcuts and writes everything else. Details: [docs/install.md](docs/install.md).
+or
+
+```bash
+git clone https://github.com/SlowlyTz/tuneup.git && ./tuneup/install.sh
+```
+
+The installer checks your system and installs what is missing from the official Arch repositories only (nothing from the AUR). It asks for your password once and offers the optional parts (camera, visualizer, Galaxy Book). Then it opens Tuneup, which from then on lives in the tray. Details: [docs/install.md](docs/install.md).
+
+**Update or uninstall:** in the app under **General → About**, or with `tuneup update` / `tuneup uninstall`.
 
 ## Use
 
@@ -23,39 +42,42 @@ The setup wizard asks for your shortcuts and writes everything else. Details: [d
 | `SUPER + M` | minimize window |
 | `SUPER + I` | bring it back |
 | `SUPER + .` | window menu (`-` = peek) |
-| tray icon | settings: screens, fixed screen, shortcuts, sound, camera, Samsung, windows, widgets – with a search |
+| tray icon | Tuneup settings |
 
-Everything else: **[docs/](docs/README.md)** — [settings window](docs/settings-window.md) · [daily cheat sheet](docs/daily.md) · [minimizer](docs/minimizer.md) · [screens](docs/screens.md) · [one desktop](docs/one-desktop.md) · [keys](docs/keys.md) · [sound](docs/sound.md) · [samsung](docs/samsung.md) · [personalization](docs/personalization.md) · [camera](docs/camera.md) · [troubleshooting](docs/troubleshooting.md)
+All keys can be changed in the app under **Keyboard**.
+
+## Screenshots
+
+| Screens | Widgets |
+|---|---|
+| ![Screens](docs/images/screens.png) | ![Widgets](docs/images/widgets.png) |
+| **Windows** | **Sound** |
+| ![Windows](docs/images/windows.png) | ![Sound](docs/images/sound.png) |
+| **Battery & power** (Galaxy Book) | **Light mode** |
+| ![Battery & power](docs/images/power.png) | ![Light mode](docs/images/screens-light.png) |
+
+## Docs
+
+| Doc | What is in it |
+|---|---|
+| [install.md](docs/install.md) | install, update, uninstall, what goes where |
+| [settings-window.md](docs/settings-window.md) | the app: pages, search, keys |
+| [daily.md](docs/daily.md) | cheat sheet: the keys and commands you use every day |
+| [screens.md](docs/screens.md) | rotation, scaling, resolution and place of each monitor, and settings tied to a monitor |
+| [one-desktop.md](docs/one-desktop.md) | one fixed desktop on one screen, desktops 1–10 on the other |
+| [personalization.md](docs/personalization.md) | window look and desktop widgets |
+| [sound.md](docs/sound.md) | volume per device and app, Force Mute |
+| [camera.md](docs/camera.md) | the turned camera for every app |
+| [minimizer.md](docs/minimizer.md) | minimize, bring back and peek at windows |
+| [keys.md](docs/keys.md) | change a shortcut |
+| [keep-settings.md](docs/keep-settings.md) | how Tuneup keeps your settings in force |
+| [samsung.md](docs/samsung.md) | Galaxy Book support: charge limit, performance modes, firmware switches |
+| [troubleshooting.md](docs/troubleshooting.md) | when something does not work |
 
 ## Requirements
 
-- Hyprland ≥ 0.56 with a Lua config (the minimizer alone also works with older, string-dispatcher versions)
-- Python ≥ 3.10; for the settings window GTK 4, libadwaita, WebKitGTK 6.0, PyGObject and the Inter font (`sudo pacman -S webkitgtk-6.0 inter-font`; Omarchy has the rest)
-- Omarchy for the window menu and the bar widget; without it the window menu falls back to walker, wofi or rofi
-
-## Repo layout
-
-| Path | What |
-|---|---|
-| `minimizer.py` | hypr-minimizer |
-| `hypr-screens`, `hypr_screens/` | hypr-screens (`hypr_screens/gui/`: tray + settings window) |
-| `omarchy-plugin/` | window menu (Omarchy shell plugin) |
-| `omarchy-workspaces/` | bar widget that knows the fixed screen |
-| `omarchy-power/` | battery panel with Samsung's four performance modes |
-| `omarchy-widgets/` | desktop widgets and the bar visualizer |
-| `install.sh` | installer + setup wizard |
-| `docs/` | documentation |
-| `tests/` | tests |
-
-## Development
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -e ".[dev]"
-.venv/bin/python -m pytest
-```
-
-The tests fake `hyprctl`; nothing touches a running Hyprland. After editing QML, run `omarchy-restart-shell`.
+- [Omarchy](https://omarchy.org/) on Arch Linux with Hyprland ≥ 0.56 (Lua config)
+- Python ≥ 3.10; the installer adds the rest from the Arch repositories (PyGObject, libadwaita, WebKitGTK 6.0, the Inter font, ffmpeg, brightnessctl, git)
 
 ## License
 

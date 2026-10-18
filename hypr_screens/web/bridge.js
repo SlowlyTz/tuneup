@@ -1,4 +1,4 @@
-/* hypr-screens – the bridge to Python, and the Omarchy theme.
+/* Tuneup – the bridge to Python, and the Omarchy theme.
  *
  * A plain script that runs before the app (app.js, a module). Inside the
  * app's WebKit window `window.webkit.messageHandlers.api` exists: every

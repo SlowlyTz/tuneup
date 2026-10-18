@@ -1,4 +1,4 @@
-"""Glue: sync everything, and the state `hypr-screens state` prints."""
+"""Glue: sync everything, and the state `tuneup state` prints."""
 from hypr_screens import apply, config, desktops, hypr
 
 

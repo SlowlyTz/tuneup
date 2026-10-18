@@ -1,4 +1,4 @@
-/* hypr-screens – components
+/* Tuneup – components
  *
  * Cards, rows, buttons and every control; popover, dialog, toast, apply bar.
  */
@@ -519,3 +519,34 @@ body.has-bar .toast { bottom: 96px; }
 .backoffs { display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s2); }
 .popover > .opt { flex: none; }
 body.has-bar .page { padding-bottom: 152px; }
+
+/* ---------- welcome (once, after installing or updating) ---------- */
+.dialog.welcome-dlg { width: min(440px, calc(100vw - 48px)); }
+.dialog.welcome-dlg[open] { animation: welcome-in 420ms var(--ease-out); }
+.dialog.welcome-dlg::backdrop { background: rgb(0 0 0 / .55); backdrop-filter: blur(3px); }
+@keyframes welcome-in { from { opacity: 0; transform: translateY(14px) scale(.97); } }
+.welcome { display: flex; flex-direction: column; align-items: center; text-align: center; padding: var(--s6) var(--s6) var(--s5); }
+.welcome-logo { width: 88px; height: 88px; margin-bottom: var(--s4); filter: drop-shadow(0 8px 18px rgb(53 103 224 / .35)); animation: logo-in 560ms var(--ease-out) 80ms both; }
+@keyframes logo-in { from { opacity: 0; transform: scale(.7) rotate(-8deg); } }
+.welcome h2 { font-size: 24px; line-height: 32px; font-weight: 650; letter-spacing: -.02em; }
+.welcome .tagline { margin-top: 2px; color: var(--accent); font-weight: 500; }
+.welcome p { color: var(--text-2); margin-top: var(--s3); max-width: 34ch; }
+.welcome .versions { display: flex; align-items: center; gap: var(--s3); margin-top: var(--s3); font-size: 20px; color: var(--text); }
+.welcome .versions .arrow { color: var(--text-2); }
+.welcome .versions .to { color: var(--accent); font-weight: 600; }
+.welcome-foot { display: flex; gap: var(--s2); justify-content: center; margin-top: var(--s5); }
+.welcome-foot .btn { min-width: 132px; justify-content: center; text-decoration: none; }
+
+/* ---------- maintenance (General → Info) ---------- */
+.row-logo { width: 28px; height: 28px; flex: none; }
+.row-below { margin: 2px 0 var(--s1); }
+.row-below .notice { margin: 0; }
+.notice-b { flex: 1; min-width: 0; }
+.notice-b p { margin: 0; color: var(--text); }
+.log { margin-top: var(--s2); }
+.log summary { cursor: pointer; color: var(--text-2); font-size: 12.5px; }
+.log pre { max-height: 180px; overflow: auto; margin: var(--s2) 0 0; padding: var(--s2) var(--s3); border-radius: var(--r-sm); background: var(--card-inset); font: 11.5px/1.5 var(--mono); white-space: pre-wrap; }
+.check { display: flex; align-items: center; gap: var(--s2); margin-top: var(--s4); cursor: pointer; }
+.check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.removing { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--s2); padding: var(--s6) var(--s5); }
+.removing .spin { width: 24px; height: 24px; }

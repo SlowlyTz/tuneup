@@ -46,3 +46,10 @@ def test_every_stylesheet_is_loaded():
     html = (WEB / "index.html").read_text(encoding="utf-8")
     sheets = {path.relative_to(WEB).as_posix() for path in WEB.rglob("*.css")}
     assert sheets == set(re.findall(r'href="([^"]+\.css)"', html))
+
+
+def test_the_page_shows_the_app_icon():
+    """web/img/tuneup.svg is a copy of assets/tuneup.svg (the installer's icon):
+    the page may only load files below web/."""
+    assets = WEB.parent.parent / "assets" / "tuneup.svg"
+    assert (WEB / "img" / "tuneup.svg").read_bytes() == assets.read_bytes()

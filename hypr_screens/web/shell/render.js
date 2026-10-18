@@ -63,7 +63,7 @@ export function render(enter = false) {
   page.innerHTML = ready ? PAGE_HTML[r.page](r) : pageMissing(p);
   renderNav(r);
   renderApplyBar(r.page === "look");
-  document.title = `${p.label()} – ${t("Settings")}`;
+  document.title = `${p.label()} – Tuneup`;
   if (enter) {
     page.classList.remove("enter"); void page.offsetWidth; page.classList.add("enter");
     main.scrollTop = 0;
@@ -81,7 +81,7 @@ setRenderer(render);
 export function staticTexts() {
   document.documentElement.lang = loc();
   $(".nav").setAttribute("aria-label", t("Sections"));
-  $(".nav-head-text small").textContent = t("Settings");
+  $(".nav-head-text small").textContent = t("The settings app Omarchy is missing");
   $(".search-hint").textContent = t("Ctrl F");
   $("#applybar").setAttribute("aria-label", t("Changes not applied yet"));
   searchTexts();

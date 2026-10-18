@@ -7,3 +7,15 @@ export const BOOT = window.hyprBoot || null;
 
 /* In the app's window (not the browser preview). */
 export const inApp = () => !!BOOT;
+
+/* An API method that an older backend may not have: resolves `undefined`
+ * when it is missing (the UI then leaves its part out); other errors throw. */
+export async function optional(method, ...args) {
+  if (typeof api[method] !== "function") return undefined;
+  try {
+    return await api[method](...args);
+  } catch (err) {
+    if (err && err.code === "unknown_method") return undefined;
+    throw err;
+  }
+}

@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "id": "hypr-screens.widgets",
-  "name": "hypr-screens widgets",
+  "name": "Tuneup widgets",
   "version": "1.0.0",
   "author": "SlowlyTz",
-  "description": "Desktop widgets behind the windows (visualizer, lyrics, clock, system) and a bar visualizer; set up in the hypr-screens settings window",
+  "description": "Desktop widgets behind the windows (clock, calendar, weather, system, music and more) and a bar visualizer; set up in Tuneup",
   "kinds": [
     "service",
     "bar-widget"
@@ -15,7 +15,7 @@
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "Visualizer (hypr-screens)",
+    "displayName": "Visualizer (Tuneup)",
     "description": "Music visualizer next to the desktops",
     "category": "Media",
     "allowMultiple": false,

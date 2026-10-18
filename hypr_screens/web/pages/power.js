@@ -44,7 +44,7 @@ function setupPage() {
   return `${ph(esc(t("Battery & power")), INTRO)}
       <div class="stack">${row({
         sid: "power.setup", lead: `<span class="icon-tile">${ic("battery")}</span>`, title: esc(t("The Samsung control is off")),
-        desc: esc(t("Set it up once: needs your password. Then hypr-screens takes over the charge limit and the modes.")),
+        desc: esc(t("Set it up once: needs your password. Then Tuneup takes over the charge limit and the modes.")),
         end: button("samon", UI.samBusy ? `${spinner()}${esc(t("Setting up …"))}` : esc(t("Set it up")), setup, { cls: "btn primary", attrs: UI.samBusy ? "disabled" : "" }),
       })}</div>`;
 }

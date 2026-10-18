@@ -6,6 +6,7 @@ import { pageOf, shownPages } from "../core/router.js";
 import { S, UI } from "../core/state.js";
 import { render } from "../core/view.js";
 import { ic } from "../ui/icons.js";
+import { canMaintain } from "../pages/about.js";
 import { W_ICON, wid } from "../pages/widgets/model.js";
 
 const MAX_HITS = 8;
@@ -59,7 +60,11 @@ function fixedEntries() {
     ...(S.enforcement ? [{ id: "general.enforce", r: "general", t: t("Keep my settings"), syn: t("enforce protect put back other apps") }] : []),
     { id: "general.guide", r: "general", t: t("Open the guide"), syn: t("help docs manual") },
     { id: "general.folder", r: "general", t: t("Open the settings folder"), syn: t("config folder file") },
-    { id: "general.version", r: "general", t: t("Version"), syn: t("info about") },
+    { id: "general.version", r: "general", t: t("Version"), syn: t("info about tuneup") },
+    ...(canMaintain() ? [
+      { id: "general.update", r: "general", t: t("Check for updates"), syn: t("update upgrade new version") },
+      { id: "general.uninstall", r: "general", t: t("Uninstall Tuneup"), syn: t("remove delete uninstall") },
+    ] : []),
   ];
 }
 

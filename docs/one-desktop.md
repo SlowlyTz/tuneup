@@ -2,28 +2,30 @@
 
 With an external monitor connected:
 
-- **one screen is fixed**: it always shows the same workspace (`99`), shown as `1` in the bar
-- **the other screen has the desktops 1–10**; `SUPER + 1…0` only change that one
+- **One screen is fixed:** it always shows the same desktop (workspace `99`, shown as `1` in the bar). This is good for chat, music or a dashboard.
+- **The other screen has desktops 1–10.** `SUPER + 1…0` only switch that one.
 
-Only for **one** external monitor. Without one, everything is normal Hyprland.
+This is for **one** external monitor. Without one, everything is normal Hyprland.
 
 ## Which screen is fixed?
 
-In this order:
+Tuneup decides in this order:
 
-1. **Swap** (tray right-click, *Ein Desktop → Jetzt tauschen* in the window, or `hypr-screens swap`), until you unplug
-2. the **One desktop** setting of a screen (laptop wins if both say yes)
-3. the default for new screens (window → *Ein Desktop → Bei neuen Monitoren*): off · external screen · laptop
+1. **Swap:** until you unplug the monitor. Swap from the tray menu (*Swap the fixed screen*), the **Swap** button on Home and on Screens, or `tuneup swap`.
+2. The setting **Always shows the same desktop** of a screen (Screens page). If both screens say yes, the laptop wins.
+3. **For new monitors** (Screens page, below the picture): Off · External monitor · Laptop.
 
-Example: laptop fixed only at the desk dock, any other monitor fixed itself:
+The canvas on the Screens page marks the fixed screen with a pin.
+
+Example: the laptop is fixed only at the desk; any other monitor is fixed itself:
 
 ```bash
-hypr-screens set Laptop one_desktop yes
-hypr-screens when Laptop one_desktop "HP 32f"
-hypr-screens option default_fixed external
+tuneup set Laptop one_desktop yes
+tuneup when Laptop one_desktop "HP 32f"
+tuneup option default_fixed external
 ```
 
-## What happens when…
+## What happens when you…
 
 | …you | then |
 |---|---|
@@ -32,11 +34,11 @@ hypr-screens option default_fixed external
 | swap | the screens trade places; windows and layouts stay as they are |
 | unplug | windows of the fixed screen go to the desktop the laptop shows |
 
-## Needed for it
+## What it needs
 
-- "Desktop keys" on (window → *Ein Desktop → Desktop-Tasten*, or `hypr-screens option desktop_keys on`)
-- Omarchy bar: the `hypr-screens.workspaces` widget (the wizard sets it)
+- **Desktop keys** on: Keyboard page, or `tuneup option desktop_keys on`. They make `SUPER + 1…0` and `SUPER + TAB` go through Tuneup.
+- Omarchy bar: Tuneup's desktops widget, which knows the fixed screen. The installer sets it up.
 
 ```bash
-hypr-screens status        # who is fixed right now
+tuneup status        # who is fixed right now
 ```

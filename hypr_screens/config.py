@@ -1,6 +1,7 @@
 """The settings file: known screens, their settings and the keybinds.
 
-Lives at $XDG_CONFIG_HOME/hypr-screens/config.json. Every setting of a screen
+Lives at $XDG_CONFIG_HOME/tuneup/config.json (hypr-screens/ before; migrate.py
+moves it). Every setting of a screen
 is {"value": ..., "when": <screen id> | null}; with "when" set it only applies
 while that other screen is connected. A setting that is not stored leaves the
 screen as Hyprland's own config has it.
@@ -14,6 +15,8 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from hypr_screens import brand
+
 VERSION = 1
 INTERNAL_PREFIXES = ("eDP", "LVDS", "DSI")
 
@@ -23,6 +26,7 @@ POSITIONS = ["left", "right", "above", "below"]
 FIXED_DEFAULTS = ["off", "external", "panel"]
 SETTING_KEYS = ["rotation", "scale", "mode", "position", "one_desktop"]
 LANGUAGE_CODES = ["en", "de", "es", "fr", "it"]
+INSTALL_CHOICES = ["camera", "cava", "galaxy_book"]
 
 # (key, label, command) -- two keys each, see DEFAULT_KEYBINDS.
 ACTIONS = [
@@ -43,14 +47,31 @@ DEFAULT_KEYBINDS = {
 }
 
 
+def config_home() -> Path:
+    return Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
+
+
+def runtime_home() -> Path:
+    return Path(os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir())
+
+
+def named(base: Path) -> Path:
+    """base/tuneup -- or base/hypr-screens while only that is there: until
+    migrate.py has moved it, everything keeps using the old folder."""
+    new, old = base / brand.DIR, base / brand.OLD_DIR
+    return old if not new.exists() and old.is_dir() else new
+
+
+def config_dir() -> Path:
+    return named(config_home())
+
+
 def config_file() -> Path:
-    base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(base) / "hypr-screens" / "config.json"
+    return config_dir() / "config.json"
 
 
 def runtime_dir() -> Path:
-    base = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
-    path = Path(base) / "hypr-screens"
+    path = named(runtime_home())
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -74,6 +95,10 @@ def default_config() -> dict:
         "camera": {"rotation": 0, "enabled": True},
         "widgets": {},
         "widget_layouts": [],
+        # The version whose welcome was seen (None: not yet, a fresh install).
+        "seen_version": None,
+        # What the installer was asked to set up (None: not asked); --update keeps it.
+        "install": {key: None for key in INSTALL_CHOICES},
     }
 
 
@@ -155,6 +180,10 @@ def normalize(raw: object) -> dict:
     normalize_camera(raw, cfg["camera"])
     cfg["widgets"] = widgets.normalize(raw.get("widgets"))
     cfg["widget_layouts"] = widgets.normalize_layouts(raw.get("widget_layouts"))
+    if isinstance(raw.get("seen_version"), str) and raw["seen_version"]:
+        cfg["seen_version"] = raw["seen_version"][:40]
+    cfg["install"].update({key: value for key, value in section(raw, "install").items()
+                           if key in INSTALL_CHOICES and isinstance(value, bool)})
     return cfg
 
 

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Tuneup</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8fb8ff"/>
+      <stop offset="1" stop-color="#3567e0"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".22"/>
+      <stop offset=".5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- A rounded tile with three sliders: the knobs at different places, like a mixer being tuned. -->
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#tile)"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#shine)"/>
+  <rect x="8.5" y="8.5" width="239" height="239" rx="55.5" fill="none" stroke="#10245c" stroke-opacity=".35"/>
+  <g stroke="#ffffff" stroke-linecap="round" stroke-width="16">
+    <path d="M60 78H196" stroke-opacity=".38"/>
+    <path d="M60 128H196" stroke-opacity=".38"/>
+    <path d="M60 178H196" stroke-opacity=".38"/>
+    <path d="M60 78H150"/>
+    <path d="M60 128H96"/>
+    <path d="M60 178H170"/>
+  </g>
+  <g fill="#ffffff" stroke="#1d3f9e" stroke-opacity=".35" stroke-width="3">
+    <circle cx="150" cy="78" r="22"/>
+    <circle cx="96" cy="128" r="22"/>
+    <circle cx="170" cy="178" r="22"/>
+  </g>
+</svg>

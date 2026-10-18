@@ -6,6 +6,8 @@ import os
 
 from gi.repository import Gio, GLib
 
+from hypr_screens import brand
+
 ITEM_PATH = "/StatusNotifierItem"
 MENU_PATH = "/MenuBar"
 
@@ -142,7 +144,7 @@ class Tray:
     def _item_property(self, _connection, _sender, _path, _interface, name):
         values = {
             "Category": GLib.Variant("s", "ApplicationStatus"),
-            "Id": GLib.Variant("s", "hypr-screens"),
+            "Id": GLib.Variant("s", brand.COMMAND),
             "Title": GLib.Variant("s", self.title),
             "Status": GLib.Variant("s", "Active"),
             "IconName": GLib.Variant("s", self.icon),

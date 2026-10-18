@@ -1,7 +1,7 @@
 /* Camera: the rotated virtual camera for every app, its preview and rotation.
  *
  * The preview: in the app the frames come straight from the camera feeder
- * (hypr-screens://camera/preview.jpg, about 10 a second; asking for them
+ * (tuneup://camera/preview.jpg, about 10 a second; asking for them
  * keeps the camera running); in a browser from api.cameraPreview(). Each frame
  * is loaded in the background and only then shown, and a new render starts
  * from the last frame, so nothing blinks. */
@@ -45,7 +45,7 @@ function noPicture(p) {
 
 async function frame() {
   if (inApp()) {
-    const src = await loadFrame(`hypr-screens://camera/preview.jpg?n=${++cam.n}`);
+    const src = await loadFrame(`tuneup://camera/preview.jpg?n=${++cam.n}`);
     if (src) return { src };
   }
   let p = null;

@@ -536,17 +536,17 @@ def test_rendered_lua_unbinds_before_binding():
         'hl.bind("SUPER + SHIFT + F23", hl.dsp.exec_cmd("hypr-minimizer menu"), '
         '{ description = "Minimizer menu" })' in lua
     )
-    assert 'hl.bind("SUPER + code:12", hl.dsp.exec_cmd("hypr-screens switch 3")' in lua
+    assert 'hl.bind("SUPER + code:12", hl.dsp.exec_cmd("tuneup switch 3")' in lua
     assert 'hl.unbind("SUPER + 3")' in lua
     assert 'hl.define_submap("hypr-screens-record"' in lua
-    assert 'hl.exec_cmd("hypr-screens watch")' in lua
-    assert 'hl.exec_cmd("hypr-screens tray")' in lua
+    assert 'hl.exec_cmd("tuneup watch")' in lua
+    assert 'hl.exec_cmd("tuneup tray")' in lua
     assert 'hl.on("window.urgent"' in lua
     assert "focus_on_activate = false" in lua
-    assert 'hl.window_rule({ match = { class = "^(io\\\\.github\\\\.slowlytz\\\\.HyprScreens)$" }, float = true' in lua
+    assert 'hl.window_rule({ match = { class = "^(io\\\\.github\\\\.slowlytz\\\\.Tuneup)$" }, float = true' in lua
     assert 'layer.namespace ~= "omarchy-menu"' in lua
     assert "monitor.focused" in lua and "workspace_swipe_create_new" in lua
-    assert "hypr-screens watch" not in keybinds.render(cfg, runtime=True)
+    assert "tuneup watch" not in keybinds.render(cfg, runtime=True)
     assert "window.urgent" not in keybinds.render(cfg, runtime=True)
     assert "screens menu" not in lua.lower()
 
@@ -558,7 +558,7 @@ def test_add_require_appends_once_and_keeps_a_backup(tmp_path):
     keybinds.add_require()
     keybinds.add_require()
     assert hyprland.read_text().count(keybinds.REQUIRE_LINE) == 1
-    assert hyprland.with_suffix(".lua.bak-hypr-screens").read_text() == 'require("hypr.bindings")\n'
+    assert hyprland.with_name("hyprland.lua.bak-tuneup").read_text() == 'require("hypr.bindings")\n'
     assert keybinds.is_required()
 
 

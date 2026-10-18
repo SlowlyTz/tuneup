@@ -1,4 +1,4 @@
-/* hypr-screens – settings UI (entry point).
+/* Tuneup – the settings UI (entry point).
  *
  * Talks only to `window.api`: the Python bridge (bridge.js → hypr_screens/api)
  * in the app's window, mock.js in a plain browser. Shapes: API.md.
@@ -21,6 +21,8 @@ import { bindEvents } from "./shell/events.js";
 import { startLive } from "./shell/live.js";
 import { staticTexts } from "./shell/render.js";
 import { bindSearch } from "./shell/search.js";
+import { showWelcome } from "./shell/welcome.js";
+import { learnUpdates } from "./pages/about.js";
 
 bindEvents({ onResize: layoutArrange });
 bindSearch();
@@ -38,8 +40,9 @@ addEventListener("pagehide", () => {
   if (!bootTexts()) await loadTranslations();
   staticTexts();
   startLive();
-  await reload(...PARTS);
+  await Promise.all([reload(...PARTS), learnUpdates()]);
   UI.sel = laptopId();
   if (!location.hash) history.replaceState(null, "", "#/home");
   render(true);
+  showWelcome();
 })();

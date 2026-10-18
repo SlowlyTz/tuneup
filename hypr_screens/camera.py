@@ -1,7 +1,7 @@
 """A turned camera for every app: the virtual camera "Rotated Camera".
 
 `setup()` installs v4l2loopback once (root) and makes it create the virtual
-camera on every boot. `guard()` runs inside `hypr-screens watch` and keeps it
+camera on every boot. `guard()` runs inside `tuneup watch` and keeps it
 fed:
 
 - While no app has the virtual camera open, it gets a black frame five times a
@@ -44,8 +44,11 @@ FRAME_BYTES = WIDTH * HEIGHT * 2  # yuyv422
 IDLE_SECONDS = 0.2
 RELEASE_SECONDS = 2.0
 ROTATIONS = [0, 90, 180, 270]
-MODPROBE = Path("/etc/modprobe.d/hypr-screens-camera.conf")
-MODULES_LOAD = Path("/etc/modules-load.d/hypr-screens-camera.conf")
+MODPROBE = Path("/etc/modprobe.d/tuneup-camera.conf")
+MODULES_LOAD = Path("/etc/modules-load.d/tuneup-camera.conf")
+# What hypr-screens (Tuneup's old name) installed: still counts, and goes on teardown.
+OLD_MODPROBE = Path("/etc/modprobe.d/hypr-screens-camera.conf")
+OLD_MODULES_LOAD = Path("/etc/modules-load.d/hypr-screens-camera.conf")
 
 
 # --- devices -------------------------------------------------------------------------
@@ -332,7 +335,7 @@ def guard() -> None:
         try:
             Feeder(virtual, real).run()
         except Exception as error:  # never take the watcher down
-            print(f"hypr-screens camera: {error}", file=sys.stderr, flush=True)
+            print(f"tuneup camera: {error}", file=sys.stderr, flush=True)
             time.sleep(5)
 
 
@@ -340,11 +343,17 @@ def guard() -> None:
 
 
 def setup_script() -> str:
+    """v4l2loopback is built by DKMS, which needs the running kernel's headers
+    (linux-headers for linux, linux-omarchy-headers for linux-omarchy, ...)."""
     return "\n".join([
         "set -e",
-        "pacman -S --needed --noconfirm v4l2loopback-dkms",
+        'kernel=$(pacman -Qqo "/usr/lib/modules/$(uname -r)/vmlinuz" 2>/dev/null || true)',
+        'headers=""',
+        'if [ -n "$kernel" ] && pacman -Si "$kernel-headers" >/dev/null 2>&1; then headers="$kernel-headers"; fi',
+        "pacman -S --needed --noconfirm v4l2loopback-dkms $headers",
+        f"rm -f {OLD_MODPROBE} {OLD_MODULES_LOAD}",
         f"cat > {MODPROBE} <<'EOF'",
-        "# hypr-screens: the virtual camera apps can pick; hypr-screens watch feeds it.",
+        "# Tuneup: the virtual camera apps can pick; tuneup watch feeds it.",
         f'options v4l2loopback devices=1 video_nr={VIDEO_NR} card_label="{CARD_LABEL}" exclusive_caps=1',
         "EOF",
         f"echo v4l2loopback > {MODULES_LOAD}",
@@ -356,14 +365,19 @@ def setup_script() -> str:
 
 def teardown_script() -> str:
     return "\n".join([
-        f"rm -f {MODPROBE} {MODULES_LOAD}",
+        f"rm -f {MODPROBE} {MODULES_LOAD} {OLD_MODPROBE} {OLD_MODULES_LOAD}",
         "modprobe -r v4l2loopback 2>/dev/null || true",
         "",
     ])
 
 
+def root_files() -> list[Path]:
+    """The setup's files that are there (Tuneup's or hypr-screens' names)."""
+    return [path for path in (MODPROBE, MODULES_LOAD, OLD_MODPROBE, OLD_MODULES_LOAD) if path.exists()]
+
+
 def is_set_up() -> bool:
-    return MODPROBE.exists() and virtual_device() is not None
+    return (MODPROBE.exists() or OLD_MODPROBE.exists()) and virtual_device() is not None
 
 
 def setup(graphical: bool = False) -> bool:

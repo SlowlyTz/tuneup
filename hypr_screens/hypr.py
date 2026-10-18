@@ -1,4 +1,4 @@
-"""Thin hyprctl wrappers. hypr-screens needs Hyprland >= 0.56 (Lua dispatchers)."""
+"""Thin hyprctl wrappers. Tuneup needs Hyprland >= 0.56 (Lua dispatchers)."""
 import json
 import subprocess
 
