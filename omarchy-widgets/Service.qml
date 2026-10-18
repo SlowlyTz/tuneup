@@ -1,17 +1,23 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Services.Mpris
 import Quickshell.Services.UPower
 import qs.Commons
-import qs.Ui
 import "ColorTools.js" as ColorTools
 
-// Desktop widgets of hypr-screens: visualizer, lyrics, clock and system,
-// drawn behind the windows on every chosen screen; the bar visualizer
-// (BarWidget.qml) reads its levels from here.
+// Desktop widgets of hypr-screens, drawn behind (or above) the windows on
+// every chosen screen; the bar visualizer (BarWidget.qml) reads its levels
+// from here too.
+//
+// This file holds the widgets' settings and look, where they are, and
+// arranging them. The rest lives next to it:
+//   *Source.qml     the data the widgets show (cava, lyrics, clock, system
+//                   stats, now playing, weather; Requests.qml for the web)
+//   WidgetLayer     one screen's layer (Variants below: five per screen)
+//   Placed, *View   one widget on a layer, and what it draws
+//   StylePanel      styling a widget while arranging
 //
 // Settings come from ~/.config/hypr-screens/widgets.json, written by the
 // settings window (hypr_screens/widgets.py). While arranging, every screen
@@ -86,7 +92,7 @@ Item {
                                            card_opacity: [5, 100], card_radius: [0, 60], card_padding: [0, 80],
                                            current_size: [100, 170], scroll_ms: [150, 1500] }
     if (!root.editing) root.draft = root.placementsFromSettings()
-    if (root.widget("visualizer") && root.cavaKey !== key && key !== "") root.restartCava()
+    if (root.widget("visualizer") && root.cavaKey !== key && key !== "") cava.restart()
   }
 
   FileView {
@@ -291,117 +297,79 @@ Item {
 
   Component.onCompleted: Hyprland.refreshMonitors()
 
-  // --- visualizer: cava ------------------------------------------------------------
-
-  // 0..1 per bar; all zero while it is quiet.
-  property var levels: []
-  property double lastFrame: 0
-  property bool quiet: true
-  // The visualizers on screen right now: the desktop views (not while
-  // arranging, behind a fullscreen window or hidden by their rules) and the
-  // bar's. cava only runs while there is one.
-  property var levelUsers: []
-  readonly property bool cavaWanted: root.enabled("visualizer") && root.cavaConfig !== "" && root.levelUsers.length > 0
-  function useLevels(user, on) {
-    var rest = root.levelUsers.filter(function(u) { return u !== user })
-    if (on) rest.push(user)
-    if (rest.length !== root.levelUsers.length) root.levelUsers = rest
+  // --- screens coming and going ------------------------------------------------------
+  // A screen plugged in while the shell runs gets its layers at once
+  // (Variants over Quickshell.screens), but Hyprland's data about it (make,
+  // model and serial: the screen id that picks widgets and their places) only
+  // after asking again. A screen that went away takes the style panel's
+  // selection with it.
+  Connections {
+    target: Quickshell
+    function onScreensChanged() { monitorRefresh.restart() }
   }
-
-  Process {
-    id: cava
-    command: ["setpriv", "--pdeathsig", "TERM", "cava", "-p", root.cavaConfig]
-    // Only ever what plays here, never the microphone: without its player's
-    // stream cava ends instead of falling back to the default input, and is
-    // started again below until the player plays.
-    environment: ({ PIPEWIRE_PROPS: "{ node.dont-fallback = true }" })
-    running: false
-    stdout: SplitParser { onRead: function(line) { root.takeFrame(line) } }
-    onExited: if (root.cavaWanted && !cavaQuick.running) cavaRestart.restart()
-  }
-  onCavaWantedChanged: {
-    if (cavaWanted) {
-      cavaRestart.stop()
-      cava.running = true
-    } else {
-      cava.running = false
-      cavaRestart.stop()
-      cavaQuick.stop()
-      root.levels = []
-      root.quiet = true
-      root.quietSince = 0
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (/^monitor(added|removed)/.test(event.name)) monitorRefresh.restart()
     }
   }
-  // Without cava (not installed yet) this retries quietly every ten seconds.
-  Timer { id: cavaRestart; interval: 10000; onTriggered: if (root.cavaWanted) cava.running = true }
-  // After its settings changed (bars, player, smoothing) it starts again at
-  // once, on its own timer: the slow one above would leave it off for ten
-  // seconds (and changing a running timer's interval restarts it).
-  Timer { id: cavaQuick; interval: 300; onTriggered: if (root.cavaWanted) cava.running = true }
-
-  function restartCava() {
-    if (!root.cavaWanted) return
-    cavaRestart.stop()
-    cava.running = false
-    cavaQuick.restart()
-  }
-
-  // One frame: a value per bar. Bars rise at once and fall a little slower
-  // (light smoothing, so they need no animation of their own).
-  function takeFrame(line) {
-    var parts = String(line).split(";")
-    var before = root.levels
-    var next = []
-    var loud = false
-    for (var i = 0; i < parts.length; i++) {
-      if (parts[i] === "") continue
-      var value = Number(parts[i]) / 1000
-      value = value > 0 ? Math.min(1, value) : 0
-      var last = before[next.length]
-      if (last !== undefined && value < last) value = last + (value - last) * 0.6
-      if (value > 0.02) loud = true
-      next.push(value)
-    }
-    root.levels = next
-    root.lastFrame = Date.now()
-    if (loud) root.quiet = false
-  }
-
-  // cava stops printing while it sleeps: let the bars fall and fade out.
   Timer {
-    interval: 500
-    repeat: true
-    running: root.cavaWanted
+    id: monitorRefresh
+    interval: 250
     onTriggered: {
-      var stale = Date.now() - root.lastFrame > 1000
-      var max = 0
-      for (var i = 0; i < root.levels.length; i++) max = Math.max(max, root.levels[i])
-      if (stale || max < 0.02) {
-        if (stale && max > 0) root.levels = root.levels.map(function() { return 0 })
-        root.quietSince = root.quietSince || Date.now()
-        if (Date.now() - root.quietSince > 2000) root.quiet = true
-      } else {
-        root.quietSince = 0
-      }
+      Hyprland.refreshMonitors()
+      root.dropGoneSelection()
     }
   }
-  property double quietSince: 0
+  function screenIds() {
+    var ids = []
+    for (var i = 0; i < Quickshell.screens.length; i++) ids.push(root.screenId(Quickshell.screens[i]))
+    return ids
+  }
+  function dropGoneSelection() {
+    if (root.selection && root.screenIds().indexOf(root.selection.screen) < 0) {
+      root.selection = null
+      root.preview = null
+    }
+  }
 
-  // --- lyrics: Mpris + lrclib ----------------------------------------------------------
+  // --- the data the widgets show (one source each) --------------------------------
 
-  property var player: null
-  property string trackKey: ""
-  property var lyricLines: []        // [{t: seconds, text, words: [{t, text}] or null}]
-  property int lyricIndex: -1
-  property bool playing: false
-  // The player's position and when it was read; songTime runs on from it
-  // smoothly while words are highlighted.
-  property real positionAt: 0
-  property double positionStamp: 0
-  property real songTime: 0
-  property string lyricsState: "none"  // none | loading | synced | missing
-  property var lyricsCache: ({})
-  readonly property bool lyricsWanted: root.enabled("lyrics")
+  Requests { id: requests }
+  CavaSource { id: cava; service: root; config: root.cavaConfig }
+  LyricsSource { id: lyrics; service: root; requests: requests }
+  ClockSource { id: clock; service: root }
+  StatsSource { id: stats; service: root; temperatureFile: root.cpuTemperatureFile }
+  NowPlayingSource { id: media; service: root }
+  WeatherSource { id: weatherSource; service: root; requests: requests }
+
+  // What the views read (service.levels, service.now, …).
+  property alias levels: cava.levels
+  property alias quiet: cava.quiet
+  function useLevels(user, on) { cava.use(user, on) }
+  property alias lyricLines: lyrics.lines
+  property alias lyricIndex: lyrics.index
+  property alias playing: lyrics.playing
+  property alias songTime: lyrics.songTime
+  function wordsFor(index) { return lyrics.wordsFor(index) }
+  property alias now: clock.now
+  property alias zoneKnown: clock.zoneKnown
+  function zoneTime(date) { return clock.zoneTime(date) }
+  property alias cpu: stats.cpu
+  property alias memory: stats.memory
+  property alias temperature: stats.temperature
+  property alias cpuHistory: stats.cpuHistory
+  property alias memoryHistory: stats.memoryHistory
+  property alias temperatureHistory: stats.temperatureHistory
+  property alias netDown: stats.netDown
+  property alias netUp: stats.netUp
+  property alias netDownHistory: stats.netDownHistory
+  property alias netUpHistory: stats.netUpHistory
+  property alias disks: stats.disks
+  property alias npPlayer: media.player
+  property alias npPosition: media.position
+  property alias weather: weatherSource.weather
+  property alias weatherPlace: weatherSource.place
 
   // A player's key: the first part of its MPRIS name ("spotify").
   function playerKey(p) {
@@ -409,14 +377,11 @@ Item {
     return name.split(".")[0].toLowerCase()
   }
   // The player that plays (only `key`'s, when one is chosen); while none
-  // does, the one from before, else one that looks like music (a track with
-  // an album) rather than a video.
-  function pickPlayer(key) {
+  // does, `previous`, else one that looks like music (a track with an album)
+  // rather than a video.
+  function pickPlayer(key, previous) {
     var all = Mpris.players ? Mpris.players.values : []
-    var players = []
-    for (var a = 0; a < all.length; a++) {
-      if (!key || root.playerKey(all[a]) === key) players.push(all[a])
-    }
+    var players = all.filter(function(p) { return !key || root.playerKey(p) === key })
     for (var i = 0; i < players.length; i++) {
       if (players[i].isPlaying) return players[i]
     }
@@ -424,400 +389,20 @@ Item {
     var any = null
     for (var j = 0; j < players.length; j++) {
       var p = players[j]
-      if (p === root.player && p.trackTitle) return p
+      if (p === previous && p.trackTitle) return p
       if (!music && p.trackTitle && p.trackAlbum) music = p
       if (!any && p.trackTitle) any = p
     }
     return music || any
   }
 
-  Timer {
-    interval: 250
-    repeat: true
-    running: root.lyricsWanted
-    onTriggered: {
-      var next = root.pickPlayer(root.widget("lyrics") ? root.widget("lyrics").player : "")
-      if (next !== root.player) root.player = next
-      var p = root.player
-      if (!p) { root.trackKey = ""; root.lyricLines = []; root.lyricsState = "none"; root.playing = false; return }
-      var key = String(p.trackArtist || "") + "\u0001" + String(p.trackTitle || "")
-      if (key !== root.trackKey) {
-        root.trackKey = key
-        root.lyricIndex = -1
-        root.loadLyrics(p)
-      }
-      if (p.isPlaying) p.positionChanged()
-      root.playing = !!p.isPlaying
-      root.positionAt = Number(p.position || 0)
-      root.positionStamp = Date.now()
-      root.songTime = root.positionAt
-      root.lyricIndex = root.lineAt(root.positionAt)
-    }
-  }
-
-  readonly property bool wordsWanted: root.lyricsWanted && root.widget("lyrics") && root.widget("lyrics").highlight === "word"
-  Timer {
-    interval: 40
-    repeat: true
-    running: root.wordsWanted && root.playing && root.lyricLines.length > 0
-    onTriggered: root.songTime = root.positionAt + (Date.now() - root.positionStamp) / 1000
-  }
-
-  function lineAt(seconds) {
-    var lines = root.lyricLines
-    var found = -1
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i].t <= seconds + 0.25) found = i
-      else break
-    }
-    return found
-  }
-
-  function parseSynced(text) {
-    var out = []
-    var rows = String(text || "").split("\n")
-    for (var i = 0; i < rows.length; i++) {
-      var match = rows[i].match(/^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$/)
-      if (!match) continue
-      var words = root.parseWords(match[3])
-      var clean = match[3].replace(/<\d+:\d+(?:\.\d+)?>/g, " ").replace(/\s+/g, " ").trim()
-      out.push({ t: Number(match[1]) * 60 + Number(match[2]), text: clean, words: words })
-    }
-    return out
-  }
-
-  // Enhanced LRC ("<00:12.34>word <00:12.80>word"): a time for each word.
-  function parseWords(line) {
-    if (!/<\d+:\d+(?:\.\d+)?>/.test(line)) return null
-    var words = []
-    var time = null
-    var parts = String(line).split(/(<\d+:\d+(?:\.\d+)?>)/)
-    for (var i = 0; i < parts.length; i++) {
-      var tag = parts[i].match(/^<(\d+):(\d+(?:\.\d+)?)>$/)
-      if (tag) { time = Number(tag[1]) * 60 + Number(tag[2]); continue }
-      var pieces = parts[i].split(/\s+/)
-      for (var j = 0; j < pieces.length; j++) {
-        if (pieces[j] !== "" && time !== null) words.push({ t: time, text: pieces[j] })
-      }
-    }
-    return words.length ? words : null
-  }
-
-  // The words of a line with the time each is sung: from the lyrics when they
-  // have them, otherwise spread over the line by their length (the singing
-  // takes about a tenth of a second a letter, at most most of the line).
-  function wordsFor(index) {
-    var line = root.lyricLines[index]
-    if (!line) return []
-    var lineEnd = index + 1 < root.lyricLines.length ? root.lyricLines[index + 1].t : line.t + 6
-    if (line.words) {
-      // Each word lasts until the next one (the last one up to a second).
-      return line.words.map(function(w, i, all) {
-        return { t: w.t, text: w.text, end: i + 1 < all.length ? all[i + 1].t : Math.min(lineEnd, w.t + 1) }
-      })
-    }
-    var words = String(line.text).split(/\s+/).filter(function(w) { return w !== "" })
-    var letters = 0
-    for (var i = 0; i < words.length; i++) letters += words[i].length + 1
-    var duration = Math.min((lineEnd - line.t) * 0.9, Math.max(1.2, letters * 0.1))
-    var out = []
-    var time = line.t
-    for (var k = 0; k < words.length; k++) {
-      var next = time + duration * (words[k].length + 1) / letters
-      out.push({ t: time, text: words[k], end: next })
-      time = next
-    }
-    return out
-  }
-
-  function loadLyrics(p) {
-    var title = String(p.trackTitle || "")
-    var artist = String(p.trackArtist || "")
-    if (!title) { root.lyricLines = []; root.lyricsState = "none"; return }
-    var key = root.trackKey
-    if (root.lyricsCache[key] !== undefined) {
-      root.lyricLines = root.lyricsCache[key]
-      root.lyricsState = root.lyricLines.length ? "synced" : "missing"
-      return
-    }
-    root.lyricLines = []
-    root.lyricsState = "loading"
-    var query = "track_name=" + encodeURIComponent(title) + "&artist_name=" + encodeURIComponent(artist)
-    if (p.trackAlbum) query += "&album_name=" + encodeURIComponent(String(p.trackAlbum))
-    if (p.lengthSupported && p.length > 0) query += "&duration=" + Math.round(p.length)
-    root.request("https://lrclib.net/api/get?" + query, key, function(data) {
-      if (data && data.syncedLyrics) return root.parseSynced(data.syncedLyrics)
-      return null
-    }, function() {
-      // No exact match (album or length differ): search by title and artist.
-      root.request("https://lrclib.net/api/search?" + "track_name=" + encodeURIComponent(title)
-                   + "&artist_name=" + encodeURIComponent(artist), key, function(list) {
-        for (var i = 0; list && i < list.length; i++) {
-          if (list[i].syncedLyrics) return root.parseSynced(list[i].syncedLyrics)
-        }
-        return []
-      }, function() { root.storeLyrics(key, []) })
-    })
-  }
-
-  function request(url, key, parse, otherwise) {
-    var xhr = new XMLHttpRequest()
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState !== XMLHttpRequest.DONE) return
-      if (key !== root.trackKey) return
-      // No answer (offline, given up after 15 s) or a server error: not a song
-      // without lyrics, so it is not remembered as one and asked again soon.
-      if (xhr.status === 0 || xhr.status >= 500) { root.lyricsFailed(key); return }
-      var lines = null
-      if (xhr.status === 200) {
-        try { lines = parse(JSON.parse(xhr.responseText)) } catch (e) { lines = null }
-      }
-      if (lines === null) otherwise()
-      else root.storeLyrics(key, lines)
-    }
-    xhr.open("GET", url)
-    xhr.setRequestHeader("User-Agent", "hypr-screens (https://github.com/SlowlyTz/hypr-minimizer)")
-    xhr.send()
-    root.watchRequest(xhr)
-  }
-
-  function lyricsFailed(key) {
-    root.lyricsState = "missing"
-    lyricsRetry.key = key
-    lyricsRetry.restart()
-  }
-  Timer {
-    id: lyricsRetry
-    property string key: ""
-    interval: 30000
-    onTriggered: {
-      if (key === root.trackKey && root.player && root.lyricsCache[key] === undefined) root.loadLyrics(root.player)
-    }
-  }
-
-  // Requests waiting for an answer: one still without it after 15 s is given
-  // up (XMLHttpRequest has no timeout here); it then counts as failed.
-  property var openRequests: []
-  function watchRequest(xhr) {
-    root.openRequests = root.openRequests.concat([{ xhr: xhr, at: Date.now() }])
-    requestWatch.start()
-  }
-  Timer {
-    id: requestWatch
-    interval: 1000
-    repeat: true
-    onTriggered: {
-      var now = Date.now()
-      var waiting = []
-      for (var i = 0; i < root.openRequests.length; i++) {
-        var open = root.openRequests[i]
-        if (open.xhr.readyState === XMLHttpRequest.DONE || open.xhr.readyState === XMLHttpRequest.UNSENT) continue
-        if (now - open.at > 15000) open.xhr.abort()
-        else waiting.push(open)
-      }
-      root.openRequests = waiting
-      if (!waiting.length) stop()
-    }
-  }
-
-  function storeLyrics(key, lines) {
-    var cache = Object.assign({}, root.lyricsCache)
-    cache[key] = lines
-    root.lyricsCache = cache
-    if (key !== root.trackKey) return
-    root.lyricLines = lines
-    root.lyricsState = lines.length ? "synced" : "missing"
-  }
-
-  // --- clock -------------------------------------------------------------------------
-
-  property date now: new Date()
-  Timer {
-    interval: 1000
-    repeat: true
-    running: root.enabled("clock")
-    triggeredOnStart: true
-    onTriggered: root.now = new Date()
-  }
-
-  // The second time zone's offset from UTC in minutes (from `date`, so
-  // summer time is right); asked again every ten minutes.
-  readonly property string zone: root.widget("clock") ? String(root.widget("clock").zone2 || "") : ""
-  property int zoneOffset: 0
-  property bool zoneKnown: false
-  onZoneChanged: { root.zoneKnown = false; root.askZone() }
-  // The command is set here: a binding on `zone` could still hold the old one.
-  function askZone() {
-    if (!root.zone || zoneProcess.running) return
-    zoneProcess.command = ["sh", "-c", "TZ=\"$1\" date +%z", "sh", root.zone]
-    zoneProcess.running = true
-  }
-  Process {
-    id: zoneProcess
-    stdout: StdioCollector {
-      onStreamFinished: {
-        var match = String(text).trim().match(/^([+-])(\d\d)(\d\d)$/)
-        if (!match) return
-        root.zoneOffset = (match[1] === "-" ? -1 : 1) * (Number(match[2]) * 60 + Number(match[3]))
-        root.zoneKnown = true
-      }
-    }
-  }
-  Timer {
-    interval: 600000
-    repeat: true
-    running: root.zone !== "" && root.enabled("clock")
-    onTriggered: root.askZone()
-  }
-  function zoneTime(date) {
-    return new Date(date.getTime() + (root.zoneOffset + date.getTimezoneOffset()) * 60000)
-  }
-
-  // --- system ----------------------------------------------------------------------------
-
-  property real cpu: 0
-  property real memory: 0
-  property real temperature: 0
-  property var cpuHistory: []
-  property var memoryHistory: []
-  property var temperatureHistory: []
-  property var lastCpu: null
-
-  // Read straight from /proc every two seconds (no processes started).
-  FileView { id: procStat; path: root.enabled("system") ? "/proc/stat" : ""; blockLoading: true; printErrors: false }
-  FileView { id: procMemory; path: root.enabled("system") ? "/proc/meminfo" : ""; blockLoading: true; printErrors: false }
-  FileView {
-    id: temperatureFile
-    path: root.enabled("system") ? root.cpuTemperatureFile : ""
-    blockLoading: true
-    printErrors: false
-  }
-  Timer {
-    interval: 2000
-    repeat: true
-    running: root.enabled("system")
-    triggeredOnStart: true
-    onTriggered: {
-      procStat.reload()
-      procMemory.reload()
-      if (root.cpuTemperatureFile) temperatureFile.reload()
-      root.takeStats(procStat.text(), procMemory.text(), root.cpuTemperatureFile ? temperatureFile.text() : "0")
-    }
-  }
-
-  function pushHistory(list, value) {
-    var next = list.slice(Math.max(0, list.length - 59))
-    next.push(value)
-    return next
-  }
-
-  function takeStats(stat, memory, temperature) {
-    var fields = (String(stat || "").split("\n")[0] || "").trim().split(/\s+/).slice(1).map(Number)
-    if (fields.length >= 4) {
-      var idle = fields[3] + (fields[4] || 0)
-      var total = 0
-      for (var i = 0; i < fields.length; i++) total += fields[i]
-      if (root.lastCpu) {
-        var dt = total - root.lastCpu.total
-        root.cpu = dt > 0 ? Math.max(0, Math.min(1, 1 - (idle - root.lastCpu.idle) / dt)) : 0
-      }
-      root.lastCpu = { total: total, idle: idle }
-    }
-    var total = String(memory || "").match(/^MemTotal:\s+(\d+)/m)
-    var available = String(memory || "").match(/^MemAvailable:\s+(\d+)/m)
-    if (total && available && Number(total[1]) > 0) root.memory = 1 - Number(available[1]) / Number(total[1])
-    var degrees = Number(String(temperature || "0").trim()) || 0
-    root.temperature = degrees > 1000 ? degrees / 1000 : degrees
-    root.cpuHistory = root.pushHistory(root.cpuHistory, root.cpu)
-    root.memoryHistory = root.pushHistory(root.memoryHistory, root.memory)
-    root.temperatureHistory = root.pushHistory(root.temperatureHistory, Math.min(1, root.temperature / 100))
-  }
-
-  // --- now playing ------------------------------------------------------------------------
-
-  property var npPlayer: null
-  property real npPosition: 0
-  Timer {
-    interval: 500
-    repeat: true
-    running: root.enabled("nowplaying")
-    triggeredOnStart: true
-    onTriggered: {
-      var next = root.pickPlayer(root.widget("nowplaying").player)
-      if (next !== root.npPlayer) root.npPlayer = next
-      if (next && next.isPlaying) next.positionChanged()
-      root.npPosition = next ? Number(next.position || 0) : 0
-    }
-  }
-
-  // --- weather: Omarchy's place, open-meteo ---------------------------------------------------
-
-  property var weatherPlace: ({ name: "", latitude: NaN, longitude: NaN })
-  property var weather: null      // {temp, feels, humidity, wind, code, day, days: [{date, code, max, min}]}
-  readonly property bool weatherWanted: root.enabled("weather")
-  FileView {
-    id: weatherPlaceFile
-    path: Quickshell.env("HOME") + "/.local/state/omarchy/settings/weather.json"
-    watchChanges: true
-    printErrors: false
-    onFileChanged: reload()
-    onLoaded: {
-      var data = {}
-      try { data = JSON.parse(String(text())) } catch (e) {}
-      root.weatherPlace = { name: String(data.name || ""), latitude: parseFloat(String(data.latitude)),
-                            longitude: parseFloat(String(data.longitude)) }
-      root.fetchWeather()
-    }
-  }
-  onWeatherWantedChanged: if (weatherWanted) fetchWeather()
-  Timer { interval: 900000; repeat: true; running: root.weatherWanted; onTriggered: root.fetchWeather() }
-  // After a failed request (offline, no answer): again in a minute, not only
-  // in a quarter of an hour.
-  Timer { id: weatherRetry; interval: 60000; onTriggered: root.fetchWeather() }
-  function fetchWeather() {
-    if (!root.weatherWanted) return
-    var place = root.weatherPlace
-    if (isNaN(place.latitude) || isNaN(place.longitude)) {
-      if (!place.name) return
-      // Only a name: find its coordinates first.
-      root.getJson("https://geocoding-api.open-meteo.com/v1/search?count=1&format=json&name=" + encodeURIComponent(place.name),
-                   function(data) {
-        if (!data) { weatherRetry.restart(); return }
-        var hit = data.results && data.results[0]
-        if (!hit) return
-        root.weatherPlace = { name: place.name, latitude: hit.latitude, longitude: hit.longitude }
-        root.fetchWeather()
-      })
-      return
-    }
-    var url = "https://api.open-meteo.com/v1/forecast?latitude=" + place.latitude + "&longitude=" + place.longitude
-      + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
-      + "&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=4&timezone=auto"
-    root.getJson(url, function(data) {
-      if (!data || !data.current) { weatherRetry.restart(); return }
-      weatherRetry.stop()
-      var days = []
-      var daily = data.daily || {}
-      for (var i = 1; daily.time && i < daily.time.length; i++) {
-        days.push({ date: daily.time[i], code: daily.weather_code[i], max: daily.temperature_2m_max[i],
-                    min: daily.temperature_2m_min[i] })
-      }
-      root.weather = { temp: data.current.temperature_2m, feels: data.current.apparent_temperature,
-                       humidity: data.current.relative_humidity_2m, wind: data.current.wind_speed_10m,
-                       code: data.current.weather_code, day: data.current.is_day === 1, days: days }
-    })
-  }
-  function getJson(url, done) {
-    var xhr = new XMLHttpRequest()
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState !== XMLHttpRequest.DONE) return
-      var data = null
-      if (xhr.status === 200) { try { data = JSON.parse(xhr.responseText) } catch (e) { data = null } }
-      done(data)
-    }
-    xhr.open("GET", url)
-    xhr.send()
-    root.watchRequest(xhr)
+  // Bytes as text ("2.4 MB"), and a speed ("180 KB/s").
+  function bytes(n) { return root.scaled(n, ["B", "KB", "MB", "GB", "TB"]) }
+  function rate(n) { return root.scaled(n, ["B/s", "KB/s", "MB/s", "GB/s"]) }
+  function scaled(n, units) {
+    var i = 0
+    while (n >= 1000 && i < units.length - 1) { n /= 1000; i++ }
+    return (n >= 100 || i === 0 ? Math.round(n) : n.toFixed(1)) + " " + units[i]
   }
   // A WMO weather code as a Nerd Font icon.
   function weatherIcon(code, day) {
@@ -831,90 +416,6 @@ Item {
     if (code <= 82) return String.fromCodePoint(0xf0596)
     if (code <= 86) return String.fromCodePoint(0xf0598)
     return String.fromCodePoint(0xf0593)
-  }
-
-  // --- network: /proc/net/dev -----------------------------------------------------------------
-
-  property real netDown: 0       // bytes a second
-  property real netUp: 0
-  property var netDownHistory: []
-  property var netUpHistory: []
-  property var lastNet: null
-  FileView { id: procNet; path: root.enabled("network") ? "/proc/net/dev" : ""; blockLoading: true; printErrors: false }
-  Timer {
-    interval: 2000
-    repeat: true
-    running: root.enabled("network")
-    triggeredOnStart: true
-    onTriggered: {
-      procNet.reload()
-      root.takeNet(procNet.text())
-    }
-  }
-  function takeNet(text) {
-    var rx = 0, tx = 0
-    var rows = String(text).split("\n")
-    for (var i = 2; i < rows.length; i++) {
-      var match = rows[i].match(/^\s*([^:]+):\s*(.*)$/)
-      if (!match || match[1] === "lo") continue
-      var fields = match[2].trim().split(/\s+/).map(Number)
-      rx += fields[0] || 0
-      tx += fields[8] || 0
-    }
-    var now = Date.now()
-    if (root.lastNet) {
-      var seconds = Math.max(0.5, (now - root.lastNet.at) / 1000)
-      root.netDown = Math.max(0, (rx - root.lastNet.rx) / seconds)
-      root.netUp = Math.max(0, (tx - root.lastNet.tx) / seconds)
-      root.netDownHistory = root.pushHistory(root.netDownHistory, root.netDown)
-      root.netUpHistory = root.pushHistory(root.netUpHistory, root.netUp)
-    }
-    root.lastNet = { rx: rx, tx: tx, at: now }
-  }
-  function rate(bytes) {
-    var units = ["B/s", "KB/s", "MB/s", "GB/s"]
-    var i = 0
-    while (bytes >= 1000 && i < units.length - 1) { bytes /= 1000; i++ }
-    return (bytes >= 100 || i === 0 ? Math.round(bytes) : bytes.toFixed(1)) + " " + units[i]
-  }
-
-  // --- disks: df --------------------------------------------------------------------------------
-
-  property var disks: []          // [{mount, size, used}]
-  Process {
-    id: diskStats
-    command: ["df", "-B1", "--output=source,target,size,used", "-x", "tmpfs", "-x", "devtmpfs", "-x", "efivarfs",
-              "-x", "squashfs", "-x", "overlay"]
-    stdout: StdioCollector { onStreamFinished: root.takeDisks(text) }
-  }
-  Timer {
-    interval: 60000
-    repeat: true
-    running: root.enabled("disk")
-    triggeredOnStart: true
-    onTriggered: if (!diskStats.running) diskStats.running = true
-  }
-  // One row per device (btrfs mounts the same one many times: the shortest
-  // mount point stands for it); small boot partitions are left out.
-  function takeDisks(text) {
-    var bySource = {}
-    var order = []
-    var rows = String(text).split("\n")
-    for (var i = 1; i < rows.length; i++) {
-      var f = rows[i].trim().split(/\s+/)
-      if (f.length < 4 || !(Number(f[2]) > 0)) continue
-      if (/^\/(boot|efi)/.test(f[1]) && Number(f[2]) < 4e9) continue
-      var known = bySource[f[0]]
-      if (!known) { order.push(f[0]); bySource[f[0]] = { mount: f[1], size: Number(f[2]), used: Number(f[3]) } }
-      else if (f[1].length < known.mount.length) known.mount = f[1]
-    }
-    root.disks = order.map(function(source) { return bySource[source] })
-  }
-  function bytes(n) {
-    var units = ["B", "KB", "MB", "GB", "TB"]
-    var i = 0
-    while (n >= 1000 && i < units.length - 1) { n /= 1000; i++ }
-    return (n >= 100 || i === 0 ? Math.round(n) : n.toFixed(1)) + " " + units[i]
   }
 
   // --- the layers -----------------------------------------------------------------------
@@ -1153,223 +654,37 @@ Item {
   }
   Process {
     id: saver
-    // The settings file changes with it and brings the saved places back in.
-    onExited: root.editing = false
-  }
-
-  // One screen's layer. `group`: "bottom" (behind the windows) or "top"
-  // (above them), each with "-blur" for widgets with a blurred card (Hyprland
-  // blurs that layer, see the layer rule in hypr_screens.lua). The edit layer
-  // holds every widget.
-  component Layer: PanelWindow {
-    id: panel
-    required property var modelData
-    property bool editLayer: false
-    property string group: "bottom"
-    // A part that takes clicks (Now Playing's buttons); clicks go through
-    // everywhere else.
-    property Item clickable: null
-    readonly property var hyprMonitor: Hyprland.monitorFor(modelData)
-    readonly property bool fullscreen: !!(hyprMonitor && hyprMonitor.activeWorkspace && hyprMonitor.activeWorkspace.hasFullscreen)
-    screen: modelData
-    visible: root.anyOn(modelData, editLayer ? "" : group) && (editLayer ? root.editing : (!root.editing && !fullscreen))
-             && !remap.remapping
-    anchors { top: true; bottom: true; left: true; right: true }
-    color: "transparent"
-    exclusionMode: ExclusionMode.Ignore
-    WlrLayershell.namespace: editLayer ? "hypr-screens-widgets-edit"
-                             : "hypr-screens-widgets" + (group === "bottom" ? "" : "-" + group)
-    WlrLayershell.layer: editLayer ? WlrLayer.Overlay : (group.indexOf("top") === 0 ? WlrLayer.Top : WlrLayer.Bottom)
-    // While arranging, Esc must reach it; otherwise it never takes the keyboard.
-    WlrLayershell.keyboardFocus: editLayer ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
-    // Clicks go through, except while arranging and on clickable parts.
-    mask: editLayer ? allInput : (clickable ? clickRegion : noInput)
-    onVisibleChanged: if (visible && editLayer) canvas.forceActiveFocus()
-    Region { id: noInput }
-    Region { id: allInput; item: canvas }
-    Region { id: clickRegion; item: panel.clickable }
-    ScreenMoveRemap { id: remap; window: panel }
-
-    Item {
-      id: canvas
-      anchors.fill: parent
-      focus: panel.editLayer
-      // Esc closes the style panel first, then cancels; Ctrl+Z takes back a
-      // color or look.
-      Keys.onEscapePressed: root.selection ? root.selection = null : root.cancelEditing()
-      Keys.onReturnPressed: root.saveEditing()
-      Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Z && (event.modifiers & Qt.ControlModifier)) {
-          root.undoStyle()
-          event.accepted = true
-        }
-      }
-
-      // An empty desktop to arrange on: the wallpaper, over all windows.
-      Image {
-        anchors.fill: parent
-        visible: panel.editLayer
-        source: panel.editLayer ? "file://" + root.wallpaper : ""
-        fillMode: Image.PreserveAspectCrop
-        asynchronous: true
-        cache: false
-      }
-      Rectangle {
-        anchors.fill: parent
-        visible: panel.editLayer
-        color: Qt.rgba(0, 0, 0, 0.15)
-      }
-
-      Rectangle {
-        id: toolbar
-        visible: panel.editLayer
-        z: 10
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: parent.top
-        anchors.topMargin: Style.space(60)
-        radius: Style.space(12)
-        color: Qt.rgba(0, 0, 0, 0.7)
-        border.color: Color.accent
-        border.width: 1
-        implicitWidth: bar.implicitWidth + Style.space(24)
-        implicitHeight: bar.implicitHeight + Style.space(16)
-
-        Row {
-          id: bar
-          anchors.centerIn: parent
-          spacing: Style.space(16)
-
-          ToolButton {
-            label: root.texts.move || "Move"
-            primary: !root.colorMode
-            onClicked: { root.colorMode = false; root.selection = null }
-          }
-          ToolButton {
-            label: root.texts.style || "Style"
-            primary: root.colorMode
-            onClicked: root.colorMode = true
-          }
-          Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.colorMode ? (root.texts.hintStyle || "Click a widget to style it  ·  Ctrl+Z undoes")
-                                 : (root.texts.hint || "Drag the widgets  ·  scroll to turn (Shift: fine)")
-            color: "white"
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.body
-          }
-          ToolButton { label: root.texts.cancel || "Cancel"; onClicked: root.cancelEditing() }
-          ToolButton { label: root.texts.save || "Save"; primary: true; onClicked: root.saveEditing() }
-        }
-      }
-
-      // The style panel, only on the edit layer and only while arranging.
-      Loader {
-        z: 20
-        active: panel.editLayer && root.editing
-        sourceComponent: StylePanel {
-          id: stylePanel
-          service: root
-          screenKey: root.screenId(panel.modelData)
-          focusBack: canvas
-          visible: root.colorMode && !!root.selection && root.selection.screen === screenKey
-          // The room below the toolbar; a taller panel scrolls.
-          maxHeight: canvas.height - (toolbar.y + toolbar.height) - Style.space(36)
-          // Where it was dragged to, unless it would hide the widget; else
-          // beside the widget. Never over the toolbar.
-          readonly property var place: {
-            var area = { width: canvas.width, height: canvas.height, top: toolbar.y + toolbar.height }
-            var rect = root.selection ? root.selection.rect : null
-            return root.placePalette(rect, root.palettePlaces[screenKey], width, height, area)
-          }
-          x: place.x
-          y: place.y
-          onMoved: function(x, y) {
-            var places = Object.assign({}, root.palettePlaces)
-            places[screenKey] = { x: x, y: y }
-            root.palettePlaces = places
-            stylePanel.x = Qt.binding(function() { return stylePanel.place.x })
-            stylePanel.y = Qt.binding(function() { return stylePanel.place.y })
-          }
-        }
-      }
-
-      Repeater {
-        model: root.kinds
-        Placed {
-          id: placed
-          required property string modelData
-          service: root
-          kind: modelData
-          screenKey: root.screenId(panel.modelData)
-          editable: panel.editLayer
-          visible: root.shows(kind, panel.modelData, panel.editLayer ? "" : panel.group)
-          // Only while it shows: not behind a fullscreen window or while
-          // arranging hides this layer (a visualizer then stops cava).
-          Loader {
-            id: view
-            active: placed.visible && panel.visible
-            sourceComponent: root.views[placed.kind] || null
-          }
-          Binding { target: view.item; property: "editing"; value: panel.editLayer; when: view.item !== null }
-          Binding { target: view.item; property: "spot"; value: placed.spot; when: view.item !== null }
-          Binding {
-            target: panel
-            property: "clickable"
-            value: view.item ? view.item.controls : null
-            when: placed.kind === "nowplaying" && placed.visible && !panel.editLayer && view.item !== null
-          }
-        }
-      }
+    // Saved: the settings file changes with it and brings the places back in.
+    // Not saved: arranging stays open (nothing is lost), with a note.
+    onExited: function(code) {
+      root.saveFailed = code !== 0
+      if (code === 0) root.editing = false
     }
   }
+  property bool saveFailed: false
+  onEditingChanged: if (editing) saveFailed = false
 
-  component ToolButton: Rectangle {
-    id: button
-    property string label: ""
-    property bool primary: false
-    signal clicked()
-    anchors.verticalCenter: parent ? parent.verticalCenter : undefined
-    radius: Style.space(8)
-    color: primary ? Color.accent : (area.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : Qt.rgba(1, 1, 1, 0.08))
-    implicitWidth: text.implicitWidth + Style.space(28)
-    implicitHeight: text.implicitHeight + Style.space(14)
-    Text {
-      id: text
-      anchors.centerIn: parent
-      text: button.label
-      color: button.primary ? Color.background : "white"
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.body
-      font.bold: true
-    }
-    MouseArea {
-      id: area
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: Qt.PointingHandCursor
-      onClicked: button.clicked()
-    }
-  }
-
+  // Each screen has five layers: behind the windows, above them (each with
+  // and without blur behind the cards) and, while arranging, the edit layer.
   Variants {
     model: Quickshell.screens
-    Layer { group: "bottom" }
+    WidgetLayer { service: root; group: "bottom" }
   }
   Variants {
     model: Quickshell.screens
-    Layer { group: "bottom-blur" }
+    WidgetLayer { service: root; group: "bottom-blur" }
   }
   Variants {
     model: Quickshell.screens
-    Layer { group: "top" }
+    WidgetLayer { service: root; group: "top" }
   }
   Variants {
     model: Quickshell.screens
-    Layer { group: "top-blur" }
+    WidgetLayer { service: root; group: "top-blur" }
   }
   Variants {
     model: Quickshell.screens
-    Layer { editLayer: true }
+    WidgetLayer { service: root; editLayer: true }
   }
 
   // --- IPC: omarchy-shell hypr-screens.widgets <function> ------------------------------

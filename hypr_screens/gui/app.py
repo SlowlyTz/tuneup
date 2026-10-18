@@ -12,11 +12,13 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib  # noqa: E402
 
-from hypr_screens import config, desktops, hypr, i18n  # noqa: E402
+from hypr_screens import config, desktops, hypr, i18n, theme  # noqa: E402
 from hypr_screens.i18n import t  # noqa: E402
-from hypr_screens.gui import placement, theme  # noqa: E402
+from hypr_screens.gui import placement  # noqa: E402
 
 APP_ID = "io.github.slowlytz.HyprScreens"
+# The tray icon's title and tooltip: the app's name, the same in every language.
+TRAY_TITLE = "hypr-screens"
 
 
 def focused_workspace() -> int | None:
@@ -59,14 +61,14 @@ class App(Adw.Application):
         from hypr_screens.gui.tray import Tray
 
         i18n.use_configured()
-        self.tray = Tray(t("Settings"), "video-display-symbolic", self.show_settings, self.tray_entries())
+        self.tray = Tray(TRAY_TITLE, "video-display-symbolic", self.show_settings, self.tray_entries())
         self.tray.start()
         self.hold()  # keep running without a window
 
     def relabel_tray(self) -> None:
         if self.tray is not None:
             i18n.use_configured()
-            self.tray.update(t("Settings"), self.tray_entries())
+            self.tray.update(TRAY_TITLE, self.tray_entries())
 
     def show_settings(self) -> bool:
         from hypr_screens.gui.web_window import WebWindow

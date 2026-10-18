@@ -160,22 +160,29 @@ class Tray:
 
     # --- dbusmenu ------------------------------------------------------------------------
 
-    def _props(self, index: int) -> dict:
-        entry = self.entries[index - 1]
-        if entry is None:
-            return {"type": GLib.Variant("s", "separator"), "visible": GLib.Variant("b", True)}
-        shown = entry[2]() if len(entry) > 2 else True
-        return {
-            "label": GLib.Variant("s", entry[0]),
-            "enabled": GLib.Variant("b", True),
-            "visible": GLib.Variant("b", bool(shown)),
-        }
+    def _snapshot(self) -> list[dict]:
+        """The properties of every entry, for one request of the bar. Whether
+        an entry shows (shown()) may ask Hyprland: once per request, not per
+        entry and property."""
+        props = []
+        for entry in self.entries:
+            if entry is None:
+                props.append({"type": GLib.Variant("s", "separator"), "visible": GLib.Variant("b", True)})
+                continue
+            shown = entry[2]() if len(entry) > 2 else True
+            props.append({
+                "label": GLib.Variant("s", entry[0]),
+                "enabled": GLib.Variant("b", True),
+                "visible": GLib.Variant("b", bool(shown)),
+            })
+        return props
 
-    def _layout(self):
-        children = [
-            GLib.Variant("(ia{sv}av)", (index, self._props(index), []))
-            for index in range(1, len(self.entries) + 1)
-        ]
+    def _layout(self, parent: int):
+        """The menu below `parent`: the root has the entries, an entry has none."""
+        props = self._snapshot()
+        if 1 <= parent <= len(props):
+            return (parent, props[parent - 1], [])
+        children = [GLib.Variant("(ia{sv}av)", (index, item, [])) for index, item in enumerate(props, start=1)]
         return (0, {"children-display": GLib.Variant("s", "submenu")}, children)
 
     def _menu_property(self, _connection, _sender, _path, _interface, name):
@@ -189,14 +196,17 @@ class Tray:
 
     def _menu_call(self, _connection, _sender, _path, _interface, method, params, invocation):
         if method == "GetLayout":
-            invocation.return_value(GLib.Variant("(u(ia{sv}av))", (self.revision, self._layout())))
+            parent, _depth, _names = params.unpack()
+            invocation.return_value(GLib.Variant("(u(ia{sv}av))", (self.revision, self._layout(parent))))
         elif method == "GetGroupProperties":
-            ids = params.unpack()[0] or range(1, len(self.entries) + 1)
-            found = [(i, self._props(i)) for i in ids if 1 <= i <= len(self.entries)]
+            props = self._snapshot()
+            ids = params.unpack()[0] or range(1, len(props) + 1)
+            found = [(i, props[i - 1]) for i in ids if 1 <= i <= len(props)]
             invocation.return_value(GLib.Variant("(a(ia{sv}))", (found,)))
         elif method == "GetProperty":
             index, name = params.unpack()
-            value = self._props(index).get(name) if 1 <= index <= len(self.entries) else None
+            props = self._snapshot()
+            value = props[index - 1].get(name) if 1 <= index <= len(props) else None
             invocation.return_value(GLib.Variant("(v)", (value or GLib.Variant("s", ""),)))
         elif method == "Event":
             index, event, _data, _time = params.unpack()

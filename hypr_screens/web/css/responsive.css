@@ -1,0 +1,42 @@
+/* hypr-screens – narrow windows and reduced motion
+ *
+ * Loaded last: these rules override the components and pages.
+ */
+
+/* ---------- responsive ---------- */
+@media (max-width: 899px) {
+  :root { --nav-w: 68px; }
+  .nav { padding: var(--s3) var(--s2); align-items: center; }
+  .nav-head { padding: var(--s1) 0 var(--s2); }
+  .nav-head-text, .nav-item span, .nav-item .dot, .search-hint { display: none; }
+  .nav-list { width: 100%; }
+  .nav-item { justify-content: center; padding: 0; height: 40px; }
+  .search { width: 40px; height: 36px; margin: 0 0 var(--s2); }
+  .search input { position: absolute; left: 0; top: 0; width: 40px; padding: 0; color: transparent; cursor: pointer; z-index: 1; background: transparent; border-color: transparent; }
+  .search input::placeholder { color: transparent; }
+  .search input:hover { background: var(--nav-hover); }
+  .search-icon { left: 10px; top: 8px; z-index: 2; }
+  .search:focus-within input { width: 340px; padding: 0 12px 0 36px; color: var(--text); cursor: text; background: var(--card); border-color: var(--line-strong); box-shadow: var(--shadow-pop); }
+  .search:focus-within input::placeholder { color: var(--text-3); }
+  .search-results { left: 0; right: auto; width: 340px; top: 42px; }
+  .page { padding: 20px 24px 96px 20px; }
+  .ph h1, .crumbs { font-size: 24px; line-height: 32px; }
+  .mcards { grid-template-columns: repeat(2, 1fr); }
+  .tiles { grid-template-columns: 1fr 1fr; }
+  .wd-head { grid-template-columns: 220px 1fr; }
+  .applybar { margin: -64px 24px 16px 20px; }
+  .arrange { height: 220px; }
+  .keyslot { width: 140px; }
+  .lp { aspect-ratio: auto; height: 220px; }
+  .tcards.n5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .tiles { grid-template-columns: 1fr; }
+  .wd-head { grid-template-columns: 1fr; }
+  .row { flex-wrap: wrap; }
+}
+
+/* ---------- motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+}

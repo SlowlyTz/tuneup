@@ -1,0 +1,126 @@
+/* hypr-screens – design tokens
+ *
+ * The palette (--c-*, the Omarchy theme; bridge.js fills it in) and the
+ * semantic tokens the UI uses, derived from it. Light mode redefines both.
+ */
+
+/* ---------- 1. palette ---------- */
+:root {
+  --c-background: #1e1e2e;
+  --c-foreground: #cdd6f4;
+  --c-accent: #89b4fa;
+  --c-selection: #45475a;
+  --c-lighter-background: #313244;
+  --c-dark-background: #161622;
+  --c-darker-background: #101019;
+  --c-dark-foreground: #6c7086;
+  --c-muted: #585b70;
+  --c-light-foreground: #bac2de;
+  --c-red: #f38ba8;
+  --c-green: #a6e3a1;
+  --c-yellow: #f9e2af;
+}
+:root[data-mode="light"] {
+  --c-background: #eef0f5;
+  --c-foreground: #262a3d;
+  --c-accent: #1e66f5;
+  --c-selection: #ccd0da;
+  --c-lighter-background: #ffffff;
+  --c-dark-background: #e4e7ee;
+  --c-darker-background: #d9dde6;
+  --c-dark-foreground: #6c6f85;
+  --c-muted: #9ca0b0;
+  --c-light-foreground: #4c4f69;
+  --c-red: #d20f39;
+  --c-green: #40a02b;
+  --c-yellow: #df8e1d;
+}
+
+/* ---------- 2. semantic tokens ---------- */
+:root {
+  color-scheme: dark;
+
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrainsMono Nerd Font", "JetBrains Mono", ui-monospace, monospace;
+
+  --bg: var(--c-background);
+  --bg-deep: var(--c-dark-background);
+  --card: color-mix(in srgb, var(--c-lighter-background) 46%, var(--c-background));
+  --card-hover: color-mix(in srgb, var(--c-lighter-background) 64%, var(--c-background));
+  --card-press: color-mix(in srgb, var(--c-lighter-background) 40%, var(--c-background));
+  --card-inset: color-mix(in srgb, var(--c-dark-background) 70%, var(--c-background));
+  --ctl: color-mix(in srgb, var(--c-lighter-background) 78%, var(--c-background));
+  --ctl-hover: color-mix(in srgb, var(--c-selection) 70%, var(--c-lighter-background));
+  --ctl-press: var(--c-lighter-background);
+  --ctl-sunken: color-mix(in srgb, var(--c-darker-background) 55%, var(--c-background));
+  --nav-hover: color-mix(in srgb, var(--c-foreground) 6%, transparent);
+  --nav-active: color-mix(in srgb, var(--c-foreground) 9%, transparent);
+
+  --line: color-mix(in srgb, var(--c-foreground) 8%, transparent);
+  --line-strong: color-mix(in srgb, var(--c-foreground) 15%, transparent);
+  --line-ctl: color-mix(in srgb, var(--c-foreground) 11%, transparent);
+
+  --text: var(--c-foreground);
+  --text-2: color-mix(in srgb, var(--c-foreground) 66%, var(--c-background));
+  --text-3: color-mix(in srgb, var(--c-foreground) 58%, var(--c-background));
+
+  --accent: var(--c-accent);
+  --accent-hover: color-mix(in srgb, var(--c-accent) 88%, var(--c-foreground));
+  --accent-press: color-mix(in srgb, var(--c-accent) 80%, var(--c-background));
+  --accent-soft: color-mix(in srgb, var(--c-accent) 16%, transparent);
+  --accent-softer: color-mix(in srgb, var(--c-accent) 9%, transparent);
+  --accent-line: color-mix(in srgb, var(--c-accent) 55%, transparent);
+  --on-accent: var(--c-darker-background);
+  --wall: var(--c-darker-background);   /* desktop wallpaper behind widget previews: always dark */
+
+  --danger: var(--c-red);
+  --danger-soft: color-mix(in srgb, var(--c-red) 12%, transparent);
+  --danger-line: color-mix(in srgb, var(--c-red) 40%, transparent);
+  --ok: var(--c-green);
+  --warn: var(--c-yellow);
+  --warn-soft: color-mix(in srgb, var(--c-yellow) 12%, transparent);
+
+  --shadow-pop: 0 12px 32px rgb(0 0 0 / .42), 0 2px 8px rgb(0 0 0 / .25);
+  --shadow-card: 0 1px 0 rgb(0 0 0 / .18);
+  --shadow-knob: 0 1px 2px rgb(0 0 0 / .35);
+
+  --r-card: 8px;
+  --r-ctl: 6px;
+  --r-sm: 4px;
+  --r-pill: 999px;
+
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 40px;
+
+  --nav-w: 288px;
+  --row-min: 64px;
+
+  --t-fast: 110ms;
+  --t-med: 180ms;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+}
+:root[data-mode="light"] {
+  color-scheme: light;
+  --card: #ffffff;
+  --card-hover: color-mix(in srgb, var(--c-dark-background) 35%, #fff);
+  --card-press: color-mix(in srgb, var(--c-dark-background) 55%, #fff);
+  --card-inset: color-mix(in srgb, var(--c-dark-background) 55%, #fff);
+  --ctl: #ffffff;
+  --ctl-hover: color-mix(in srgb, var(--c-dark-background) 45%, #fff);
+  --ctl-press: var(--c-dark-background);
+  --ctl-sunken: var(--c-dark-background);
+  --nav-hover: color-mix(in srgb, var(--c-foreground) 5%, transparent);
+  --nav-active: color-mix(in srgb, var(--c-foreground) 8%, transparent);
+  --line: color-mix(in srgb, var(--c-foreground) 9%, transparent);
+  --line-strong: color-mix(in srgb, var(--c-foreground) 16%, transparent);
+  --line-ctl: color-mix(in srgb, var(--c-foreground) 14%, transparent);
+  --text-2: color-mix(in srgb, var(--c-foreground) 72%, var(--c-background));
+  --text-3: color-mix(in srgb, var(--c-foreground) 62%, var(--c-background));
+  --on-accent: #ffffff;
+  --wall: #1c1e2c;
+  --accent-hover: color-mix(in srgb, var(--c-accent) 88%, #000);
+  --accent-press: color-mix(in srgb, var(--c-accent) 78%, #000);
+  --shadow-pop: 0 12px 32px rgb(20 24 40 / .16), 0 2px 8px rgb(20 24 40 / .08);
+  --shadow-card: 0 1px 2px rgb(20 24 40 / .06);
+  --shadow-knob: 0 1px 2px rgb(20 24 40 / .25);
+}
