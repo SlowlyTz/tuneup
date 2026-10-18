@@ -1232,3 +1232,26 @@ def test_watch_peek_rechecks_on_workspace_events(tmp_path, monkeypatch):
     server.close()
 
     assert calls == ["0xbbb", "0xbbb"]
+
+
+def test_state_is_replaced_in_one_step(state_file):
+    minimizer.save_state({"1": ["0xa"]})
+    minimizer.save_state({"1": ["0xa", "0xb"]})
+    assert read_state(state_file) == {"1": ["0xa", "0xb"]}
+    assert sorted(path.name for path in state_file.parent.iterdir()) == ["state.json"]
+
+
+def test_state_lock_lets_one_command_at_a_time_change_the_stacks(state_file):
+    order = []
+
+    def second():
+        with minimizer.state_lock():
+            order.append("second")
+
+    with minimizer.state_lock():
+        thread = threading.Thread(target=second)
+        thread.start()
+        thread.join(timeout=0.2)
+        order.append("first")
+    thread.join()
+    assert order == ["first", "second"]

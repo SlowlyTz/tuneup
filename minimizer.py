@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import fcntl
 import json
 import os
 import re
@@ -9,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 
@@ -309,10 +311,24 @@ def load_history(path: Path | None = None) -> list[HistoryEntry]:
 
 
 def save_storage(storage: dict[str, object], path: Path | None = None) -> None:
+    """Replaced in one step: a half-written file would read as "nothing
+    minimized" and the next save would forget every window."""
     path = path or STATE_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
     normalized = normalize_storage(storage)
-    path.write_text(json.dumps(normalized, indent=2, sort_keys=True) + "\n")
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(json.dumps(normalized, indent=2, sort_keys=True) + "\n")
+    temporary.replace(path)
+
+
+@contextmanager
+def state_lock():
+    """One change of the stacks at a time: two quick key presses must not both
+    read the old state, or the window of one of them is lost."""
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(STATE_FILE.with_name(STATE_FILE.name + ".lock"), "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
 
 
 def save_state(
@@ -963,7 +979,7 @@ def watch_peek(address: str) -> None:
         except OSError:
             return
 
-        if not check_peek(address):
+        if not locked_check_peek(address):
             return
 
         buffer = b""
@@ -971,8 +987,13 @@ def watch_peek(address: str) -> None:
             buffer += chunk
             *lines, buffer = buffer.split(b"\n")
             names = {line.partition(b">>")[0].decode(errors="replace") for line in lines}
-            if names & PEEK_WATCH_EVENTS and not check_peek(address):
+            if names & PEEK_WATCH_EVENTS and not locked_check_peek(address):
                 return
+
+
+def locked_check_peek(address: str) -> bool:
+    with state_lock():
+        return check_peek(address)
 
 
 def pop() -> None:
@@ -1195,8 +1216,11 @@ def restore_selection(selection: str, current_workspace_id: str) -> int:
 
 
 def menu_command() -> int:
-    end_peek()
-    entries = minimized_entries(prune=True)
+    """The picker can stay open for minutes: the stacks are only locked while
+    they are read and while the choice is applied."""
+    with state_lock():
+        end_peek()
+        entries = minimized_entries(prune=True)
     if not entries:
         notify("Minimized windows", "No minimized windows to restore")
         return 0
@@ -1206,7 +1230,8 @@ def menu_command() -> int:
 
     selection = shell_picker_selection(entries)
     if selection is not None:
-        return restore_selection(selection, current_workspace_id)
+        with state_lock():
+            return restore_selection(selection, current_workspace_id)
 
     menu = (
         shutil.which("omarchy-menu-select")
@@ -1271,7 +1296,8 @@ def menu_command() -> int:
 
     for line, address in selections:
         if selected == line:
-            return 0 if restore_address(address, current_workspace_id) else 1
+            with state_lock():
+                return 0 if restore_address(address, current_workspace_id) else 1
 
     return 1
 
@@ -1323,6 +1349,16 @@ def main() -> None:
     if args.command not in ("watch-peek", "list", "clear-missing"):
         first_run()
 
+    if args.command == "menu":
+        raise SystemExit(menu_command())
+    if args.command == "watch-peek":
+        watch_peek(args.address)
+        return
+    with state_lock():
+        run_command(args)
+
+
+def run_command(args: argparse.Namespace) -> None:
     if args.command == "stash":
         stash()
     elif args.command == "stash_others":
@@ -1342,10 +1378,6 @@ def main() -> None:
         raise SystemExit(0 if restore_address(args.address, workspace_id) else 1)
     elif args.command == "peek":
         raise SystemExit(0 if peek_address(args.address) else 1)
-    elif args.command == "watch-peek":
-        watch_peek(args.address)
-    elif args.command == "menu":
-        raise SystemExit(menu_command())
 
 
 if __name__ == "__main__":
