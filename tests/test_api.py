@@ -1,13 +1,15 @@
-"""The HTML settings window's backend (hypr_screens/api.py) and config.update(),
+"""The HTML settings window's backend (hypr_screens/api/) and config.update(),
 against a fake Hyprland, fake pactl and a fake /sys -- nothing real is touched."""
 import json
 import os
+from pathlib import Path
 import threading
 import time
 
 import pytest
 
-from hypr_screens import api, apply, camera, config, engine, hypr, install, keybinds, look, samsung, sound, widgets
+from hypr_screens import (api, apply, camera, config, desktops, engine, hypr, i18n, install, keybinds, look, samsung,
+                          sound, theme, widgets)
 from test_samsung import ppd, sysfs  # noqa: F401 - fixtures
 from test_screens import HP_ID, LAPTOP_ID, FakeHyprland, hp, laptop
 
@@ -23,7 +25,7 @@ def isolated(tmp_path, monkeypatch):
         monkeypatch.setenv(name, str(tmp_path / name.lower()))
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setattr(apply.time, "sleep", lambda seconds: None)
-    monkeypatch.setattr(api.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(time, "sleep", lambda seconds: None)
     # Nothing outside: no shell plugin wiring, no pw-dump/busctl, no real camera or /sys.
     monkeypatch.setattr(widgets, "apply", lambda cfg: calls.setdefault("widgets.apply", []).append(cfg))
     monkeypatch.setattr(widgets, "export", lambda cfg: calls.setdefault("widgets.export", []).append(cfg))
@@ -33,13 +35,13 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(camera, "MODPROBE", tmp_path / "modprobe.conf")
     monkeypatch.setattr(samsung, "SYSFS", tmp_path / "no-sys")
     monkeypatch.setattr(sound, "pactl", lambda *args: calls.setdefault("pactl", []).append(args) or "")
-    monkeypatch.setattr(api, "open_uri", lambda uri: calls.setdefault("open", []).append(uri))
+    monkeypatch.setattr(api.general, "open_uri", lambda uri: calls.setdefault("open", []).append(uri))
     # Any hyprctl a test forgets to fake answers nothing instead of reaching Hyprland.
     monkeypatch.setattr(hypr, "hyprctl", lambda *args: "")
-    monkeypatch.setattr(api, "_preview", None)
+    monkeypatch.setattr(api.appearance, "_preview", None)
     calls.clear()
     yield
-    api.i18n.set_language("en")
+    i18n.set_language("en")
 
 
 calls: dict[str, list] = {}
@@ -129,14 +131,24 @@ def test_call_maps_camel_case_and_rejects_unknown_methods(desk):
 
 
 def test_unexpected_errors_become_internal(desk, monkeypatch):
-    monkeypatch.setattr(api.desktops, "status", lambda cfg: 1 / 0)
+    monkeypatch.setattr(desktops, "status", lambda cfg: 1 / 0)
     error = error_of(api.fixed_status)
     assert error.code == "internal" and "ZeroDivisionError" in error.message
 
 
+def test_the_mock_has_exactly_the_real_methods():
+    import re
+
+    script = (Path(api.__file__).parent.parent / "web" / "mock.js").read_text()
+    block = script[script.index("const api = {"):script.index("window.api = api")]
+    mock = set(re.findall(r"^    (?:async )?([a-zA-Z]+)(?:\(|: )", block, re.M))
+    real = {re.sub(r"_([a-z])", lambda m: m.group(1).upper(), name) for name in api.METHODS}
+    assert mock == real
+
+
 def test_every_result_is_json(desk):
     for name in ("screens", "fixed_status", "keys", "look", "sound_state", "camera", "samsung", "widgets",
-                 "layouts", "language", "about", "translations"):
+                 "layouts", "language", "about", "translations", "enforcement"):
         json.dumps(api.METHODS[name]())
 
 
@@ -433,12 +445,12 @@ def test_language_about_links_and_theme(monkeypatch, tmp_path):
     assert about["configDir"] == str(config.config_file().parent) and about["version"]
     api.open_guide()
     api.open_config_folder()
-    assert calls["open"][0] == api.DOCS_URL and calls["open"][1].startswith("file://")
-    theme = tmp_path / "xdg_state_home/omarchy/current/theme"
-    theme.mkdir(parents=True)
-    (theme / "colors.toml").write_text('mode = "light"\naccent = "#123456"\n')
-    monkeypatch.setattr(api.theme_mod, "font", lambda: "JetBrains Mono")
-    monkeypatch.setattr(api.theme_mod, "rounding", lambda: 6)
+    assert calls["open"][0] == api.general.DOCS_URL and calls["open"][1].startswith("file://")
+    folder = tmp_path / "xdg_state_home/omarchy/current/theme"
+    folder.mkdir(parents=True)
+    (folder / "colors.toml").write_text('mode = "light"\naccent = "#123456"\n')
+    monkeypatch.setattr(theme, "font", lambda: "JetBrains Mono")
+    monkeypatch.setattr(theme, "rounding", lambda: 6)
     result = api.theme()
     assert (result["mode"], result["colors"]["accent"], result["font"], result["rounding"]) == \
         ("light", "#123456", "JetBrains Mono", 6)
@@ -581,3 +593,15 @@ def test_save_leaves_no_temporary_on_failure(monkeypatch):
         config.save(config.default_config())
     assert [p for p in config.config_file().parent.iterdir()] == []
     assert os.environ["XDG_CONFIG_HOME"] in str(config.config_file())
+
+
+def test_undoing_a_layout_load_brings_back_unsaved_widgets(desk):
+    api.update_widget("clock", {"enabled": True})
+    api.save_layout("Desk")
+    api.update_widget("clock", {"enabled": False})  # not saved anywhere
+
+    loaded = api.load_layout("Desk")
+    assert config.load()["widgets"]["clock"]["enabled"] is True
+    api.restore_widgets(loaded["previous"])
+    assert config.load()["widgets"]["clock"]["enabled"] is False
+    assert error_of(api.restore_widgets, "nothing").code == "bad_value"

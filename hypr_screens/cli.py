@@ -152,6 +152,19 @@ def samsung_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def enforce_command(args: argparse.Namespace) -> int:
+    from hypr_screens import config, enforce
+
+    try:
+        cfg = config.read() if args.action == "status" else \
+            config.update(lambda fresh: fresh.__setitem__("enforce", args.action == "on"))
+    except config.ConfigError as error:
+        print(f"hypr-screens: {error}", file=sys.stderr)
+        return 1
+    print(json.dumps(enforce.view(cfg), indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="hypr-screens",
@@ -205,6 +218,8 @@ def build_parser() -> argparse.ArgumentParser:
     cycle = sub.add_parser("cycle", help="focus the next visible window")
     cycle.add_argument("direction", nargs="?", choices=["prev"])
     sub.add_parser("status", help="fixed screen status as JSON")
+    enforce = sub.add_parser("enforce", help="keep what hypr-screens sets: status | on | off")
+    enforce.add_argument("action", nargs="?", default="status", choices=["status", "on", "off"])
     cam = sub.add_parser("camera", help="the turned virtual camera: status | setup | teardown | rotate 0|90|180|270")
     cam.add_argument("action", choices=["status", "setup", "teardown", "rotate"])
     cam.add_argument("degrees", nargs="?", type=int)
@@ -226,182 +241,218 @@ def main(argv: list[str] | None = None) -> None:
     raise SystemExit(run(args))
 
 
-def run(args: argparse.Namespace) -> int:
+DESKTOP_COMMANDS = ("switch", "move", "move-silent", "next", "prev", "cycle")
+
+
+def desktop_command(args: argparse.Namespace) -> int:
+    from hypr_screens import config, desktops
+
+    if args.command == "cycle":
+        desktops.cycle(-1 if args.direction == "prev" else 1)
+    elif args.command in ("next", "prev"):
+        desktops.step(config.load(), 1 if args.command == "next" else -1)
+    else:
+        desktops.switch(config.load(), args.command, args.index)
+    return 0
+
+
+def unreadable(error: Exception) -> int:
+    print(f"hypr-screens: {error}", file=sys.stderr)
+    return 1
+
+
+def watch_command(args: argparse.Namespace) -> int:
+    from hypr_screens import watch
+
+    return watch.watch()
+
+
+def apply_command(args: argparse.Namespace) -> int:
+    from hypr_screens import engine
+
+    print(", ".join(engine.sync()) or "nothing to change")
+    return 0
+
+
+def state_command(args: argparse.Namespace) -> int:
+    print_state()
+    return 0
+
+
+def status_command(args: argparse.Namespace) -> int:
+    from hypr_screens import config, desktops
+
+    print(json.dumps(desktops.status(config.load())))
+    return 0
+
+
+def widgets_command(args: argparse.Namespace) -> int:
+    """The arranging overlay saves the places and sizes it was given."""
+    from hypr_screens import config, widgets
+
+    try:
+        placements = json.loads(args.placements)
+    except json.JSONDecodeError:
+        print("hypr-screens: placements must be JSON", file=sys.stderr)
+        return 1
+    try:
+        cfg = config.update(lambda cfg: widgets.save_placements(cfg, placements if isinstance(placements, dict) else {}))
+    except config.ConfigError as error:
+        return unreadable(error)
+    widgets.export(cfg)
+    return 0
+
+
+def list_command(args: argparse.Namespace) -> int:
+    from hypr_screens import config, engine, hypr
+
+    cfg = config.load()
+    for row in engine.screen_rows(cfg, set(config.connected(hypr.monitors()))):
+        mark = "●" if row["connected"] else "○"
+        star = "★" if row["favorite"] else " "
+        print(f"{mark} {star} {row['name']:<24} {row['connector']:<10} {row['summary']}")
+    return 0
+
+
+def set_command(args: argparse.Namespace) -> int:
     from hypr_screens import config
 
+    def mutate(cfg):
+        sid = resolve_screen(cfg, args.screen)
+        config.set_setting(cfg, sid, args.key, parse_value(args.key, args.value))
+    return change(mutate)
+
+
+def when_command(args: argparse.Namespace) -> int:
+    from hypr_screens import config
+
+    def mutate(cfg):
+        sid = resolve_screen(cfg, args.screen)
+        other = None if args.other == "always" else resolve_screen(cfg, args.other)
+        config.set_condition(cfg, sid, args.key, other)
+    return change(mutate)
+
+
+def favorite_command(args: argparse.Namespace) -> int:
+    def mutate(cfg):
+        screen = cfg["screens"][resolve_screen(cfg, args.screen)]
+        screen["favorite"] = not screen.get("favorite")
+    return change(mutate)
+
+
+def forget_command(args: argparse.Namespace) -> int:
+    from hypr_screens import config, hypr
+
+    def mutate(cfg):
+        sid = resolve_screen(cfg, args.screen)
+        if cfg["screens"][sid].get("internal"):
+            raise ValueError("the laptop screen cannot be forgotten")
+        if sid in config.connected(hypr.monitors()):
+            raise ValueError("unplug it first")
+        del cfg["screens"][sid]
+        for screen in cfg["screens"].values():
+            for setting in screen.get("settings", {}).values():
+                if setting.get("when") == sid:
+                    setting["when"] = None
+    return change(mutate)
+
+
+def swap_command(args: argparse.Namespace) -> int:
+    from hypr_screens import config, desktops
+
+    cfg = config.load()
+    try:
+        desktops.swap(cfg, args.role)
+    except RuntimeError as error:
+        print_state(cfg, f"error: {error}")
+        return 1
+    print_state(cfg)
+    return 0
+
+
+def keys_change(work) -> tuple[dict, dict] | int:
+    """config.update(work) for a key or an option: (before, after), or the exit code."""
+    from hypr_screens import config
+
+    before = []
+
+    def mutate(cfg):
+        before.append(config.normalize(json.loads(json.dumps(cfg))))
+        work(cfg)
+    try:
+        cfg = config.update(mutate)
+    except config.ConfigError as error:
+        return unreadable(error)
+    except ValueError as error:
+        print_state(config.load(), f"error: {error}")
+        return 1
+    return before[0], cfg
+
+
+def bind_command(args: argparse.Namespace) -> int:
+    from hypr_screens import keybinds
+
+    notes = []
+    result = keys_change(lambda cfg: notes.append(keybinds.set_key(cfg, args.action, args.slot - 1, args.combo)))
+    if isinstance(result, int):
+        return result
+    before, cfg = result
+    keybinds.write(cfg)
+    keybinds.go_live(before, cfg)
+    print_state(cfg, notes[0])
+    return 0
+
+
+def option_value(cfg: dict, name: str, value: str) -> object:
+    """desktop_keys: on/off or next/prev (toggle); default_fixed: a choice or next/prev."""
+    from hypr_screens import config
+
+    if name == "desktop_keys":
+        return not cfg["desktop_keys"] if value in ("next", "prev") else value in ("on", "1", "true", "yes")
+    choices = config.FIXED_DEFAULTS
+    if value in ("next", "prev"):
+        value = choices[(choices.index(cfg["default_fixed"]) + (1 if value == "next" else -1)) % len(choices)]
+    if value not in choices:
+        raise ValueError(f"default_fixed must be one of {choices}")
+    return value
+
+
+def option_command(args: argparse.Namespace) -> int:
+    from hypr_screens import engine, keybinds
+
+    result = keys_change(lambda cfg: cfg.__setitem__(args.name, option_value(cfg, args.name, args.value)))
+    if isinstance(result, int):
+        return result
+    before, cfg = result
+    if args.name == "desktop_keys":
+        keybinds.write(cfg)
+        keybinds.go_live(before, cfg)
+    engine.sync()
+    print_state()
+    return 0
+
+
+HANDLERS = {
+    "watch": watch_command, "apply": apply_command, "state": state_command, "status": status_command,
+    "enforce": enforce_command, "camera": camera_command, "widgets": widgets_command, "power": power,
+    "samsung": samsung_command, "list": list_command, "set": set_command, "when": when_command,
+    "favorite": favorite_command, "forget": forget_command, "swap": swap_command, "bind": bind_command,
+    "option": option_command,
+}
+
+
+def run(args: argparse.Namespace) -> int:
     command = args.command
-
-    # Hot path first: desktop keys fire on every keypress.
-    if command in ("switch", "move", "move-silent", "next", "prev", "cycle"):
-        from hypr_screens import desktops
-
-        if command == "cycle":
-            desktops.cycle(-1 if args.direction == "prev" else 1)
-        elif command in ("next", "prev"):
-            desktops.step(config.load(), 1 if command == "next" else -1)
-        else:
-            desktops.switch(config.load(), command, args.index)
-        return 0
+    if command in DESKTOP_COMMANDS:  # the hot path: desktop keys fire on every keypress
+        return desktop_command(args)
+    from hypr_screens import config, setup
 
     if command == "setup":
-        from hypr_screens import setup
-
         return setup.run()
     if not config.exists() and sys.stdin.isatty() and command in ("settings", "apply", "list", "state"):
-        from hypr_screens import setup
-
         setup.run()
         if command != "settings":
             return 0
-
     if command in ("settings", "tray"):
         return gui(tray=command == "tray")
-    if command == "watch":
-        from hypr_screens import watch
-
-        return watch.watch()
-    if command == "apply":
-        from hypr_screens import engine
-
-        done = engine.sync()
-        print(", ".join(done) or "nothing to change")
-        return 0
-    if command == "state":
-        print_state()
-        return 0
-    if command == "status":
-        from hypr_screens import desktops
-
-        print(json.dumps(desktops.status(config.load())))
-        return 0
-    if command == "camera":
-        return camera_command(args)
-    if command == "widgets":
-        from hypr_screens import widgets
-
-        try:
-            placements = json.loads(args.placements)
-        except json.JSONDecodeError:
-            print("hypr-screens: placements must be JSON", file=sys.stderr)
-            return 1
-        def work(cfg):
-            widgets.save_placements(cfg, placements if isinstance(placements, dict) else {})
-        try:
-            cfg = config.update(work)
-        except config.ConfigError as error:
-            print(f"hypr-screens: {error}", file=sys.stderr)
-            return 1
-        widgets.export(cfg)
-        return 0
-    if command == "power":
-        return power(args)
-    if command == "samsung":
-        return samsung_command(args)
-    if command == "list":
-        from hypr_screens import engine, hypr
-
-        cfg = config.load()
-        for row in engine.screen_rows(cfg, set(config.connected(hypr.monitors()))):
-            mark = "●" if row["connected"] else "○"
-            star = "★" if row["favorite"] else " "
-            print(f"{mark} {star} {row['name']:<24} {row['connector']:<10} {row['summary']}")
-        return 0
-
-    if command == "set":
-        def mutate(cfg):
-            sid = resolve_screen(cfg, args.screen)
-            config.set_setting(cfg, sid, args.key, parse_value(args.key, args.value))
-        return change(mutate)
-    if command == "when":
-        def mutate(cfg):
-            sid = resolve_screen(cfg, args.screen)
-            other = None if args.other == "always" else resolve_screen(cfg, args.other)
-            config.set_condition(cfg, sid, args.key, other)
-        return change(mutate)
-    if command == "favorite":
-        def mutate(cfg):
-            screen = cfg["screens"][resolve_screen(cfg, args.screen)]
-            screen["favorite"] = not screen.get("favorite")
-        return change(mutate)
-    if command == "forget":
-        from hypr_screens import hypr
-
-        def mutate(cfg):
-            sid = resolve_screen(cfg, args.screen)
-            if cfg["screens"][sid].get("internal"):
-                raise ValueError("the laptop screen cannot be forgotten")
-            if sid in config.connected(hypr.monitors()):
-                raise ValueError("unplug it first")
-            del cfg["screens"][sid]
-            for screen in cfg["screens"].values():
-                for setting in screen.get("settings", {}).values():
-                    if setting.get("when") == sid:
-                        setting["when"] = None
-        return change(mutate)
-    if command == "swap":
-        from hypr_screens import desktops
-
-        cfg = config.load()
-        try:
-            desktops.swap(cfg, args.role)
-        except RuntimeError as error:
-            print_state(cfg, f"error: {error}")
-            return 1
-        print_state(cfg)
-        return 0
-    if command == "bind":
-        from hypr_screens import keybinds
-
-        before, notes = [], []
-
-        def work(cfg):
-            before.append(config.normalize(json.loads(json.dumps(cfg))))
-            notes.append(keybinds.set_key(cfg, args.action, args.slot - 1, args.combo))
-        try:
-            cfg = config.update(work)
-        except config.ConfigError as error:
-            print(f"hypr-screens: {error}", file=sys.stderr)
-            return 1
-        except ValueError as error:
-            print_state(config.load(), f"error: {error}")
-            return 1
-        keybinds.write(cfg)
-        keybinds.go_live(before[0], cfg)
-        print_state(cfg, notes[0])
-        return 0
-    if command == "option":
-        from hypr_screens import keybinds
-
-        before = []
-
-        def work(cfg):
-            before.append(config.normalize(json.loads(json.dumps(cfg))))
-            if args.name == "desktop_keys":
-                toggle = args.value in ("next", "prev")
-                cfg["desktop_keys"] = not cfg["desktop_keys"] if toggle else args.value in ("on", "1", "true", "yes")
-                return
-            choices = config.FIXED_DEFAULTS
-            value = args.value
-            if value in ("next", "prev"):
-                index = choices.index(cfg["default_fixed"]) + (1 if value == "next" else -1)
-                value = choices[index % len(choices)]
-            if value not in choices:
-                raise ValueError(f"default_fixed must be one of {choices}")
-            cfg["default_fixed"] = value
-        try:
-            cfg = config.update(work)
-        except config.ConfigError as error:
-            print(f"hypr-screens: {error}", file=sys.stderr)
-            return 1
-        except ValueError as error:
-            print_state(config.load(), f"error: {error}")
-            return 1
-        if args.name == "desktop_keys":
-            keybinds.write(cfg)
-            keybinds.go_live(before[0], cfg)
-        from hypr_screens import engine
-
-        engine.sync()
-        print_state()
-        return 0
-    return 1
+    return HANDLERS[command](args) if command in HANDLERS else 1

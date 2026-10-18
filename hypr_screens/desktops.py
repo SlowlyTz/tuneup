@@ -163,6 +163,27 @@ def rules_marked() -> bool:
     return (config.runtime_dir() / "rules").exists()
 
 
+def misplaced(screens: Screens, workspaces: list[dict], rules: list[dict]) -> list[str]:
+    """What is not where the role wants it (empty: all in place): the fixed
+    screen off its desktop, a desktop 1-10 on it, a rule pinning a desktop
+    elsewhere; without a fixed screen, windows left on the fixed desktop."""
+    if not screens.role:
+        if any(w.get("id") == FIXED_WS and w.get("windows") for w in workspaces):
+            return [f"windows on desktop {FIXED_WS}"]
+        return []
+    found = []
+    if screens.workspace_on(screens.fixed) != FIXED_WS:
+        found.append(f"{screens.fixed} does not show desktop {FIXED_WS}")
+    found += [f"desktop {w['id']} on {screens.fixed}" for w in workspaces
+              if w.get("id") in DESKTOPS and w.get("monitor") == screens.fixed]
+    pinned = {str(rule.get("workspaceString")): rule.get("monitor") for rule in rules}
+    if pinned:
+        wanted = {str(FIXED_WS): screens.fixed, **{str(ws): screens.desk for ws in DESKTOPS}}
+        found += [f"rule for desktop {ws} on {pinned.get(ws) or 'no screen'}"
+                  for ws, monitor in wanted.items() if pinned.get(ws) != monitor]
+    return found
+
+
 # --- actions ---------------------------------------------------------------------
 
 

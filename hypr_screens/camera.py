@@ -268,9 +268,10 @@ class Feeder:
             now = time.monotonic()
             if now - checked >= 1.0:
                 checked = now
-                if not self.virtual.exists():
+                if not self.virtual.exists() or teardown_running():
                     # Torn down (or the module unloaded): without this, ffmpeg
-                    # would be started again five times a second.
+                    # would be started again five times a second. While the
+                    # teardown runs, the device must be free to unload it.
                     self.stop_reader()
                     self.stop_writer()
                     write_status("off")
@@ -325,8 +326,8 @@ def guard() -> None:
     """Watcher thread: feed the virtual camera when it exists (after setup)."""
     while True:
         virtual, real = virtual_device(), real_device()
-        if virtual is None or real is None:
-            time.sleep(10)
+        if virtual is None or real is None or teardown_running():
+            time.sleep(10 if virtual is None else 1)
             continue
         try:
             Feeder(virtual, real).run()
@@ -369,5 +370,20 @@ def setup(graphical: bool = False) -> bool:
     return run_as_root(setup_script(), graphical)
 
 
+def teardown_mark() -> Path:
+    return config.runtime_dir() / "camera-teardown"
+
+
+def teardown_running() -> bool:
+    return teardown_mark().exists()
+
+
 def teardown(graphical: bool = False) -> bool:
-    return run_as_root(teardown_script(), graphical)
+    """The watcher's feeder lets go of the virtual camera first (it checks once
+    a second); a camera that is open cannot be unloaded."""
+    teardown_mark().touch()
+    try:
+        time.sleep(RELEASE_SECONDS)
+        return run_as_root(teardown_script(), graphical)
+    finally:
+        teardown_mark().unlink(missing_ok=True)

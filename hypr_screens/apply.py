@@ -2,9 +2,13 @@
 
 Only settings whose condition holds are applied, through `hl.monitor`; fields a
 screen has no setting for keep their current value. A setting that stops
-applying (its screen or condition went away) cannot be "unset" at runtime, so
-the Hyprland config is reloaded once to get the configured values back, and
-the remaining settings are applied on top.
+applying on a connected screen (its condition went away) cannot be "unset" at
+runtime, so the Hyprland config is reloaded once to get the configured values
+back, and the remaining settings are applied on top. A position is the
+exception: it is handed back to Hyprland with position "auto". A screen that
+is unplugged needs nothing: its rule only matters when it comes back, and is
+checked then (another screen on that connector gets a reload, so it does not
+inherit the rule).
 
 A position ("above" the laptop, ...) becomes explicit coordinates for both
 screens (layout()): Hyprland's auto-up/-left/... only stack a screen along one
@@ -16,6 +20,7 @@ import json
 import sys
 import time
 from contextlib import contextmanager
+from pathlib import Path
 
 from hypr_screens import config, hypr
 
@@ -32,7 +37,18 @@ def locked(name: str = "apply"):
         yield
 
 
-def applied_file():
+def busy(name: str = "sync") -> bool:
+    """Whether someone holds that lock right now (it is not taken)."""
+    with open(config.runtime_dir() / f"{name}.lock", "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        return False
+
+
+def applied_file() -> Path:
     return config.runtime_dir() / "applied.json"
 
 
@@ -45,7 +61,29 @@ def load_applied() -> dict:
 
 
 def save_applied(applied: dict) -> None:
-    applied_file().write_text(json.dumps(applied, indent=2, sort_keys=True) + "\n")
+    temporary = applied_file().with_suffix(".tmp")
+    temporary.write_text(json.dumps(applied, indent=2, sort_keys=True) + "\n")
+    temporary.replace(applied_file())
+
+
+def reload_mark() -> Path:
+    return config.runtime_dir() / "reloaded"
+
+
+def reset() -> None:
+    """Hyprland's config back (it drops every rule set at runtime) and nothing
+    counted as applied. The watcher knows the reload event that follows as ours."""
+    save_applied({})
+    reload_mark().write_text(f"{time.time()}\n")
+    hypr.hyprctl("reload")
+    time.sleep(RELOAD_SETTLE_SECONDS)
+
+
+def reloaded_by_us(within: float) -> bool:
+    try:
+        return time.time() - float(reload_mark().read_text()) < within
+    except (OSError, ValueError):
+        return False
 
 
 def usable(key: str, value: object) -> bool:
@@ -197,18 +235,54 @@ def monitor_rule(monitor: dict, fields: dict) -> str:
 
 
 def needs_reset(applied: dict, wanted: dict) -> bool:
-    for name, entry in applied.items():
-        now = wanted.get(name)
-        if now is None or now["id"] != entry.get("id"):
+    """A connected screen still has a rule it should not have: another screen's
+    (same connector) or a field whose setting went away (but a position)."""
+    for name, now in wanted.items():
+        entry = applied.get(name)
+        if entry is None:
+            continue
+        if now["id"] != entry.get("id"):
             return True
-        if set(entry.get("fields", {})) - set(now["fields"]):
+        if set(entry.get("fields", {})) - set(now["fields"]) - {"position"}:
             return True
     return False
+
+
+def rule_fields(previous: dict | None, fields: dict) -> dict:
+    """What to send: the fields, and "auto" for a position that went away."""
+    if previous and "position" in previous.get("fields", {}) and "position" not in fields:
+        return {**fields, "position": "auto"}
+    return fields
 
 
 def in_place(monitor: dict, fields: dict) -> bool:
     """Whether the screen stands where its position says (no position: anywhere)."""
     return "position" not in fields or fields["position"] == f"{monitor.get('x', 0)}x{monitor.get('y', 0)}"
+
+
+def in_force(previous: dict | None, monitor: dict, fields: dict) -> bool:
+    """Whether the rule sent last is still what the screen shows."""
+    return bool(previous) and previous.get("fields") == fields and previous.get("after") == snapshot(monitor) \
+        and in_place(monitor, fields)
+
+
+def drifted(cfg: dict, monitors: list[dict]) -> list[str]:
+    """Connected screens that do not show what their settings want (any more):
+    a reload, another app or a hotplug changed them. Empty while nothing is due."""
+    wanted = desired(cfg, monitors)
+    applied = load_applied()
+    if needs_reset(applied, wanted):
+        return sorted(wanted)
+    by_name = {str(monitor.get("name")): monitor for monitor in monitors}
+    found = []
+    for name, entry in wanted.items():
+        previous, monitor = applied.get(name), by_name[name]
+        if not rule_fields(previous, entry["fields"]) or in_force(previous, monitor, entry["fields"]):
+            continue
+        if previous is None and already_there(monitor, entry["fields"]):
+            continue
+        found.append(name)
+    return found
 
 
 def put_in_force(wanted: dict, monitors: list[dict], applied: dict) -> list[str]:
@@ -218,16 +292,15 @@ def put_in_force(wanted: dict, monitors: list[dict], applied: dict) -> list[str]
     for name, entry in wanted.items():
         fields = entry["fields"]
         monitor = by_name.get(name)
-        if not fields or monitor is None:
-            continue
         previous = applied.get(name)
-        if previous and previous.get("fields") == fields and previous.get("after") == snapshot(monitor) \
-                and in_place(monitor, fields):
+        if not rule_fields(previous, fields) or monitor is None:
+            continue
+        if in_force(previous, monitor, fields):
             continue
         if previous is None and already_there(monitor, fields):
             applied[name] = {"id": entry["id"], "fields": fields, "after": snapshot(monitor)}
             continue
-        reply = hypr.eval_lua(monitor_rule(monitor, fields))
+        reply = hypr.eval_lua(monitor_rule(monitor, rule_fields(previous, fields)))
         if hypr.rejected(reply):
             # Not recorded: the next sync tries again instead of believing it is in force.
             print(f"hypr-screens: Hyprland rejected the rule for {name}: {reply.strip()}",
@@ -247,10 +320,8 @@ def apply(cfg: dict) -> list[str]:
         applied = load_applied()
 
         if needs_reset(applied, wanted):
-            save_applied({})
+            reset()
             applied = {}
-            hypr.hyprctl("reload")
-            time.sleep(RELOAD_SETTLE_SECONDS)
             done.append("reload")
             monitors = hypr.monitors()
             wanted = desired(cfg, monitors)

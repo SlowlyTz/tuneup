@@ -149,16 +149,43 @@ def app_rule(rule: dict) -> str:
             f"opacity = \"{rule['active']} {rule['inactive']}\" }})")
 
 
-def current() -> dict:
-    """What Hyprland uses right now."""
+def current(keys: object = None) -> dict:
+    """What Hyprland uses right now (for these keys of OPTIONS, or all)."""
     values = {}
     for key, (option, _path, kind, *_rest) in OPTIONS.items():
+        if keys is not None and key not in keys:
+            continue
         try:
             reply = json.loads(hypr.hyprctl("-j", "getoption", option) or "{}")
         except json.JSONDecodeError:
             continue
         values[key] = parse_option(reply, kind)
     return values
+
+
+def same_color(first: str, second: str) -> bool:
+    return rgba(first).lower() == rgba(second).lower()
+
+
+def drifted(saved: dict) -> list[str]:
+    """The saved look's values Hyprland does not show (any more); the animation
+    speed and the app rules cannot be read back, so they are not checked."""
+    saved = normalize(saved)
+    live = current(saved)
+    found = []
+    for key in (key for key in saved if key in OPTIONS):
+        kind = OPTIONS[key][2]
+        if key not in live:
+            continue
+        differs = abs(float(live[key]) - float(saved[key])) > 0.011 if kind == "float" else live[key] != saved[key]
+        if differs:
+            found.append(f"{key} {live[key]} instead of {saved[key]}")
+    if "border_colors" in saved:
+        colors, angle = current_border()
+        if not all(same_color(a, b) for a, b in zip(colors, saved["border_colors"])) \
+                or angle != saved["border_angle"]:
+            found.append("border colors")
+    return found
 
 
 def lua_value(value: object) -> str:

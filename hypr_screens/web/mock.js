@@ -1,10 +1,10 @@
 /* hypr-screens – fake backend for opening index.html in a plain browser.
  *
  * The UI talks only to `window.api`. In the real window the WebKit bridge
- * puts the Python backend (hypr_screens/api.py) there: every method is async,
+ * puts the Python backend (hypr_screens/api/) there: every method is async,
  * takes JSON arguments and returns plain JSON; a failure rejects with an
  * error that has {code, message}. This file returns exactly the same shapes
- * (the data below was produced by api.py against a fake Hyprland) and keeps
+ * (the data below was produced by hypr_screens.api against a fake Hyprland) and keeps
  * all state in memory. Nothing here touches the system.
  *
  * Shapes, error codes and every method: hypr_screens/web/API.md.
@@ -25,7 +25,7 @@
   const need = (ok, code, message) => { if (!ok) fail(code, message); };
   const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 
-  /* ---------- data: api.py's answers against a fake Hyprland ---------- */
+  /* ---------- data: hypr_screens.api's answers against a fake Hyprland ---------- */
   const FIXTURE = {
     "screens": [
       {"id": "Samsung Display Corp.|0x4159|", "name": "Laptop", "description": "Samsung Display Corp. 0x4159", "connector": "eDP-1", "laptop": true, "connected": true, "favorite": false, "lastSeen": "2026-10-18", "modes": [{"w": 1920, "h": 1080, "rates": [144.0, 60.0], "modes": ["1920x1080@144.00", "1920x1080@60.00"], "preferred": true}, {"w": 1680, "h": 1050, "rates": [60.0], "modes": ["1680x1050@60.00"], "preferred": false}, {"w": 1280, "h": 720, "rates": [60.0], "modes": ["1280x720@60.00"], "preferred": false}], "hypr": {"rotation": 0, "flipped": false, "scale": 1.25, "mode": "1920x1080@144.00", "one_desktop": true}, "settings": {"rotation": {"value": null, "when": [], "active": false}, "scale": {"value": 1.25, "when": [], "active": true}, "mode": {"value": "1920x1080@144.00", "when": [], "active": true}, "one_desktop": {"value": true, "when": ["HP Inc.|HP 32f|3CM1230QVW"], "active": true}}, "position": {"x": 192, "y": 1080, "w": 1536, "h": 864}, "side": null, "summary": "1920x1080@144.00 · one desktop if HP 32f · 1.25×"},
@@ -108,6 +108,7 @@
       ],
       "connected": ["HP Inc.|HP 32f|3CM1230QVW", "Samsung Display Corp.|0x4159|"]
     },
+    "enforcement": {"enabled": true, "running": true, "fixes": [{"time": 1792310363.0, "area": "look", "what": "Window look", "detail": "gaps_in 0 instead of 5"}, {"time": 1792310280.0, "area": "sound", "what": "Force mute", "detail": "Laptop speakers"}, {"time": 1792309500.0, "area": "keys", "what": "Shortcuts", "detail": "SUPER + M also runs Emoji picker"}, {"time": 1792306800.0, "area": "screens", "what": "Screen arrangement", "detail": "DP-3 moved or changed"}], "backedOff": [{"area": "look", "what": "Window look", "until": 1792310393.0}]},
     "language": {"code": "de", "items": [{"code": "en", "name": "English"}, {"code": "de", "name": "Deutsch"}, {"code": "es", "name": "Español"}, {"code": "fr", "name": "Français"}, {"code": "it", "name": "Italiano"}]},
     "about": {"version": "0.1.0", "configDir": "~/.config/hypr-screens", "configPath": "/home/you/.config/hypr-screens", "configFile": "/home/you/.config/hypr-screens/config.json", "guideUrl": "https://github.com/SlowlyTz/hypr-minimizer/tree/master/docs"},
     "theme": {"mode": "dark", "colors": {"background": "#1e1e2e", "foreground": "#cdd6f4", "accent": "#89b4fa", "selection": "#45475a", "lighter_background": "#313244", "dark_foreground": "#6c7086", "red": "#f38ba8", "green": "#a6e3a1", "menu_background": "#1e1e2e", "menu_text": "#cdd6f4"}, "font": "JetBrainsMono Nerd Font", "rounding": 10},
@@ -524,7 +525,17 @@
       db.layoutStore[name] = snapshot();
       return reply(layoutsView());
     },
-    async loadLayout(name) { knownLayout(name); restore(db.layoutStore[name]); return reply(layoutsView()); },
+    async loadLayout(name) {
+      knownLayout(name);
+      const previous = snapshot();
+      restore(db.layoutStore[name]);
+      return reply({ ...layoutsView(), previous });
+    },
+    async restoreWidgets(previous) {
+      need(previous && typeof previous === "object", "bad_value", "previous must be the widgets from loadLayout");
+      restore(previous);
+      return reply(layoutsView());
+    },
     async deleteLayout(name) {
       knownLayout(name);
       db.layouts.items = db.layouts.items.filter((n) => n !== name);
@@ -557,6 +568,14 @@
     async arrangeWidgets() {
       need(db.widgets.some((w) => w.onDesktop), "nothing_to_arrange", "switch a widget on first");
       return reply({ ok: true });
+    },
+
+    /* Enforcement */
+    enforcement: () => reply(db.enforcement),
+    async setEnforcement(enabled) {
+      need(typeof enabled === "boolean", "bad_value", "enabled must be true or false");
+      db.enforcement.enabled = enabled;
+      return reply(db.enforcement);
     },
 
     /* General */
