@@ -1,6 +1,6 @@
 # Daily cheat sheet
 
-Default keys. Yours may differ: see them in the settings window (tray icon → Shortcuts) or with `hypr-screens state | jq .keybinds`.
+Default keys. Yours may differ: see them in the settings window (tray icon → Keyboard) or with `hypr-screens state | jq .keybinds`.
 
 ## Windows
 

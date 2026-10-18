@@ -1,5 +1,7 @@
 """Every text the settings window passes through i18n.t(), found in the code."""
 import ast
+import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent / "hypr_screens"
@@ -17,74 +19,55 @@ def literal_keys() -> set[str]:
     return keys
 
 
-def table_keys() -> set[str]:
-    """Texts kept in tables and translated through t(variable)."""
-    from hypr_screens import samsung, sound
-    from hypr_screens.gui import texts
+# t("...") in the HTML settings window (hypr_screens/web/app.js): a double-quoted
+# string literal as the first argument. Anything else passed to t() is a text
+# the backend sends (already an English source text, translated elsewhere).
+WEB_APP = ROOT / "web" / "app.js"
+WEB_CALL = re.compile(r'(?<![\w.$])t\(\s*"((?:[^"\\\n]|\\.)*)"')
 
-    keys = {title for _key, title, _icon in texts.PAGE_LIST}
-    keys |= {title for title, _pages in texts.SECTIONS if title}
-    keys |= set(texts.INTROS.values()) | set(texts.SEARCH_WORDS.values())
-    for title, explanation in texts.SETTINGS.values():
-        keys |= {title, explanation}
-    keys |= set(texts.ACTION_HELP.values()) | set(texts.ACTION_LABELS.values())
-    for title, text in texts.HELP:
-        keys |= {title, text}
+
+def web_keys() -> set[str]:
+    """Texts of the HTML settings window."""
+    if not WEB_APP.exists():
+        return set()
+    return {json.loads(f'"{text}"') for text in WEB_CALL.findall(WEB_APP.read_text(encoding="utf-8"))}
+
+
+def table_keys() -> set[str]:
+    """Texts kept in tables: the backend sends them to the page (or the widgets),
+    which translates them through t(variable)."""
+    from hypr_screens import api, look, samsung, sound, widget_schema, widgets
+
+    keys = set(api.ACTION_TITLES.values()) | set(api.ACTION_HELP.values()) | set(api.DEFAULT_FIXED_LABELS.values())
     keys |= set(sound.PORT_LABELS.values())
     keys |= {label for _mode, label, _cpu in samsung.MODES} | set(samsung.ATTRIBUTES.values())
-    keys |= set(texts.MODE_HINTS.values()) | set(texts.BATTERY_ROWS.values())
-    keys |= personalization_keys() | widgets_keys()
-    return keys
-
-
-def personalization_keys() -> set[str]:
-    """The page's tables, read without importing GTK."""
-    from hypr_screens import look
-
-    source = (ROOT / "gui" / "look_page.py").read_text()
-    tree = ast.parse(source)
-    keys = set(look.PRESETS)
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and node.targets[0].id in ("SLIDERS", "GROUPS"):
-            value = ast.literal_eval(node.value)
-            if isinstance(value, dict):
-                for title, subtitle, _percent in value.values():
-                    keys |= {text for text in (title, subtitle) if text}
-            else:
-                keys |= {title for title, _keys in value}
-    return keys
-
-
-def widgets_keys() -> set[str]:
-    from hypr_screens import widgets
-
-    source = (ROOT / "gui" / "widgets_tab.py").read_text()
-    keys = set(widgets.TITLES.values())
+    keys |= set(look.PRESETS)
+    keys |= set(widgets.TITLES.values())
     for group, parts in [*(g for groups in widgets.PARTS.values() for g in groups), widgets.LOOK_PARTS]:
         keys |= {group} | {title for _part, title, _default in parts}
-    colors = (ROOT / "gui" / "widget_colors.py").read_text()
-    for node in ast.parse(colors).body:
-        if isinstance(node, ast.Assign) and node.targets[0].id == "THEME_NAMES":
-            keys |= set(ast.literal_eval(node.value).values())
-    for node in ast.parse(source).body:
-        if not isinstance(node, ast.Assign):
-            continue
-        name = node.targets[0].id
-        if name in ("CHOICE_TITLES", "SWITCH_TITLES", "DESCRIPTIONS", "HINTS"):
-            keys |= set(ast.literal_eval(node.value).values())
-        if name == "CHOICE_LABELS":
-            keys |= {text for labels in ast.literal_eval(node.value).values() for text in labels.values()}
-        if name in ("SECTIONS", "VISIBILITY"):
-            keys |= {item.elts[0].value for item in ast.walk(node.value)
-                     if isinstance(item, ast.Tuple) and item.elts and isinstance(item.elts[0], ast.Constant)}
-        if name == "EXPANDERS":
-            keys |= {title for title, _keys, _switch in ast.literal_eval(node.value).values()}
-        if name == "NUMBER_ROWS":
-            keys |= set(ast.literal_eval(node.value).values())
-        if name == "SLIDER_ROWS":
-            keys |= {title for title, _step, _unit in ast.literal_eval(node.value).values()}
+    for name in ("CHOICE_TITLES", "SWITCH_TITLES", "HINTS", "DESCRIPTIONS"):
+        keys |= set(getattr(widget_schema, name).values())
+    keys |= {text for labels in widget_schema.CHOICE_LABELS.values() for text in labels.values()}
+    keys |= {title for title, _step, _unit in widget_schema.NUMBERS.values()}
+    keys |= {entry[0] for entries in widget_schema.CONTENT.values() for entry in entries if isinstance(entry, tuple)}
+    return keys | schema_inline_keys()
+
+
+def schema_inline_keys() -> set[str]:
+    """Labels and hints written inline in widget_schema.py (label=..., "label": ...)."""
+    keys = set()
+    for node in ast.walk(ast.parse((ROOT / "widget_schema.py").read_text())):
+        values = []
+        if isinstance(node, ast.keyword) and node.arg in ("label", "hint"):
+            values.append(node.value)
+        if isinstance(node, ast.Dict):
+            values += [v for k, v in zip(node.keys, node.values)
+                       if isinstance(k, ast.Constant) and k.value in ("label", "hint")]
+        for value in values:
+            choices = [value.body, value.orelse] if isinstance(value, ast.IfExp) else [value]
+            keys |= {c.value for c in choices if isinstance(c, ast.Constant) and isinstance(c.value, str)}
     return keys
 
 
 def all_keys() -> set[str]:
-    return literal_keys() | table_keys()
+    return literal_keys() | table_keys() | web_keys()

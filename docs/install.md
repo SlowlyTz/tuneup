@@ -1,10 +1,10 @@
 # Install
 
-**Needs:** Hyprland ≥ 0.56 (Lua config), Python ≥ 3.10, GTK 4 + libadwaita + PyGObject (settings window).
+**Needs:** Hyprland ≥ 0.56 (Lua config), Python ≥ 3.10, GTK 4 + libadwaita + WebKitGTK 6.0 + PyGObject (settings window), the Inter font (its text).
 **Nice to have:** Omarchy (window menu with icons, bar widget).
 
 ```bash
-sudo pacman -S python-gobject libadwaita   # Arch, if missing
+sudo pacman -S python-gobject libadwaita webkitgtk-6.0 inter-font   # Arch, if missing
 ```
 
 ## 1. Get it and run the installer
