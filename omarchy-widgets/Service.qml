@@ -48,6 +48,10 @@ Item {
   property var parts: ({})
   // part -> its name in the settings window's language, per widget.
   property var partTitles: ({})
+  // kind -> the look settings it has (widgets.look_keys: font, effect, card
+  // ...), set in the style panel; and the ranges of its sliders.
+  property var lookKeys: ({})
+  property var lookRanges: ({})
   // The theme's colors by name, from its colors.toml (follows a theme change).
   property var palette: ({})
 
@@ -77,6 +81,10 @@ Item {
     if (data.kinds) root.kinds = data.kinds
     root.parts = data.parts || {}
     root.partTitles = data.partTitles || {}
+    root.lookKeys = data.lookKeys || root.lookKeysFallback()
+    root.lookRanges = data.lookRanges || { letter_spacing: [-2, 20], effect_strength: [0, 100], opacity: [20, 100],
+                                           card_opacity: [5, 100], card_radius: [0, 60], card_padding: [0, 80],
+                                           current_size: [100, 170], scroll_ms: [150, 1500] }
     if (!root.editing) root.draft = root.placementsFromSettings()
     if (root.widget("visualizer") && root.cavaKey !== key && key !== "") root.restartCava()
   }
@@ -125,10 +133,10 @@ Item {
     return null
   }
   // A widget's own colors: part -> value, and its base color ("base"). While
-  // arranging they come from the draft, or from the palette's preview while
+  // arranging they come from the draft, or from the style panel's preview while
   // the pointer is on a color there.
   function colorsOf(kind) {
-    if (root.preview && root.preview.kind === kind) return root.preview.colors
+    if (root.preview && root.preview.kind === kind && root.preview.colors) return root.preview.colors
     var spot = root.draft[kind]
     return spot && spot.colors ? spot.colors : {}
   }
@@ -144,10 +152,36 @@ Item {
     return !!root.colorsOf(kind)[part]
   }
 
+  // widgets.look_keys, for a settings file written before it had them.
+  function lookKeysFallback() {
+    var out = {}
+    var look = ["effect", "effect_strength", "opacity", "card", "card_opacity", "card_radius", "card_padding", "card_blur"]
+    for (var kind in root.widgets) {
+      out[kind] = (kind === "visualizer" ? [] : ["font_family", "font_weight", "letter_spacing"]).concat(look)
+                  .concat(kind === "lyrics" ? ["align", "current_size", "scroll_ms"] : [])
+    }
+    return out
+  }
+
+  // A widget's settings with its look (lookKeys) as arranged: from the draft,
+  // or from the style panel's preview while the pointer rests on a choice.
+  function style(kind) {
+    var w = root.widget(kind)
+    if (!w) return null
+    var out = Object.assign({}, w)
+    var spot = root.draft[kind]
+    var keys = root.lookKeys[kind] || []
+    for (var i = 0; spot && i < keys.length; i++) {
+      if (spot[keys[i]] !== undefined) out[keys[i]] = spot[keys[i]]
+    }
+    if (root.preview && root.preview.kind === kind && root.preview.look) Object.assign(out, root.preview.look)
+    return out
+  }
+
   readonly property var weights: ({ light: 300, regular: 400, medium: 500, bold: 700, black: 900 })
   // A widget's text: font, weight, spacing and the outline (its effect).
   function textLook(kind) {
-    var w = root.widget(kind)
+    var w = root.style(kind)
     var weight = w ? (root.weights[w.font_weight] || 700) : 700
     var strength = w ? w.effect_strength / 100 : 0.35
     return {
@@ -162,7 +196,7 @@ Item {
   // Which layer a widget sits on: below or above the windows, with blur
   // behind its card or without.
   function groupOf(kind) {
-    var w = root.widget(kind)
+    var w = root.style(kind)
     if (!w) return "bottom"
     return (w.above ? "top" : "bottom") + (w.card && w.card_blur ? "-blur" : "")
   }
@@ -193,9 +227,12 @@ Item {
     var out = {}
     for (var kind in root.widgets) {
       var w = root.widgets[kind]
-      out[kind] = { x: Number(w.x), y: Number(w.y), rotation: Number(w.rotation),
-                    size: Number(w.size), width: Number(w.width || 0), colors: Object.assign({}, w.colors || {}),
-                    same_place: w.same_place !== false, spots: JSON.parse(JSON.stringify(w.spots || {})) }
+      var spot = { x: Number(w.x), y: Number(w.y), rotation: Number(w.rotation),
+                   size: Number(w.size), width: Number(w.width || 0), colors: Object.assign({}, w.colors || {}),
+                   same_place: w.same_place !== false, spots: JSON.parse(JSON.stringify(w.spots || {})) }
+      var keys = root.lookKeys[kind] || []
+      for (var i = 0; i < keys.length; i++) spot[keys[i]] = w[keys[i]]
+      out[kind] = spot
     }
     return out
   }
@@ -252,10 +289,7 @@ Item {
     return root.screenId(screen) === String(w.monitors.screen || "")
   }
 
-  Component.onCompleted: {
-    Hyprland.refreshMonitors()
-    if (root.cavaWanted) cava.running = true
-  }
+  Component.onCompleted: Hyprland.refreshMonitors()
 
   // --- visualizer: cava ------------------------------------------------------------
 
@@ -263,7 +297,16 @@ Item {
   property var levels: []
   property double lastFrame: 0
   property bool quiet: true
-  readonly property bool cavaWanted: root.enabled("visualizer") && root.cavaConfig !== ""
+  // The visualizers on screen right now: the desktop views (not while
+  // arranging, behind a fullscreen window or hidden by their rules) and the
+  // bar's. cava only runs while there is one.
+  property var levelUsers: []
+  readonly property bool cavaWanted: root.enabled("visualizer") && root.cavaConfig !== "" && root.levelUsers.length > 0
+  function useLevels(user, on) {
+    var rest = root.levelUsers.filter(function(u) { return u !== user })
+    if (on) rest.push(user)
+    if (rest.length !== root.levelUsers.length) root.levelUsers = rest
+  }
 
   Process {
     id: cava
@@ -274,30 +317,48 @@ Item {
     environment: ({ PIPEWIRE_PROPS: "{ node.dont-fallback = true }" })
     running: false
     stdout: SplitParser { onRead: function(line) { root.takeFrame(line) } }
-    onExited: if (root.cavaWanted) cavaRestart.restart()
+    onExited: if (root.cavaWanted && !cavaQuick.running) cavaRestart.restart()
   }
   onCavaWantedChanged: {
-    if (cavaWanted) cava.running = true
-    else { cava.running = false; root.levels = [] }
+    if (cavaWanted) {
+      cavaRestart.stop()
+      cava.running = true
+    } else {
+      cava.running = false
+      cavaRestart.stop()
+      cavaQuick.stop()
+      root.levels = []
+      root.quiet = true
+      root.quietSince = 0
+    }
   }
   // Without cava (not installed yet) this retries quietly every ten seconds.
   Timer { id: cavaRestart; interval: 10000; onTriggered: if (root.cavaWanted) cava.running = true }
+  // After its settings changed (bars, player, smoothing) it starts again at
+  // once, on its own timer: the slow one above would leave it off for ten
+  // seconds (and changing a running timer's interval restarts it).
+  Timer { id: cavaQuick; interval: 300; onTriggered: if (root.cavaWanted) cava.running = true }
 
   function restartCava() {
     if (!root.cavaWanted) return
+    cavaRestart.stop()
     cava.running = false
-    cavaRestart.interval = 300
-    cavaRestart.restart()
-    cavaRestart.interval = 10000
+    cavaQuick.restart()
   }
 
+  // One frame: a value per bar. Bars rise at once and fall a little slower
+  // (light smoothing, so they need no animation of their own).
   function takeFrame(line) {
     var parts = String(line).split(";")
+    var before = root.levels
     var next = []
     var loud = false
     for (var i = 0; i < parts.length; i++) {
       if (parts[i] === "") continue
-      var value = Math.max(0, Math.min(1, Number(parts[i]) / 1000))
+      var value = Number(parts[i]) / 1000
+      value = value > 0 ? Math.min(1, value) : 0
+      var last = before[next.length]
+      if (last !== undefined && value < last) value = last + (value - last) * 0.6
       if (value > 0.02) loud = true
       next.push(value)
     }
@@ -504,6 +565,9 @@ Item {
     xhr.onreadystatechange = function() {
       if (xhr.readyState !== XMLHttpRequest.DONE) return
       if (key !== root.trackKey) return
+      // No answer (offline, given up after 15 s) or a server error: not a song
+      // without lyrics, so it is not remembered as one and asked again soon.
+      if (xhr.status === 0 || xhr.status >= 500) { root.lyricsFailed(key); return }
       var lines = null
       if (xhr.status === 200) {
         try { lines = parse(JSON.parse(xhr.responseText)) } catch (e) { lines = null }
@@ -514,6 +578,46 @@ Item {
     xhr.open("GET", url)
     xhr.setRequestHeader("User-Agent", "hypr-screens (https://github.com/SlowlyTz/hypr-minimizer)")
     xhr.send()
+    root.watchRequest(xhr)
+  }
+
+  function lyricsFailed(key) {
+    root.lyricsState = "missing"
+    lyricsRetry.key = key
+    lyricsRetry.restart()
+  }
+  Timer {
+    id: lyricsRetry
+    property string key: ""
+    interval: 30000
+    onTriggered: {
+      if (key === root.trackKey && root.player && root.lyricsCache[key] === undefined) root.loadLyrics(root.player)
+    }
+  }
+
+  // Requests waiting for an answer: one still without it after 15 s is given
+  // up (XMLHttpRequest has no timeout here); it then counts as failed.
+  property var openRequests: []
+  function watchRequest(xhr) {
+    root.openRequests = root.openRequests.concat([{ xhr: xhr, at: Date.now() }])
+    requestWatch.start()
+  }
+  Timer {
+    id: requestWatch
+    interval: 1000
+    repeat: true
+    onTriggered: {
+      var now = Date.now()
+      var waiting = []
+      for (var i = 0; i < root.openRequests.length; i++) {
+        var open = root.openRequests[i]
+        if (open.xhr.readyState === XMLHttpRequest.DONE || open.xhr.readyState === XMLHttpRequest.UNSENT) continue
+        if (now - open.at > 15000) open.xhr.abort()
+        else waiting.push(open)
+      }
+      root.openRequests = waiting
+      if (!waiting.length) stop()
+    }
   }
 
   function storeLyrics(key, lines) {
@@ -579,18 +683,26 @@ Item {
   property var temperatureHistory: []
   property var lastCpu: null
 
-  Process {
-    id: stats
-    command: ["sh", "-c", "head -1 /proc/stat; grep -E '^(MemTotal|MemAvailable):' /proc/meminfo; cat \"$1\" 2>/dev/null || echo 0",
-              "sh", root.cpuTemperatureFile || "/nonexistent"]
-    stdout: StdioCollector { onStreamFinished: root.takeStats(text) }
+  // Read straight from /proc every two seconds (no processes started).
+  FileView { id: procStat; path: root.enabled("system") ? "/proc/stat" : ""; blockLoading: true; printErrors: false }
+  FileView { id: procMemory; path: root.enabled("system") ? "/proc/meminfo" : ""; blockLoading: true; printErrors: false }
+  FileView {
+    id: temperatureFile
+    path: root.enabled("system") ? root.cpuTemperatureFile : ""
+    blockLoading: true
+    printErrors: false
   }
   Timer {
     interval: 2000
     repeat: true
     running: root.enabled("system")
     triggeredOnStart: true
-    onTriggered: if (!stats.running) stats.running = true
+    onTriggered: {
+      procStat.reload()
+      procMemory.reload()
+      if (root.cpuTemperatureFile) temperatureFile.reload()
+      root.takeStats(procStat.text(), procMemory.text(), root.cpuTemperatureFile ? temperatureFile.text() : "0")
+    }
   }
 
   function pushHistory(list, value) {
@@ -599,9 +711,8 @@ Item {
     return next
   }
 
-  function takeStats(text) {
-    var lines = String(text).split("\n")
-    var fields = (lines[0] || "").trim().split(/\s+/).slice(1).map(Number)
+  function takeStats(stat, memory, temperature) {
+    var fields = (String(stat || "").split("\n")[0] || "").trim().split(/\s+/).slice(1).map(Number)
     if (fields.length >= 4) {
       var idle = fields[3] + (fields[4] || 0)
       var total = 0
@@ -612,15 +723,11 @@ Item {
       }
       root.lastCpu = { total: total, idle: idle }
     }
-    var memTotal = 0, memAvailable = 0
-    for (var j = 1; j < lines.length; j++) {
-      var m = lines[j].match(/^(MemTotal|MemAvailable):\s+(\d+)/)
-      if (m && m[1] === "MemTotal") memTotal = Number(m[2])
-      if (m && m[1] === "MemAvailable") memAvailable = Number(m[2])
-    }
-    if (memTotal > 0) root.memory = 1 - memAvailable / memTotal
-    var last = Number((lines[lines.length - 1] || lines[lines.length - 2] || "0").trim())
-    root.temperature = last > 1000 ? last / 1000 : last
+    var total = String(memory || "").match(/^MemTotal:\s+(\d+)/m)
+    var available = String(memory || "").match(/^MemAvailable:\s+(\d+)/m)
+    if (total && available && Number(total[1]) > 0) root.memory = 1 - Number(available[1]) / Number(total[1])
+    var degrees = Number(String(temperature || "0").trim()) || 0
+    root.temperature = degrees > 1000 ? degrees / 1000 : degrees
     root.cpuHistory = root.pushHistory(root.cpuHistory, root.cpu)
     root.memoryHistory = root.pushHistory(root.memoryHistory, root.memory)
     root.temperatureHistory = root.pushHistory(root.temperatureHistory, Math.min(1, root.temperature / 100))
@@ -664,6 +771,9 @@ Item {
   }
   onWeatherWantedChanged: if (weatherWanted) fetchWeather()
   Timer { interval: 900000; repeat: true; running: root.weatherWanted; onTriggered: root.fetchWeather() }
+  // After a failed request (offline, no answer): again in a minute, not only
+  // in a quarter of an hour.
+  Timer { id: weatherRetry; interval: 60000; onTriggered: root.fetchWeather() }
   function fetchWeather() {
     if (!root.weatherWanted) return
     var place = root.weatherPlace
@@ -672,7 +782,8 @@ Item {
       // Only a name: find its coordinates first.
       root.getJson("https://geocoding-api.open-meteo.com/v1/search?count=1&format=json&name=" + encodeURIComponent(place.name),
                    function(data) {
-        var hit = data && data.results && data.results[0]
+        if (!data) { weatherRetry.restart(); return }
+        var hit = data.results && data.results[0]
         if (!hit) return
         root.weatherPlace = { name: place.name, latitude: hit.latitude, longitude: hit.longitude }
         root.fetchWeather()
@@ -683,7 +794,8 @@ Item {
       + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
       + "&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=4&timezone=auto"
     root.getJson(url, function(data) {
-      if (!data || !data.current) return
+      if (!data || !data.current) { weatherRetry.restart(); return }
+      weatherRetry.stop()
       var days = []
       var daily = data.daily || {}
       for (var i = 1; daily.time && i < daily.time.length; i++) {
@@ -705,6 +817,7 @@ Item {
     }
     xhr.open("GET", url)
     xhr.send()
+    root.watchRequest(xhr)
   }
   // A WMO weather code as a Nerd Font icon.
   function weatherIcon(code, day) {
@@ -727,17 +840,16 @@ Item {
   property var netDownHistory: []
   property var netUpHistory: []
   property var lastNet: null
-  Process {
-    id: netStats
-    command: ["cat", "/proc/net/dev"]
-    stdout: StdioCollector { onStreamFinished: root.takeNet(text) }
-  }
+  FileView { id: procNet; path: root.enabled("network") ? "/proc/net/dev" : ""; blockLoading: true; printErrors: false }
   Timer {
     interval: 2000
     repeat: true
     running: root.enabled("network")
     triggeredOnStart: true
-    onTriggered: if (!netStats.running) netStats.running = true
+    onTriggered: {
+      procNet.reload()
+      root.takeNet(procNet.text())
+    }
   }
   function takeNet(text) {
     var rx = 0, tx = 0
@@ -849,39 +961,102 @@ Item {
 
   // --- arranging ------------------------------------------------------------------------
 
-  // The color mode: a click on a widget picks it (`selection`: {kind, part,
-  // screen, x, y, rect}; rect: the widget's frame on the screen) and the
-  // palette sets its colors in the draft. `part` is "base" (the whole widget)
-  // until fine-tuning is open, then the part clicked.
+  // The style mode (colorMode): a click on a widget picks it (`selection`:
+  // {kind, part, screen, x, y, rect}; rect: the widget's frame on the screen)
+  // and the style panel (StylePanel.qml) sets its colors and look in the
+  // draft. `part` is "base" (the whole widget) until fine-tuning is open, then
+  // the part clicked.
   property bool colorMode: false
   property var selection: null
   property bool fineTune: false
-  // While the pointer rests on a color or scheme in the palette: {kind, colors}.
+  // The panel's open section: "color", "font", "effect" or "card".
+  property string styleSection: "color"
+  // While the pointer rests on a choice in the panel: {kind, colors} or
+  // {kind, look: {key: value}}.
   property var preview: null
   // Own colors used last ("#rrggbb[aa]"), newest first.
   property var recentColors: []
-  // The wallpaper's main colors (the palette works them out when it opens).
+  // The wallpaper's main colors (the style panel works them out when it opens).
   property var wallpaperColors: []
-  // Where the palette was dragged to, per screen: {screen: {x, y}}.
+  // Where the style panel was dragged to, per screen: {screen: {x, y}}.
   property var palettePlaces: ({})
-  // Every widget's colors before each change, for undo (newest last).
-  property var colorHistory: []
+  // Every widget's colors and look before each change, for undo (newest last).
+  property var styleHistory: []
   function selectPart(kind, part, screen, point, rect) {
     root.preview = null
+    // A single part picked while fine-tuning: its color is what is wanted.
+    if (root.fineTune && part) root.styleSection = "color"
     root.selection = { kind: kind, part: root.fineTune ? part : "base", clicked: part, screen: screen,
                        x: point.x, y: point.y, rect: rect || null }
   }
   function remember() {
     var all = {}
-    for (var kind in root.draft) all[kind] = Object.assign({}, root.draft[kind].colors || {})
-    root.colorHistory = root.colorHistory.concat([all]).slice(-50)
+    for (var kind in root.draft) {
+      var spot = root.draft[kind]
+      var look = {}
+      var keys = root.lookKeys[kind] || []
+      for (var i = 0; i < keys.length; i++) look[keys[i]] = spot[keys[i]]
+      all[kind] = { colors: Object.assign({}, spot.colors || {}), look: look }
+    }
+    root.styleHistory = root.styleHistory.concat([all]).slice(-50)
   }
-  function undoColors() {
-    if (!root.colorHistory.length) return
-    var last = root.colorHistory[root.colorHistory.length - 1]
-    root.colorHistory = root.colorHistory.slice(0, -1)
+  function undoStyle() {
+    if (!root.styleHistory.length) return
+    var last = root.styleHistory[root.styleHistory.length - 1]
+    root.styleHistory = root.styleHistory.slice(0, -1)
     root.preview = null
-    for (var kind in last) root.changePlacement(kind, { colors: last[kind] })
+    var next = Object.assign({}, root.draft)
+    for (var kind in last) {
+      if (next[kind]) next[kind] = Object.assign({}, next[kind], last[kind].look, { colors: last[kind].colors })
+    }
+    root.draft = next
+  }
+  // One look setting (lookKeys) into the draft; step: a new step for undo
+  // (not for each move of a slider).
+  function setLook(kind, key, value, step) {
+    if (!root.draft[kind]) return
+    if (step) root.remember()
+    root.preview = null
+    var next = Object.assign({}, root.draft)
+    var changes = {}
+    changes[key] = value
+    next[kind] = Object.assign({}, next[kind], changes)
+    root.draft = next
+  }
+  // Shows `value` on the widget while the pointer rests on it in the panel.
+  function previewLook(kind, key, value) {
+    var look = {}
+    look[key] = value
+    root.preview = { kind: kind, look: look }
+  }
+
+  // The installed font families for the panel's font list: asked from
+  // fontconfig once, the first time the list opens.
+  property var fontFamilies: []
+  property bool fontsAsked: false
+  function loadFonts() {
+    if (root.fontsAsked) return
+    root.fontsAsked = true
+    fontList.running = true
+  }
+  Process {
+    id: fontList
+    command: ["fc-list", ":", "family"]
+    stdout: StdioCollector { onStreamFinished: root.fontFamilies = root.parseFonts(text) }
+  }
+  // One family a line, with its other names after commas: the first name.
+  function parseFonts(text) {
+    var seen = {}
+    var out = []
+    var rows = String(text).split("\n")
+    for (var i = 0; i < rows.length; i++) {
+      var name = rows[i].split(",")[0].replace(/\\(.)/g, "$1").trim()
+      if (!name || seen[name.toLowerCase()]) continue
+      seen[name.toLowerCase()] = true
+      out.push(name)
+    }
+    out.sort(function(a, b) { return a.toLowerCase().localeCompare(b.toLowerCase()) })
+    return out
   }
   // step: a new step for undo (not for each move while dragging);
   // keep: among the colors used last.
@@ -919,7 +1094,7 @@ Item {
     }
   }
 
-  // The palette's place: `kept` (where it was dragged) unless that covers the
+  // The style panel's place: `kept` (where it was dragged) unless that covers the
   // widget's frame `rect`; else right of the widget, left, below or above,
   // whichever fits first (or has the most room), inside `area` and below
   // its `top` (the toolbar).
@@ -958,7 +1133,7 @@ Item {
     root.colorMode = false
     root.selection = null
     root.preview = null
-    root.colorHistory = []
+    root.styleHistory = []
     // Worked out again: the wallpaper may have changed.
     root.wallpaperColors = []
     root.editing = true
@@ -1019,12 +1194,13 @@ Item {
       id: canvas
       anchors.fill: parent
       focus: panel.editLayer
-      // Esc closes the palette first, then cancels; Ctrl+Z takes back a color.
+      // Esc closes the style panel first, then cancels; Ctrl+Z takes back a
+      // color or look.
       Keys.onEscapePressed: root.selection ? root.selection = null : root.cancelEditing()
       Keys.onReturnPressed: root.saveEditing()
       Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Z && (event.modifiers & Qt.ControlModifier)) {
-          root.undoColors()
+          root.undoStyle()
           event.accepted = true
         }
       }
@@ -1069,13 +1245,13 @@ Item {
             onClicked: { root.colorMode = false; root.selection = null }
           }
           ToolButton {
-            label: root.texts.colors || "Colors"
+            label: root.texts.style || "Style"
             primary: root.colorMode
             onClicked: root.colorMode = true
           }
           Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.colorMode ? (root.texts.hintColors || "Click a part of a widget to color it")
+            text: root.colorMode ? (root.texts.hintStyle || "Click a widget to style it  ·  Ctrl+Z undoes")
                                  : (root.texts.hint || "Drag the widgets  ·  scroll to turn (Shift: fine)")
             color: "white"
             font.family: root.fontFamily
@@ -1086,27 +1262,34 @@ Item {
         }
       }
 
-      ColorPalette {
-        id: colorPalette
+      // The style panel, only on the edit layer and only while arranging.
+      Loader {
         z: 20
-        service: root
-        screenKey: root.screenId(panel.modelData)
-        visible: panel.editLayer && root.colorMode && !!root.selection && root.selection.screen === screenKey
-        // Where it was dragged to, unless it would hide the widget; else
-        // beside the widget. Never over the toolbar.
-        readonly property var place: {
-          var area = { width: canvas.width, height: canvas.height, top: toolbar.y + toolbar.height }
-          var rect = root.selection ? root.selection.rect : null
-          return root.placePalette(rect, root.palettePlaces[screenKey], width, height, area)
-        }
-        x: place.x
-        y: place.y
-        onMoved: function(x, y) {
-          var places = Object.assign({}, root.palettePlaces)
-          places[screenKey] = { x: x, y: y }
-          root.palettePlaces = places
-          colorPalette.x = Qt.binding(function() { return colorPalette.place.x })
-          colorPalette.y = Qt.binding(function() { return colorPalette.place.y })
+        active: panel.editLayer && root.editing
+        sourceComponent: StylePanel {
+          id: stylePanel
+          service: root
+          screenKey: root.screenId(panel.modelData)
+          focusBack: canvas
+          visible: root.colorMode && !!root.selection && root.selection.screen === screenKey
+          // The room below the toolbar; a taller panel scrolls.
+          maxHeight: canvas.height - (toolbar.y + toolbar.height) - Style.space(36)
+          // Where it was dragged to, unless it would hide the widget; else
+          // beside the widget. Never over the toolbar.
+          readonly property var place: {
+            var area = { width: canvas.width, height: canvas.height, top: toolbar.y + toolbar.height }
+            var rect = root.selection ? root.selection.rect : null
+            return root.placePalette(rect, root.palettePlaces[screenKey], width, height, area)
+          }
+          x: place.x
+          y: place.y
+          onMoved: function(x, y) {
+            var places = Object.assign({}, root.palettePlaces)
+            places[screenKey] = { x: x, y: y }
+            root.palettePlaces = places
+            stylePanel.x = Qt.binding(function() { return stylePanel.place.x })
+            stylePanel.y = Qt.binding(function() { return stylePanel.place.y })
+          }
         }
       }
 
@@ -1120,9 +1303,11 @@ Item {
           screenKey: root.screenId(panel.modelData)
           editable: panel.editLayer
           visible: root.shows(kind, panel.modelData, panel.editLayer ? "" : panel.group)
+          // Only while it shows: not behind a fullscreen window or while
+          // arranging hides this layer (a visualizer then stops cava).
           Loader {
             id: view
-            active: placed.visible
+            active: placed.visible && panel.visible
             sourceComponent: root.views[placed.kind] || null
           }
           Binding { target: view.item; property: "editing"; value: panel.editLayer; when: view.item !== null }

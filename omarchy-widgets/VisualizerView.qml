@@ -8,7 +8,10 @@ import qs.Commons
 // `gap`: room between bars in percent of a bar; `sensitivity` raises or
 // lowers the levels; peak marks fall slowly from the highest level.
 // Fades out while it is quiet; while arranging it shows a still pattern so it
-// can be placed.
+// can be placed (cava does not run for it then).
+//
+// Cheap to draw: each frame sets the bars' heights once (no animations; the
+// service smooths the levels a little), the other styles paint one canvas.
 Item {
   id: view
 
@@ -46,26 +49,52 @@ Item {
   opacity: editing || (service && !service.quiet) ? 1 : 0
   Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.InOutQuad } }
 
+  // Shown on the desktop (not while arranging): it needs cava's levels.
+  // Told a moment after it is made: the arrange tool sets `editing` only then.
+  readonly property bool live: !editing && !!service
+  function register() { if (view.service) view.service.useLevels(view, view.live) }
+  onLiveChanged: register()
+  Component.onCompleted: {
+    Qt.callLater(view.register)
+    Qt.callLater(view.frame)
+  }
+  Component.onDestruction: { try { if (service) service.useLevels(view, false) } catch (e) {} }
+
   function level(index) {
-    if (editing && service && service.quiet) return 0.25 + 0.6 * Math.abs(Math.sin(index * 0.55))
+    if (editing) return 0.25 + 0.6 * Math.abs(Math.sin(index * 0.55))
     var levels = service ? service.levels : []
     return index < levels.length ? Math.min(1, levels[index] * view.gain) : 0
   }
 
-  // The peaks: each bar's highest level, falling a little every frame.
+  // The peaks: each bar's highest level, falling a little every frame (only
+  // frame() and the canvas read them, nothing is bound to them).
   property var peakLevels: []
+  function frame() {
+    var bars = barRow.visible ? barRepeater : null
+    var levels = view.service && !view.editing ? view.service.levels : []
+    var before = view.peakLevels
+    var peaks = []
+    for (var i = 0; i < view.count; i++) {
+      var level = view.editing ? view.level(i) : (i < levels.length ? Math.min(1, levels[i] * view.gain) : 0)
+      peaks.push(view.peaks ? Math.max(level, (before[i] || 0) - 0.012) : 0)
+      var bar = bars ? bars.itemAt(i) : null
+      if (bar) {
+        bar.level = level
+        bar.peak = peaks[i]
+      }
+    }
+    view.peakLevels = peaks
+    if (canvas.visible) canvas.requestPaint()
+  }
   Connections {
     target: view.service
-    enabled: view.peaks || view.barStyle !== "bottom"
-    function onLevelsChanged() {
-      if (view.peaks) {
-        var next = []
-        for (var i = 0; i < view.count; i++) next.push(Math.max(view.level(i), (view.peakLevels[i] || 0) - 0.012))
-        view.peakLevels = next
-      }
-      if (canvas.visible) canvas.requestPaint()
-    }
+    enabled: view.live
+    function onLevelsChanged() { view.frame() }
   }
+  onEditingChanged: Qt.callLater(view.frame)
+  onCountChanged: { view.peakLevels = []; Qt.callLater(view.frame) }
+  onBarStyleChanged: Qt.callLater(view.frame)
+  onGainChanged: Qt.callLater(view.frame)
 
   // In the color mode a click anywhere picks the bars (the palette lists the rest).
   PartHit { z: 5; part: "bars" }
@@ -73,18 +102,24 @@ Item {
   // --- bars (bottom, mirrored) ------------------------------------------------------------
 
   Row {
+    id: barRow
     visible: view.barStyle === "bottom" || view.barStyle === "mirrored"
     height: view.length
     spacing: view.gap
     Repeater {
+      id: barRepeater
       model: parent.visible ? view.count : 0
+      onItemAdded: Qt.callLater(view.frame)
       Item {
         required property int index
+        // Set by view.frame().
+        property real level: 0
+        property real peak: 0
         width: view.thickness
         height: view.length
         Rectangle {
           width: view.thickness
-          height: Math.max(view.thickness, view.level(index) * view.length)
+          height: Math.max(view.thickness, parent.level * view.length)
           y: view.mirrored ? (view.length - height) / 2 : view.length - height
           radius: view.thickness / 2
           color: view.bars
@@ -95,7 +130,6 @@ Item {
             GradientStop { position: view.mirrored ? 0.5 : 1.0; color: view.bars }
             GradientStop { position: 1.0; color: view.mirrored ? view.tips : view.bars }
           }
-          Behavior on height { NumberAnimation { duration: 60 } }
         }
         Rectangle {
           visible: view.peaks
@@ -103,7 +137,7 @@ Item {
           height: Math.max(2, view.thickness / 3)
           radius: height / 2
           color: view.peakColor
-          readonly property real peakTop: (view.peakLevels[index] || 0) * view.length
+          readonly property real peakTop: parent.peak * view.length
           y: view.mirrored ? (view.length - peakTop) / 2 - height : view.length - peakTop - height
         }
       }
@@ -132,6 +166,7 @@ Item {
     onPaint: {
       var ctx = getContext("2d")
       ctx.reset()
+      if (!(width > 0) || !(height > 0)) return
       var n = view.count
       if (view.barStyle === "wave") {
         var step = width / Math.max(1, n - 1)
@@ -186,6 +221,7 @@ Item {
         for (var k = 0; k < n; k++) {
           var a = k / n * Math.PI * 2 - Math.PI / 2
           var len = Math.max(bar, view.level(k) * view.length * 0.55)
+          if (!isFinite(len) || !isFinite(inner)) continue
           var grad = ctx.createLinearGradient(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner,
                                               cx + Math.cos(a) * (inner + len), cy + Math.sin(a) * (inner + len))
           grad.addColorStop(0, view.bars)

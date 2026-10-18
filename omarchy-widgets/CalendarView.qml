@@ -19,25 +19,34 @@ Item {
   readonly property var locale: Qt.locale(service && service.locale ? service.locale : "")
   readonly property bool sunday: !!(settings && settings.week_start === "sunday")
   readonly property bool weeks: !!(settings && settings.show_weeks)
-  readonly property date now: service ? service.now : new Date()
-  // Changes once a day, so the grid is only worked out again then.
-  readonly property string day: now.getFullYear() + "-" + now.getMonth() + "-" + now.getDate()
+  // The service's clock ticks every second; only the day matters here, so
+  // the grid and the month's name are only worked out again when it changes.
+  readonly property string day: {
+    var now = service ? service.now : new Date()
+    return now.getFullYear() + "-" + now.getMonth() + "-" + now.getDate()
+  }
+  property date today: new Date()
+  property var cells: []
   readonly property real cell: Math.round(34 * scale)
   function paint(part, fallback) { return view.service ? view.service.colorOf("calendar", part, fallback) : fallback }
 
   // 6 weeks × 7 days from the start of the week the month begins in.
-  readonly property var cells: {
-    var stamp = view.day
-    var first = new Date(view.now.getFullYear(), view.now.getMonth(), 1)
+  function build() {
+    var now = new Date()
+    var first = new Date(now.getFullYear(), now.getMonth(), 1)
     var shift = (first.getDay() - (view.sunday ? 0 : 1) + 7) % 7
     var out = []
     for (var i = 0; i < 42; i++) {
       var d = new Date(first.getFullYear(), first.getMonth(), 1 - shift + i)
       out.push({ day: d.getDate(), here: d.getMonth() === first.getMonth(),
-                 today: d.getDate() === view.now.getDate() && d.getMonth() === view.now.getMonth(), date: d })
+                 today: d.getDate() === now.getDate() && d.getMonth() === now.getMonth(), date: d })
     }
-    return out
+    view.today = now
+    view.cells = out
   }
+  onDayChanged: build()
+  onSundayChanged: build()
+  Component.onCompleted: build()
   function isoWeek(d) {
     var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
     var weekday = t.getUTCDay() || 7
@@ -60,7 +69,7 @@ Item {
       visible: !(view.settings && view.settings.show_month === false)
       anchors.horizontalCenter: parent.horizontalCenter
       look: view.look; factor: view.scale; points: 20; strong: true
-      text: view.now.toLocaleDateString(view.locale, "MMMM yyyy")
+      text: view.today.toLocaleDateString(view.locale, "MMMM yyyy")
       color: view.paint("month", view.tint)
     }
 

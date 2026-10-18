@@ -130,12 +130,13 @@ Item {
           radius: height / 2
           color: view.paint("progress_track", Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.2))
           PartHit { part: "progress_track"; anchors.margins: -4 }
+          // Moved on twice a second, without an animation: one running all
+          // the time would draw the layer every frame while a song plays.
           Rectangle {
             width: view.length > 0 ? parent.width * Math.min(1, view.position / view.length) : (view.editing ? parent.width * 0.4 : 0)
             height: parent.height
             radius: parent.radius
             color: view.paint("progress", view.tint)
-            Behavior on width { NumberAnimation { duration: 500 } }
             PartHit { part: "progress"; anchors.margins: -4 }
           }
         }
