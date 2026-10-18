@@ -11,21 +11,33 @@ def sync(event: str = "") -> list[str]:
         monitors = hypr.monitors(include_disabled=True)
         cfg = config.update(lambda fresh: config.record(fresh, monitors))
         done = apply.apply(cfg)
-        screens = desktops.resolve(cfg)
-        if not screens.external:
-            desktops.undock(screens)
+        if "reload" in done:
+            desktops.mark_rules(False)  # a reload drops the workspace rules too
+        return done + place_desktops(cfg, docking=event == "added")
+
+
+def place_desktops(cfg: dict, docking: bool = False) -> list[str]:
+    """The fixed desktop and desktops 1-10 where the role wants them; ["reload",
+    ...] when rules pinning them to a screen had to go (call it under the sync lock)."""
+    screens = desktops.resolve(cfg)
+    if not screens.monitors:
+        return []  # Hyprland did not answer (busy setting up a screen): not "all unplugged"
+    if not screens.external:
+        # The rules pinning desktops stay until a reload; harmless while
+        # their screen is away, and replaced when it comes back.
+        desktops.undock(screens)
+    elif screens.role:
+        desktops.arrange(screens, docking=docking)
+    else:
+        desktops.fold_fixed(screens)
+        if desktops.rules_marked() and len(screens.monitors) > 1:
+            # Workspace rules pinning desktops to one screen only go away
+            # with a reload; the monitor settings are applied again after.
+            # (With one screen on -- the lid closed -- they pin nothing.)
             desktops.mark_rules(False)
-        elif screens.role:
-            desktops.arrange(screens, docking=event == "added")
-        else:
-            desktops.fold_fixed(screens)
-            if desktops.rules_marked():
-                # Workspace rules pinning desktops to one screen only go away
-                # with a reload; the monitor settings are applied again after.
-                desktops.mark_rules(False)
-                hypr.hyprctl("reload")
-                done += apply.apply(cfg)
-        return done
+            apply.reset()
+            return ["reload", *apply.apply(cfg)]
+    return []
 
 
 # --- the screen list and the state -------------------------------------------------

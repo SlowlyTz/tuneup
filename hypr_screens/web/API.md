@@ -1,9 +1,9 @@
 # hypr-screens settings window: the `window.api` contract
 
 The page (`index.html`, `app.js`) talks only to `window.api`. In the real
-window the WebKit bridge puts the Python backend `hypr_screens/api.py` there;
+window the WebKit bridge puts the Python backend `hypr_screens/api/` there;
 in a plain browser `mock.js` stands in with the **same shapes** (its data was
-produced by `api.py` against a fake Hyprland).
+produced by `hypr_screens.api` against a fake Hyprland).
 
 - `api.someMethod(a, b)` calls `hypr_screens.api.some_method(a, b)`
   (camelCase → snake_case, positional JSON arguments). `api.call(name, args)`
@@ -349,7 +349,10 @@ it starts in the middle of the screen (`placed: false`) – offer
   connected: ["<id>", …] }  // screens connected now (for "load with these screens")
 ```
 - `saveLayout(name)` – keeps all widgets as they are under this name (replaces one of that name).
-- `loadLayout(name)` – the widgets as saved; live at once.
+- `loadLayout(name)` – the widgets as saved; live at once. Also returns
+  `previous`: all widgets as they were before (saved or not).
+- `restoreWidgets(previous)` (new) – undoes a load: the widgets back as in that
+  `previous`. `bad_value` if it is not an object.
 - `deleteLayout(name)` (new), `renameLayout(name, newName)` (new; `conflict`).
 - `setLayoutAuto(name, on)` (new) – loads by itself whenever exactly the screens
   connected now are connected (another layout with the same screens gives them up).
@@ -362,6 +365,41 @@ The overlay saves by itself. Errors `nothing_to_arrange`, `not_ready`.
 
 ### `installCava()` → the visualizer `Widget` (new)
 Installs cava (password). Error `cancelled`.
+
+## Enforcement (new)
+
+hypr-screens keeps what it sets: the watcher (`hypr-screens watch`) audits every
+5 s, and soon after events that can mean drift, and puts back only what
+another app or a reload changed. An item that comes back more than 3 times in
+60 s is left alone for 30 s, then 60 s, 120 s … (at most 30 min). Force mute is
+never left alone. On by default.
+
+### `enforcement()` → `Enforcement`
+
+```js
+{
+  enabled: true,                 // the setting
+  running: true,                 // the watcher is alive (heartbeat < 15 s old)
+  fixes: [                       // newest first, at most 20; a fix repeating within 60 s shows once
+    { time: 1792310400.5,        // epoch seconds
+      area: "screens",           // "screens" | "desktops" | "look" | "keys" | "sound" | "samsung"
+      what: "Screen arrangement",  // English source text (translate with translations())
+      detail: "DP-3 moved or changed" }   // English, not translated (connector names, keys …)
+  ],
+  backedOff: [                   // items left alone right now, soonest end first
+    { area: "look", what: "Window look", until: 1792310460.0 }
+  ]
+}
+```
+
+`what` is one of: `Screen arrangement`, `Screen without a picture`,
+`Desktops on their screens`, `Window look`, `Shortcuts`, `Force mute`,
+`Charge limit`, `Performance mode`.
+
+### `setEnforcement(enabled)` → `Enforcement`
+`enabled` must be a boolean (`bad_value`). Off: no audit (hotplug and reloads
+still apply the settings; force mute and the Samsung charge limit / mode keep
+working, as their own settings). A screen without a picture is still reported.
 
 ## General
 

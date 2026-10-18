@@ -65,6 +65,7 @@ def default_config() -> dict:
         "keybinds": {action: list(keys) for action, keys in DEFAULT_KEYBINDS.items()},
         "desktop_keys": False,
         "default_fixed": "off",
+        "enforce": True,
         "screens": {},
         "sound": {"force_mute": {}},
         "samsung": {"limit": None, "mode": None, "full_once": False},
@@ -76,66 +77,82 @@ def default_config() -> dict:
     }
 
 
+def section(raw: dict, key: str) -> dict:
+    return raw[key] if isinstance(raw.get(key), dict) else {}
+
+
+def normalize_keybinds(raw: dict, keybinds: dict) -> None:
+    for action in keybinds:
+        keys = section(raw, "keybinds").get(action)
+        if isinstance(keys, list):
+            keys = [str(key or "") for key in keys[:2]]
+            keybinds[action] = keys + [""] * (2 - len(keys))
+
+
+def normalize_screens(raw: dict) -> dict:
+    """Every screen as stored, with only known settings ({value, when})."""
+    screens = {}
+    for screen_id, screen in section(raw, "screens").items():
+        if isinstance(screen, dict):
+            settings = screen.get("settings") if isinstance(screen.get("settings"), dict) else {}
+            screens[str(screen_id)] = {**screen, "settings": {
+                key: {"value": value.get("value"), "when": value.get("when")}
+                for key, value in settings.items() if key in SETTING_KEYS and isinstance(value, dict)}}
+    return screens
+
+
+def normalize_force_mute(raw: dict) -> dict:
+    entries = {}
+    for key, entry in section(section(raw, "sound"), "force_mute").items():
+        if isinstance(entry, dict) and entry.get("kind") in ("sink", "source"):
+            volume = entry.get("volume")
+            entries[str(key)] = {
+                "kind": entry["kind"],
+                "label": str(entry.get("label") or key),
+                "volume": int(volume) if isinstance(volume, (int, float)) else 0,
+                "mute": bool(entry.get("mute")),
+            }
+    return entries
+
+
+def normalize_samsung(raw: dict, samsung: dict) -> None:
+    given = section(raw, "samsung")
+    limit = given.get("limit")
+    if isinstance(limit, (int, float)) and not isinstance(limit, bool) and 1 <= limit <= 100:
+        samsung["limit"] = int(limit)
+    if isinstance(given.get("mode"), str) and given["mode"]:
+        samsung["mode"] = given["mode"]
+    samsung["full_once"] = bool(given.get("full_once"))
+
+
+def normalize_camera(raw: dict, camera: dict) -> None:
+    given = section(raw, "camera")
+    if given.get("rotation") in (0, 90, 180, 270) and not isinstance(given.get("rotation"), bool):
+        camera["rotation"] = given["rotation"]
+    if isinstance(given.get("enabled"), bool):
+        camera["enabled"] = given["enabled"]
+
+
 def normalize(raw: object) -> dict:
+    """The settings with every part checked; what is not valid gets its default."""
+    from hypr_screens import look, widgets  # local: both import config
+
     cfg = default_config()
     if not isinstance(raw, dict):
         return cfg
-
-    keybinds = raw.get("keybinds")
-    if isinstance(keybinds, dict):
-        for action in cfg["keybinds"]:
-            keys = keybinds.get(action)
-            if isinstance(keys, list):
-                keys = [str(key or "") for key in keys[:2]]
-                cfg["keybinds"][action] = keys + [""] * (2 - len(keys))
+    normalize_keybinds(raw, cfg["keybinds"])
     cfg["desktop_keys"] = bool(raw.get("desktop_keys", False))
     if raw.get("default_fixed") in FIXED_DEFAULTS:
         cfg["default_fixed"] = raw["default_fixed"]
-
-    screens = raw.get("screens")
-    if isinstance(screens, dict):
-        for screen_id, screen in screens.items():
-            if isinstance(screen, dict):
-                screen = dict(screen)
-                settings = screen.get("settings")
-                screen["settings"] = {
-                    key: {"value": value.get("value"), "when": value.get("when")}
-                    for key, value in (settings or {}).items()
-                    if key in SETTING_KEYS and isinstance(value, dict)
-                }
-                cfg["screens"][str(screen_id)] = screen
-
-    force_mute = (raw.get("sound") or {}).get("force_mute") if isinstance(raw.get("sound"), dict) else None
-    if isinstance(force_mute, dict):
-        for key, entry in force_mute.items():
-            if isinstance(entry, dict) and entry.get("kind") in ("sink", "source"):
-                volume = entry.get("volume")
-                cfg["sound"]["force_mute"][str(key)] = {
-                    "kind": entry["kind"],
-                    "label": str(entry.get("label") or key),
-                    "volume": int(volume) if isinstance(volume, (int, float)) else 0,
-                    "mute": bool(entry.get("mute")),
-                }
-
-    samsung = raw.get("samsung") if isinstance(raw.get("samsung"), dict) else {}
-    limit = samsung.get("limit")
-    if isinstance(limit, (int, float)) and not isinstance(limit, bool) and 1 <= limit <= 100:
-        cfg["samsung"]["limit"] = int(limit)
-    if isinstance(samsung.get("mode"), str) and samsung["mode"]:
-        cfg["samsung"]["mode"] = samsung["mode"]
-    cfg["samsung"]["full_once"] = bool(samsung.get("full_once"))
+    if isinstance(raw.get("enforce"), bool):
+        cfg["enforce"] = raw["enforce"]
+    cfg["screens"] = normalize_screens(raw)
+    cfg["sound"]["force_mute"] = normalize_force_mute(raw)
+    normalize_samsung(raw, cfg["samsung"])
     if raw.get("language") in LANGUAGE_CODES:
         cfg["language"] = raw["language"]
-    from hypr_screens import look  # local: look imports hypr, which needs nothing here
-
     cfg["look"] = look.normalize(raw.get("look"))
-    camera = raw.get("camera") if isinstance(raw.get("camera"), dict) else {}
-    if camera.get("rotation") in (0, 90, 180, 270) and not isinstance(camera.get("rotation"), bool):
-        cfg["camera"]["rotation"] = camera["rotation"]
-    if isinstance(camera.get("enabled"), bool):
-        cfg["camera"]["enabled"] = camera["enabled"]
-    from hypr_screens import widgets  # local: widgets imports config
-
+    normalize_camera(raw, cfg["camera"])
     cfg["widgets"] = widgets.normalize(raw.get("widgets"))
     cfg["widget_layouts"] = widgets.normalize_layouts(raw.get("widget_layouts"))
     return cfg
@@ -289,10 +306,6 @@ def record(cfg: dict, monitors: list[dict]) -> bool:
 def connected(monitors: list[dict]) -> dict[str, dict]:
     """Enabled monitors by screen id."""
     return {screen_id(monitor): monitor for monitor in monitors if not monitor.get("disabled")}
-
-
-def internal_id(cfg: dict) -> str | None:
-    return next((sid for sid, screen in cfg["screens"].items() if screen.get("internal")), None)
 
 
 # --- settings ----------------------------------------------------------------

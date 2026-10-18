@@ -9,6 +9,7 @@ so nothing fires twice. Changes also go live at once via `hyprctl eval` -- a
 reload would reset the monitor settings for a moment.
 """
 import os
+from collections import Counter
 from pathlib import Path
 
 from hypr_screens import config, desktops, hypr, look
@@ -131,7 +132,9 @@ def same_key(combo: str, bind: dict) -> bool:
     if str(bind.get("key") or "").upper() == key.upper() and bind.get("key"):
         return True
     code = keycode(key)
-    return code is not None and int(bind.get("keycode") or 0) == code
+    # A keysym bind ("SUPER + 1") and a keycode bind ("SUPER + code:10") are the same key.
+    bound = int(bind.get("keycode") or 0) or keycode(str(bind.get("key") or ""))
+    return code is not None and bound == code
 
 
 def own_descriptions() -> set[str]:
@@ -175,6 +178,39 @@ def bind_line(combo: str, command: str, description: str) -> list[str]:
         f"{{ description = {lua_quote(description)} }})"
     )
     return lines
+
+
+def wanted(cfg: dict) -> list[tuple[str, str]]:
+    """(combo, description) of every key hypr-screens binds."""
+    keys = [(normalize(combo), label) for action, label, _command in config.ACTIONS
+            for combo in cfg["keybinds"][action] if parse(combo)]
+    if cfg.get("desktop_keys"):
+        keys += [(normalize(f"{mods} + code:{code}"), label) for code in DESKTOP_CODES
+                 for mods, _command, label in DESKTOP_BINDS]
+        keys += [(normalize(combo), label) for combo, _command, label in CYCLE_BINDS]
+    return keys
+
+
+def missing(cfg: dict, binds: list[dict]) -> list[str]:
+    """Our keys that are not bound to us right now, or bound to something else too.
+    Hyprland lists a `code:` bind without its key, so those are counted by
+    modifiers and description instead."""
+    found = []
+    keyless = Counter((int(b.get("modmask") or 0), str(b.get("description") or "")) for b in binds
+                      if not b.get("key") and not b.get("keycode") and not b.get("submap"))
+    for combo, label in wanted(cfg):
+        mask, key = parse(combo)
+        if key.lower().startswith("code:") and keyless[(mask, label)] > 0:
+            keyless[(mask, label)] -= 1
+            ours = True
+        else:
+            ours = any(same_key(combo, bind) and str(bind.get("description") or "") == label for bind in binds)
+        others = conflicts(combo, binds)
+        if not ours:
+            found.append(f"{combo} not bound")
+        elif others:
+            found.append(f"{combo} also runs {', '.join(others)}")
+    return found
 
 
 def render(cfg: dict, runtime: bool = False) -> str:

@@ -41,5 +41,6 @@ hypr-screens when Laptop rotation always
 hypr-screens swap                              # swap the fixed screen until unplugged
 hypr-screens settings                          # open the settings window
 hypr-screens apply                             # apply everything now
+hypr-screens enforce [on|off]                  # keep what hypr-screens sets (status without on/off)
 hypr-minimizer list                            # minimized windows
 ```

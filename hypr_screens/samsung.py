@@ -314,11 +314,21 @@ def set_keyboard(level: int) -> None:
 # --- watcher ---------------------------------------------------------------------------
 
 
-def guard_tick(cfg: dict) -> str:
-    """One check of the watcher; returns what it did ("" for nothing)."""
+def guard_tick(cfg: dict, enforcement=None) -> str:
+    """One check of the watcher; returns what it did ("" for nothing).
+    enforcement (the enforce module): what was put back is recorded there, and
+    an item it backed off from is left alone."""
     samsung = settings(cfg)
     done = []
     battery = battery_dir()
+
+    def may(item: str) -> bool:
+        return enforcement is None or not enforcement.backed_off("samsung", item)
+
+    def put_back(item: str, detail: str) -> None:
+        done.append(detail)
+        if enforcement is not None:
+            enforcement.record("samsung", item, detail)
 
     if samsung.get("full_once") and battery is not None:
         info = battery_info()
@@ -326,10 +336,10 @@ def guard_tick(cfg: dict) -> str:
             cfg["samsung"]["full_once"] = False
             write(battery / "charge_control_end_threshold", samsung.get("limit") or 100)
             done.append("full charge done, limit back")
-    elif samsung.get("limit") is not None and battery is not None:
+    elif samsung.get("limit") is not None and battery is not None and may("charge_limit"):
         if number(battery / "charge_control_end_threshold") != samsung["limit"]:
             if write(battery / "charge_control_end_threshold", samsung["limit"]):
-                done.append(f"limit {samsung['limit']}")
+                put_back("charge_limit", f"limit {samsung['limit']}")
 
     mode = samsung.get("mode")
     if mode:
@@ -342,17 +352,17 @@ def guard_tick(cfg: dict) -> str:
             done.append(f"mode {current} from the keyboard")
         cpu = cpu_profile(mode)
         active = ppd_profile()
-        if active and active != cpu:
+        if active and active != cpu and may("mode"):
             set_ppd(cpu)
-            done.append(f"cpu {cpu}")
+            put_back("mode", f"cpu {cpu}")
     return ", ".join(done)
 
 
-def guard_change(cfg: dict) -> bool:
+def guard_change(cfg: dict, enforcement=None) -> bool:
     """One guard tick on freshly loaded settings (under config.update's lock);
     False when nothing in them changed, so nothing is written."""
     before = json.dumps(cfg, sort_keys=True)
-    guard_tick(cfg)
+    guard_tick(cfg, enforcement)
     return json.dumps(cfg, sort_keys=True) != before
 
 
@@ -363,7 +373,9 @@ def guard() -> None:
     while True:
         try:
             if settings(config.load()) and writable():
-                config.update(guard_change)
+                from hypr_screens import enforce
+
+                config.update(lambda cfg: guard_change(cfg, enforce))
         except Exception as error:  # never take the watcher down
             print(f"hypr-screens samsung guard: {error}", flush=True)
         time.sleep(1.0)

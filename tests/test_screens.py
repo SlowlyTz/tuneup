@@ -305,8 +305,13 @@ def test_unplugging_the_placed_screen_gives_the_laptop_back_to_hyprland(fake):
     apply.apply(cfg)
 
     hyprland.monitors = [laptop(y=1440)]
-    assert apply.apply(cfg) == ["reload"]
-    assert apply.load_applied() == {}
+    hyprland.calls.clear()
+    assert apply.apply(cfg) == ["eDP-1"]      # no reload: the position goes back to "auto"
+    assert hyprland.reloads == 0
+    assert 'position = "auto"' in hyprland.evaluated[0]
+    assert set(apply.load_applied()) == {"eDP-1", "DP-3"}   # the HP's rule waits for it
+    hyprland.calls.clear()
+    assert apply.apply(cfg) == []
 
 
 def test_a_preferred_mode_is_placed_again_once_its_size_shows(fake):
@@ -592,4 +597,4 @@ def test_a_failing_sync_does_not_end_the_watcher(monkeypatch):
     def broken(kind):
         raise KeyError("transform")
     monkeypatch.setattr(engine, "sync", broken)
-    assert watch.safe_sync("added").startswith("failed: KeyError")
+    assert watch.safe_sync("added").startswith("sync failed: KeyError")

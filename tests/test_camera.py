@@ -125,3 +125,19 @@ def test_the_feeder_stops_when_the_virtual_camera_goes_away(tmp_path, monkeypatc
     feeder.run()   # returns instead of starting ffmpeg over and over
     assert started == []
     assert camera.status()["state"] == "off"
+
+
+def test_the_feeder_lets_go_while_the_camera_is_torn_down(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    virtual = tmp_path / "video42"
+    virtual.write_text("")
+    feeder = camera.Feeder(virtual, tmp_path / "video0")
+    started = []
+    monkeypatch.setattr(feeder, "start_writer", lambda: started.append("writer"))
+    seen = []
+    monkeypatch.setattr(camera, "run_as_root", lambda script, graphical: seen.append(camera.teardown_running()) or True)
+    monkeypatch.setattr(camera.time, "sleep", lambda seconds: feeder.run())  # the feeder's next look
+    assert camera.teardown() is True
+    assert seen == [True] and started == [] and not camera.teardown_running()
+    assert camera.status()["state"] == "off"

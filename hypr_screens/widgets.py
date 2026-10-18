@@ -463,6 +463,7 @@ def export(cfg: dict) -> None:
             "schemes": {"theme": t("Theme"), "mono": t("One color"), "contrast": t("Contrast"),
                         "pastel": t("Pastel"), "colorful": t("Colorful"), "muted": t("Muted")},
             "cancel": t("Cancel"),
+            "saveFailed": t("Could not save – try again or cancel"),
             "lyricsSample": t("The lyrics show here while a song plays"),
             "cpu": "CPU",
             "memory": t("Memory"),
@@ -574,10 +575,6 @@ def placements() -> dict:
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
-
-
-def stop_editing() -> None:
-    shell_ipc("done")
 
 
 def editing() -> bool:

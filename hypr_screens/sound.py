@@ -276,16 +276,18 @@ def forced(cfg: dict) -> dict[str, dict]:
     return dict((cfg.get("sound") or {}).get("force_mute") or {})
 
 
+def loud_devices(entries: dict[str, dict], kind: str, nodes: list[dict], cards: list[dict]) -> list[dict]:
+    """Force-muted devices of this kind that are not silent."""
+    by_name = card_index(cards)
+    devices = (node_device(kind, node, by_name, "") for node in nodes
+               if not (kind == "source" and is_monitor(node)))
+    return [d for d in devices if d["key"] in entries and (not d["mute"] or d["volume"] > 0)]
+
+
 def silence_commands(entries: dict[str, dict], kind: str, nodes: list[dict], cards: list[dict]) -> list[list[str]]:
     """pactl calls that make every force-muted device of this kind silent."""
-    by_name = card_index(cards)
     commands = []
-    for node in nodes:
-        if kind == "source" and is_monitor(node):
-            continue
-        device = node_device(kind, node, by_name, "")
-        if device["key"] not in entries:
-            continue
+    for device in loud_devices(entries, kind, nodes, cards):
         if not device["mute"]:
             commands.append([f"set-{kind}-mute", device["name"], "1"])
         if device["volume"] > 0:
@@ -293,18 +295,29 @@ def silence_commands(entries: dict[str, dict], kind: str, nodes: list[dict], car
     return commands
 
 
-def enforce(cfg: dict | None = None) -> int:
-    """Silence force-muted devices that are not; returns how many calls it took."""
+def enforce(cfg: dict | None = None, report=None) -> int:
+    """Silence force-muted devices that are not; returns how many calls it took.
+    report(labels) hears which devices had to be silenced."""
     entries = forced(cfg if cfg is not None else config.load())
     if not entries:
         return 0
     cards = pactl_list("cards")
-    commands = []
+    commands, labels = [], []
     for kind in KINDS:
-        commands += silence_commands(entries, kind, pactl_list(f"{kind}s"), cards)
+        nodes = pactl_list(f"{kind}s")
+        commands += silence_commands(entries, kind, nodes, cards)
+        labels += [entries[d["key"]].get("label") or d["key"] for d in loud_devices(entries, kind, nodes, cards)]
     for command in commands:
         pactl(*command)
+    if labels and report is not None:
+        report(labels)
     return len(commands)
+
+
+def report_silenced(labels: list[str]) -> None:
+    from hypr_screens import enforce as enforcement
+
+    enforcement.record("sound", "force_mute", ", ".join(labels))
 
 
 def set_forced(cfg: dict, device: dict, on: bool) -> None:
@@ -344,7 +357,7 @@ def guard() -> None:
             with subprocess.Popen(["pactl", "subscribe"], stdout=subprocess.PIPE,
                                   stderr=subprocess.DEVNULL) as events:
                 fd = events.stdout.fileno()
-                enforce()
+                enforce(report=report_silenced)
                 last = time.monotonic()
                 while True:
                     ready, _, _ = select.select([fd], [], [], GUARD_SECONDS)
@@ -355,7 +368,7 @@ def guard() -> None:
                             break
                         due = due or any(relevant(line) for line in chunk.splitlines())
                     if due:
-                        enforce()
+                        enforce(report=report_silenced)
                         last = time.monotonic()
         except Exception as error:  # never take the watcher down
             print(f"hypr-screens sound guard: {error}", file=sys.stderr, flush=True)
