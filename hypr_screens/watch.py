@@ -53,6 +53,16 @@ def log(message: str) -> None:
     print(f"hypr-screens watch: {message}", file=sys.stderr, flush=True)
 
 
+def safe_sync(kind: str) -> str:
+    """One sync, logged; an error must not end the watcher -- its threads keep
+    force-muted devices silent, and nothing would start it again before the
+    next login."""
+    try:
+        return engine.sync(kind) or "nothing to change"
+    except Exception as error:
+        return f"failed: {error!r}"
+
+
 def watch() -> int:
     lock = open(config.runtime_dir() / "watch.lock", "w")
     try:
@@ -76,7 +86,7 @@ def watch() -> int:
 
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as events:
         events.connect(str(path))
-        log(f"started, {engine.sync('added') or 'nothing to change'}")
+        log(f"started, {safe_sync('added')}")
         buffer = b""
         pending: set[str] = set()
         while True:
@@ -86,7 +96,7 @@ def watch() -> int:
             except TimeoutError:
                 kind = strongest(pending)
                 pending.clear()
-                log(f"{kind}: {engine.sync(kind) or 'nothing to change'}")
+                log(f"{kind}: {safe_sync(kind)}")
                 if kind in ("added", "removed"):
                     try:
                         if message := widgets.auto_layout():
