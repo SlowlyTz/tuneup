@@ -16,9 +16,9 @@ pythonpath = ["."]
 testpaths = ["tests"]
 
 [project]
-name = "hypr-minimizer"
-version = "1.0.0"
-description = "Workspace-aware LIFO window minimizer for Hyprland"
+name = "tuneup"
+version = "1.1.0"
+description = "Tuneup – the settings app Omarchy is missing"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
@@ -45,9 +45,10 @@ dev = ["pytest"]
 
 [project.scripts]
 hypr-minimizer = "minimizer:main"
+tuneup = "hypr_screens.cli:main"
 hypr-screens = "hypr_screens.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/SlowlyTz/hypr-minimizer"
-Repository = "https://github.com/SlowlyTz/hypr-minimizer"
-Issues = "https://github.com/SlowlyTz/hypr-minimizer/issues"
+Homepage = "https://github.com/SlowlyTz/tuneup"
+Repository = "https://github.com/SlowlyTz/tuneup"
+Issues = "https://github.com/SlowlyTz/tuneup/issues"
