@@ -26,7 +26,7 @@ Item {
   readonly property bool chosen: !!(service && service.selection && service.selection.kind === kind)
   readonly property string selectedPart: chosen ? service.selection.part : ""
   // A click in the color mode: on a part (PartHit) or anywhere else on it ("").
-  // The palette keeps clear of the frame and the badge above it.
+  // The style panel keeps clear of the frame and the badge above it.
   function pickPart(part, point) {
     var room = Style.space(64)
     var rect = placed.mapToItem(null, -frameMargin, -frameMargin - room, width + 2 * frameMargin,
@@ -36,7 +36,8 @@ Item {
   default property alias content: holder.data
 
   readonly property var spot: service ? service.placement(kind, screenKey) : { x: 0.5, y: 0.5, rotation: 0, size: 100, width: 0 }
-  readonly property var settings: service ? service.widget(kind) : null
+  // Its settings with the look as arranged (Service.style).
+  readonly property var settings: service ? service.style(kind) : null
   readonly property string title: service && service.texts && service.texts[kind] ? service.texts[kind] : kind
   readonly property real frameMargin: Style.space(10)
   readonly property bool card: !!(settings && settings.card)
@@ -168,16 +169,19 @@ Item {
     anchors.fill: parent
     opacity: placed.settings ? placed.settings.opacity / 100 : 1
     layer.enabled: placed.effect === "shadow" || placed.effect === "glow"
+    // The blur reaches strength × 48 px, with at most 32 px of blur passes
+    // (fewer passes: cheaper, which counts for the visualizer drawn 30 times
+    // a second); the same up to about 60 % strength.
     layer.effect: MultiEffect {
       shadowEnabled: true
       shadowColor: placed.service ? placed.service.colorOf(placed.kind, "effect",
                                      placed.effect === "glow" ? placed.service.tint(placed.kind) : "black") : "black"
-      shadowBlur: placed.effect === "glow" ? Math.min(1, 0.3 + placed.strength) : Math.min(1, 0.2 + placed.strength * 0.8)
+      shadowBlur: Math.min(1, 1.5 * (placed.effect === "glow" ? 0.3 + placed.strength : 0.2 + placed.strength * 0.8))
       shadowOpacity: placed.effect === "glow" ? Math.min(1, 0.4 + placed.strength * 0.6) : Math.min(1, 0.3 + placed.strength * 0.7)
       shadowHorizontalOffset: placed.effect === "glow" ? 0 : 2 + placed.strength * 6
       shadowVerticalOffset: placed.effect === "glow" ? 0 : 2 + placed.strength * 6
       shadowScale: placed.effect === "glow" ? 1.02 : 1
-      blurMax: 48
+      blurMax: 32
     }
 
     Rectangle {

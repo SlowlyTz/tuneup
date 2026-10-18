@@ -66,6 +66,36 @@ def test_cava_prints_raw_bars_and_sleeps_when_quiet():
     for line in ("bars = 24", "method = raw", "data_format = ascii", "bar_delimiter = 59",
                  "sleep_timer = 2", "method = pipewire"):
         assert line in text
+    assert "framerate = 30" in text
+
+
+def test_arranging_saves_the_look_that_applies():
+    assert "font_family" not in widgets.look_keys("visualizer") and "card_blur" in widgets.look_keys("visualizer")
+    assert {"align", "current_size", "scroll_ms"} <= set(widgets.look_keys("lyrics"))
+    assert "align" not in widgets.look_keys("clock")
+    cfg = config.default_config()
+    cfg["widgets"] = widgets.normalize({"clock": {"enabled": True}})
+    look = {"font_family": "Inter", "font_weight": "light", "letter_spacing": 99, "effect": "glow",
+            "effect_strength": 70, "opacity": 80, "card": True, "card_opacity": 60, "card_radius": 8,
+            "card_padding": 30, "card_blur": True, "align": "left", "hours": "12"}
+    cfg = widgets.save_placements(cfg, {"clock": look, "visualizer": {"font_family": "Inter", "effect": "moon"}})
+    clock = cfg["widgets"]["clock"]
+    # Only look settings, validated: no lyrics alignment for a clock, no time format.
+    assert {k: clock[k] for k in look if k not in ("align", "hours")} == {
+        k: v for k, v in look.items() if k not in ("align", "hours")} | {"letter_spacing": 20}
+    assert clock["letter_spacing"] == 20 and clock["effect"] == "glow" and clock["card_blur"] is True
+    assert clock["font_family"] == "Inter" and clock["card_padding"] == 30 and clock["hours"] == "24"
+    assert "align" not in clock
+    visualizer = cfg["widgets"]["visualizer"]
+    assert visualizer["font_family"] == "" and visualizer["effect"] == "outline"
+
+
+def test_the_plugin_knows_the_look_keys_without_a_new_settings_file():
+    """Service.qml's fallback (for a widgets.json from before lookKeys) has the same keys."""
+    source = (install.PLUGINS[widgets.PLUGIN] / "Service.qml").read_text()
+    fallback = source[source.index("function lookKeysFallback"):source.index("// A widget's settings with its look")]
+    for key in {*widgets.look_keys("lyrics"), *widgets.look_keys("visualizer")}:
+        assert f'"{key}"' in fallback, key
 
 
 def test_export_writes_what_the_plugin_reads(tmp_path, monkeypatch):
@@ -80,6 +110,9 @@ def test_export_writes_what_the_plugin_reads(tmp_path, monkeypatch):
     assert data["cava"] == str(widgets.cava_file()) and widgets.cava_file().exists()
     assert data["font"] == "Mono" and data["locale"] == "de_DE"
     assert data["texts"]["clock"] == "Uhr"
+    assert data["texts"]["look"]["font"] == "Schrift" and data["texts"]["style"] == "Stil"
+    assert data["lookKeys"]["lyrics"] == widgets.look_keys("lyrics")
+    assert data["lookRanges"]["card_padding"] == list(widgets.RANGES["card_padding"])
     from hypr_screens import i18n
 
     i18n.set_language("en")

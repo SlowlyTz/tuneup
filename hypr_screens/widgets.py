@@ -178,6 +178,13 @@ WIDTH_RANGES = {"visualizer": (60, 2000), "lyrics": (200, 2400), "system": (150,
 # What arranging may change.
 PLACEMENT_KEYS = ("x", "y", "rotation", "size", "width", "colors", "spots")
 SPOT_KEYS = ("x", "y", "rotation", "size", "width")
+# A widget's look, set in the arrange tool's style panel (and saved with the
+# places): the font (not for the visualizer, it has no text), the effect, the
+# opacity and the card; the lyrics also their alignment and motion.
+TEXT_LOOK_KEYS = ("font_family", "font_weight", "letter_spacing")
+LOOK_KEYS = ("effect", "effect_strength", "opacity", "card", "card_opacity", "card_radius", "card_padding",
+             "card_blur")
+KIND_LOOK_KEYS = {"lyrics": ("align", "current_size", "scroll_ms")}
 MAX_SPOTS = 20
 MAX_LAYOUTS = 30
 
@@ -221,6 +228,11 @@ def part_titles(kind: str, widget: dict) -> dict[str, str]:
         for part, title, _default in parts:
             titles[part] = t(title)
     return titles
+
+
+def look_keys(kind: str) -> list[str]:
+    """The look settings that apply to this widget."""
+    return [*(() if kind == "visualizer" else TEXT_LOOK_KEYS), *LOOK_KEYS, *KIND_LOOK_KEYS.get(kind, ())]
 
 
 def clean_colors(kind: str, raw: object) -> dict[str, str]:
@@ -317,7 +329,7 @@ def cpu_temperature_file() -> str:
 
 def font() -> str:
     try:
-        from hypr_screens.gui import theme  # no GTK needed
+        from hypr_screens import theme
 
         return theme.font()
     except Exception:
@@ -362,11 +374,12 @@ def audio_source(player: str) -> str:
 
 def cava_config(bars: int, source: str = "auto", smoothing: int = 77) -> str:
     """cava prints one line per frame: bar values 0..1000 separated by ';'.
-    It sleeps after 2 s of silence, so the visualizer costs nothing then."""
+    30 frames a second are smooth enough for bars and cost half of 60. It
+    sleeps after 2 s of silence, so the visualizer costs nothing then."""
     return "\n".join([
         "[general]",
         f"bars = {bars}",
-        "framerate = 60",
+        "framerate = 30",
         "sleep_timer = 2",
         "autosens = 1",
         "[input]",
@@ -407,13 +420,34 @@ def export(cfg: dict) -> None:
         "kinds": KINDS,
         "parts": {kind: part_defaults(kind) for kind in KINDS},
         "partTitles": {kind: part_titles(kind, widgets[kind]) for kind in KINDS},
+        # The style panel: which look settings each widget has, and the sliders' ranges.
+        "lookKeys": {kind: look_keys(kind) for kind in KINDS},
+        "lookRanges": {key: RANGES[key] for key in ("letter_spacing", "effect_strength", "opacity", "card_opacity",
+                                                    "card_radius", "card_padding", "current_size", "scroll_ms")},
         "texts": {
             **{kind: t(title) for kind, title in TITLES.items()},
             "hint": t("Drag to move  ·  pull edges and corners to resize  ·  scroll to turn (Shift: fine)"),
             "save": t("Save"),
             "move": t("Move"),
             "colors": t("Colors"),
-            "hintColors": t("Click a widget to color it  ·  Ctrl+Z undoes"),
+            "style": t("Style"),
+            "hintStyle": t("Click a widget to style it  ·  Ctrl+Z undoes"),
+            "look": {
+                "font": t("Font"), "omarchyFont": t("The Omarchy font"), "searchFonts": t("Search fonts"),
+                "noFonts": t("No font found"), "weight": t("Weight"), "letterSpacing": t("Letter spacing"),
+                "weights": {"light": t("Light"), "regular": t("Regular"), "medium": t("Medium"), "bold": t("Bold"),
+                            "black": t("Black")},
+                "alignment": t("Alignment"),
+                "aligns": {"left": t("Left"), "center": t("Centered"), "right": t("Right")},
+                "currentSize": t("Size of the line being sung"), "scrollTime": t("Scroll time"),
+                "effect": t("Effect"),
+                "effects": {"none": t("None"), "outline": t("Outline"), "shadow": t("Shadow"), "glow": t("Glow")},
+                "strength": t("Strength"), "opacity": t("Opacity"),
+                "card": t("Card"), "showCard": t("Show the card"), "cardOpacity": t("Card opacity"),
+                "corners": t("Corners"), "roomAround": t("Room around"), "cardBlur": t("Blur behind the card"),
+                "blurLater": t("The blur shows on the desktop once saved"),
+                "off": t("Off"),
+            },
             "recent": t("Recent"),
             "byDefault": t("Default"),
             "baseColor": t("Base color"),
@@ -483,7 +517,8 @@ def wire_shell(widgets: dict) -> list[str]:
         return done + ["no shell.json"]
     before = json.dumps(shell, sort_keys=True)
     wanted = any(widget["enabled"] for widget in widgets.values())
-    plugins = [p for p in shell.get("plugins", []) if not (isinstance(p, dict) and p.get("id") == PLUGIN)]
+    plugins = [p for p in (shell.get("plugins") if isinstance(shell.get("plugins"), list) else [])
+               if not (isinstance(p, dict) and p.get("id") == PLUGIN)]
     if wanted:
         plugins.append({"id": PLUGIN})
     shell["plugins"] = plugins
@@ -637,11 +672,11 @@ def auto_layout() -> str:
 
 
 def save_placements(cfg: dict, placements: dict) -> dict:
-    """Take places and sizes from arranging into the settings (only known widgets and keys)."""
+    """Take places, sizes and looks from arranging into the settings (only known widgets and keys)."""
     for kind, spot in (placements or {}).items():
         if kind in cfg["widgets"] and isinstance(spot, dict):
             widget = cfg["widgets"][kind]
-            widget.update({key: spot[key] for key in PLACEMENT_KEYS if key in spot})
+            widget.update({key: spot[key] for key in (*PLACEMENT_KEYS, *look_keys(kind)) if key in spot})
             if widget["enabled"]:
                 widget["placed"] = True
     cfg["widgets"] = normalize(cfg["widgets"])

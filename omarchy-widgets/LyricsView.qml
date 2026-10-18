@@ -21,11 +21,13 @@ Item {
   property bool editing: false
 
   readonly property var settings: service ? service.widget("lyrics") : null
+  // Alignment, sizes and motion are its look: as arranged (Service.style).
+  readonly property var looks: service ? service.style("lyrics") : null
   // Its place and size on this screen (set by Placed).
   property var spot: null
   readonly property int shownLines: settings ? settings.lines : 3
   readonly property string highlight: settings ? settings.highlight : "line"
-  readonly property string align: settings ? settings.align : "center"
+  readonly property string align: looks ? looks.align : "center"
   readonly property color tint: service ? service.tint("lyrics") : Color.accent
   readonly property var look: service ? service.textLook("lyrics") : ({ family: "", weight: 700, lighter: 400, spacing: 0, outline: false })
   function paint(part, fallback) { return view.service ? view.service.colorOf("lyrics", part, fallback) : fallback }
@@ -42,8 +44,8 @@ Item {
   readonly property real fontSize: Math.max(8, Math.floor(slot * 0.6))
   // The other lines are smaller than the one being sung (current_size: how
   // much bigger it is, in percent).
-  readonly property real restScale: 100 / (settings ? settings.current_size : 115)
-  readonly property int scrollMs: settings ? settings.scroll_ms : 550
+  readonly property real restScale: 100 / (looks ? looks.current_size : 115)
+  readonly property int scrollMs: looks ? looks.scroll_ms : 550
 
   implicitWidth: spot && spot.width > 0 ? spot.width : 720
   implicitHeight: spot ? spot.size : 200
@@ -52,39 +54,72 @@ Item {
   opacity: editing || (hasLyrics && (!hidePaused || (service && service.playing))) ? 1 : 0
   Behavior on opacity { NumberAnimation { duration: 500 } }
 
-  function escaped(text) {
-    return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  // The line being sung, word by word (the Loader in each line): each word's place,
+  // worked out once per line from the font size the line got (Text.Fit on
+  // the plain line), so the highlight only moves a clip as the song plays.
+  FontMetrics {
+    id: wordMetrics
+    font.family: view.look.family
+    font.pixelSize: view.fontSize
+    font.weight: view.look.weight
+    font.letterSpacing: view.look.spacing * view.fontSize / 30
   }
-
-  // The line being sung: the words sung so far in their color, the word
-  // being sung filling up letter by letter (the letter on the edge blended).
-  function wordLine(index, time) {
-    var words = view.service ? view.service.wordsFor(index) : []
-    if (!words.length) return view.escaped(view.shown[index] ? view.shown[index].text : "")
-    var sungColor = view.paint("sung", view.tint)
-    var waitingColor = view.paint("waiting", Color.foreground)
-    var sung = view.cssColor(sungColor)
-    var waiting = view.cssColor(waitingColor)
-    var now = time + 0.1
+  // {text, t, end, x, y, width} for each word in a box of width × height at
+  // `pixels`, wrapped like the line and aligned like it; smaller while the
+  // rows do not fit (down to half the size). Widths are measured once at the
+  // full size and scaled.
+  function placeWords(index, width, height, pixels) {
+    var timed = view.service ? view.service.wordsFor(index) : []
+    if (!timed.length || width <= 0 || pixels <= 0) return { size: pixels, words: [] }
+    var widths = timed.map(function(w) { return wordMetrics.advanceWidth(w.text) })
+    var space = wordMetrics.advanceWidth(" ")
+    var size = pixels
+    var rows = []
+    for (var tries = 0; tries < 8; tries++) {
+      var f = size / view.fontSize
+      rows = [{ width: 0, words: [] }]
+      for (var i = 0; i < timed.length; i++) {
+        var row = rows[rows.length - 1]
+        var w = widths[i] * f
+        var gap = row.words.length ? space * f : 0
+        if (row.words.length && row.width + gap + w > width) {
+          row = { width: 0, words: [] }
+          rows.push(row)
+          gap = 0
+        }
+        row.words.push({ i: i, x: row.width + gap, width: w })
+        row.width += gap + w
+      }
+      if (rows.length * wordMetrics.height * f * 0.95 <= height * 1.02 || size <= view.fontSize / 2) break
+      size = Math.max(view.fontSize / 2, size * 0.92)
+    }
+    var lineHeight = wordMetrics.height * (size / view.fontSize) * 0.95
+    var top = (height - rows.length * lineHeight) / 2
     var out = []
-    for (var i = 0; i < words.length; i++) {
-      var w = words[i]
-      if (now >= w.end) out.push('<font color="' + sung + '">' + view.escaped(w.text) + "</font>")
-      else if (now <= w.t) out.push('<font color="' + waiting + '">' + view.escaped(w.text) + "</font>")
-      else {
-        var filled = (now - w.t) / Math.max(0.05, w.end - w.t) * w.text.length
-        var whole = Math.floor(filled)
-        var edge = filled - whole
-        var mixed = view.cssColor(Qt.rgba(sungColor.r * edge + waitingColor.r * (1 - edge),
-                                          sungColor.g * edge + waitingColor.g * (1 - edge),
-                                          sungColor.b * edge + waitingColor.b * (1 - edge),
-                                          sungColor.a * edge + waitingColor.a * (1 - edge)))
-        out.push('<font color="' + sung + '">' + view.escaped(w.text.slice(0, whole)) + "</font>"
-                 + '<font color="' + mixed + '">' + view.escaped(w.text.slice(whole, whole + 1)) + "</font>"
-                 + '<font color="' + waiting + '">' + view.escaped(w.text.slice(whole + 1)) + "</font>")
+    for (var r = 0; r < rows.length; r++) {
+      var left = view.align === "left" ? 0 : view.align === "right" ? width - rows[r].width : (width - rows[r].width) / 2
+      for (var k = 0; k < rows[r].words.length; k++) {
+        var placed = rows[r].words[k]
+        var word = timed[placed.i]
+        out.push({ text: word.text, t: word.t, end: word.end, x: left + placed.x, y: top + r * lineHeight,
+                   width: placed.width, height: lineHeight })
       }
     }
-    return out.join(" ")
+    return { size: size, words: out }
+  }
+
+  // One word of the line being sung (its height: the row's).
+  component LyricWord: Text {
+    property real pixels: view.fontSize
+    height: parent ? parent.height : 0
+    verticalAlignment: Text.AlignVCenter
+    textFormat: Text.PlainText
+    font.family: view.look.family
+    font.pixelSize: Math.max(6, Math.round(pixels))
+    font.weight: view.look.weight
+    font.letterSpacing: view.look.spacing * pixels / 30
+    style: view.look.outline ? Text.Outline : Text.Normal
+    styleColor: view.look.outline ? view.look.outlineColor : "transparent"
   }
 
   // Where the column goes: the current line in the middle slot (the upper of
@@ -95,12 +130,6 @@ Item {
     if (total <= view.height) return (view.height - total) / 2
     var middle = (Math.floor((view.shownLines - 1) / 2) - view.current) * view.slot
     return Math.max(view.height - total, Math.min(0, middle))
-  }
-
-  // StyledText takes #aarrggbb.
-  function cssColor(c) {
-    function two(v) { var h = Math.round(v * 255).toString(16); return h.length < 2 ? "0" + h : h }
-    return "#" + two(c.a) + two(c.r) + two(c.g) + two(c.b)
   }
 
   // A new song (or lyrics) jumps into place; only the next line scrolls.
@@ -118,7 +147,8 @@ Item {
 
     Repeater {
       model: view.shown
-      Text {
+      Item {
+        id: line
         required property var modelData
         required property int index
         readonly property int distance: index - view.current
@@ -126,34 +156,84 @@ Item {
         readonly property bool byWord: sung && view.highlight === "word" && view.hasLyrics
         width: column.width
         height: view.slot
-        horizontalAlignment: view.align === "left" ? Text.AlignLeft : (view.align === "right" ? Text.AlignRight : Text.AlignHCenter)
-        verticalAlignment: Text.AlignVCenter
         transformOrigin: view.align === "left" ? Item.Left : (view.align === "right" ? Item.Right : Item.Center)
-        wrapMode: Text.WordWrap
-        fontSizeMode: Text.Fit
-        minimumPixelSize: Math.max(6, Math.floor(view.fontSize / 2))
-        lineHeight: 0.95
-        textFormat: byWord ? Text.StyledText : Text.PlainText
-        text: byWord ? view.wordLine(index, view.service ? view.service.songTime : 0) : (modelData.text || "♪")
-        color: sung ? (view.highlight === "line" ? view.paint("current", view.tint) : view.paint("waiting", Color.foreground))
-                    : view.paint(distance > 0 ? "upcoming" : "past", Color.foreground)
         // Inside the box once the column has moved: the coming lines a bit
         // brighter than the ones sung; outside it, gone.
         readonly property real slotTop: view.columnY + index * view.slot
         readonly property bool inside: slotTop > -view.slot / 2 && slotTop + view.slot < view.height + view.slot / 2
         opacity: !inside ? 0 : (sung ? 1 : (distance > 0 ? 0.7 : 0.4))
         scale: sung ? 1 : view.restScale
-        font.family: view.look.family
-        font.pixelSize: view.fontSize
-        font.weight: view.look.weight
-        font.letterSpacing: view.look.spacing * view.fontSize / 30
-        style: view.look.outline ? Text.Outline : Text.Normal
-        styleColor: view.look.outline ? view.look.outlineColor : "transparent"
         Behavior on opacity { NumberAnimation { duration: view.scrollMs * 0.8; easing.type: Easing.OutCubic } }
         Behavior on scale { NumberAnimation { duration: view.scrollMs * 0.8; easing.type: Easing.OutCubic } }
-        Behavior on color { ColorAnimation { duration: 350 } }
-        PartHit { part: sung ? (view.highlight === "line" ? "current" : view.highlight === "word" ? "sung" : "waiting")
-                             : (distance > 0 ? "upcoming" : "past") }
+
+        // The line as plain text: Text.Fit finds its size once (the text only
+        // changes with the line). Word by word it only lends that size.
+        Text {
+          id: plain
+          anchors.fill: parent
+          opacity: line.byWord && words.status === Loader.Ready ? 0 : 1
+          horizontalAlignment: view.align === "left" ? Text.AlignLeft : (view.align === "right" ? Text.AlignRight : Text.AlignHCenter)
+          verticalAlignment: Text.AlignVCenter
+          wrapMode: Text.WordWrap
+          fontSizeMode: Text.Fit
+          minimumPixelSize: Math.max(6, Math.floor(view.fontSize / 2))
+          lineHeight: 0.95
+          textFormat: Text.PlainText
+          text: line.modelData.text || "♪"
+          color: line.sung ? (view.highlight === "line" ? view.paint("current", view.tint) : view.paint("waiting", Color.foreground))
+                           : view.paint(line.distance > 0 ? "upcoming" : "past", Color.foreground)
+          font.family: view.look.family
+          font.pixelSize: view.fontSize
+          font.weight: view.look.weight
+          font.letterSpacing: view.look.spacing * view.fontSize / 30
+          style: view.look.outline ? Text.Outline : Text.Normal
+          styleColor: view.look.outline ? view.look.outlineColor : "transparent"
+          Behavior on color { ColorAnimation { duration: 350 } }
+        }
+
+        // Word by word: each word in the color still to sing, the sung part
+        // of it covered by the same word in the sung color (a clip that
+        // grows with the song: no text is laid out again while it plays).
+        Loader {
+          id: words
+          anchors.fill: parent
+          active: line.byWord
+          sourceComponent: Item {
+            id: wordBox
+            readonly property var layout: view.placeWords(line.index, line.width, line.height,
+                                                          plain.fontInfo.pixelSize || view.fontSize)
+            readonly property color sungColor: view.paint("sung", view.tint)
+            readonly property color waitingColor: view.paint("waiting", Color.foreground)
+            Repeater {
+              model: wordBox.layout.words
+              Item {
+                id: word
+                required property var modelData
+                readonly property real fill: {
+                  var now = (view.service ? view.service.songTime : 0) + 0.1
+                  if (now >= modelData.end) return 1
+                  if (now <= modelData.t) return 0
+                  return (now - modelData.t) / Math.max(0.05, modelData.end - modelData.t)
+                }
+                x: modelData.x
+                y: modelData.y
+                width: modelData.width
+                height: modelData.height
+                LyricWord { text: word.modelData.text; pixels: wordBox.layout.size; color: wordBox.waitingColor }
+                Item {
+                  visible: word.fill > 0
+                  width: Math.round(word.fill * (word.width + 2))
+                  height: word.height
+                  clip: true
+                  LyricWord { text: word.modelData.text; pixels: wordBox.layout.size; color: wordBox.sungColor }
+                }
+              }
+            }
+          }
+        }
+
+        PartHit { part: line.sung ? (view.highlight === "line" ? "current" : view.highlight === "word" ? "sung" : "waiting")
+                                  : (line.distance > 0 ? "upcoming" : "past") }
       }
     }
   }
