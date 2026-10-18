@@ -30,7 +30,7 @@ Everything else: **[docs/](docs/README.md)** — [settings window](docs/settings
 ## Requirements
 
 - Hyprland ≥ 0.56 with a Lua config (the minimizer alone also works with older, string-dispatcher versions)
-- Python ≥ 3.10; for the settings window GTK 4, libadwaita and PyGObject (Omarchy has them)
+- Python ≥ 3.10; for the settings window GTK 4, libadwaita, WebKitGTK 6.0, PyGObject and the Inter font (`sudo pacman -S webkitgtk-6.0 inter-font`; Omarchy has the rest)
 - Omarchy for the window menu and the bar widget; without it the window menu falls back to walker, wofi or rofi
 
 ## Repo layout

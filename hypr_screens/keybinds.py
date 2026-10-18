@@ -16,7 +16,7 @@ from hypr_screens import config, desktops, hypr, look
 RECORD_SUBMAP = "hypr-screens-record"
 # The settings window (gui/app.py APP_ID, gui/window.py WIDTH x HEIGHT).
 SETTINGS_CLASS = "^(io\\.github\\.slowlytz\\.HyprScreens)$"
-SETTINGS_SIZE = (1000, 720)
+SETTINGS_SIZE = (1100, 760)
 # The Omarchy menu (SUPER+SPACE) and how long after it closes an app asking to
 # be shown counts as started from it: a running app needs a moment to answer.
 LAUNCHER_NAMESPACE = "omarchy-menu"

@@ -5,7 +5,7 @@ import re
 import pytest
 
 from hypr_screens import config, i18n
-from i18n_keys import all_keys
+from i18n_keys import WEB_APP, all_keys, web_keys
 
 TABLES = json.loads(i18n.LOCALES.read_text(encoding="utf-8"))
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
@@ -43,7 +43,7 @@ def test_english_is_the_default_and_the_fallback():
     assert i18n.t("Screens") == "Screens"
     i18n.set_language("de")
     assert i18n.t("Screens") == "Bildschirme"
-    assert i18n.t("Charge limit {limit} %", limit=80) == "Ladelimit 80 %"
+    assert i18n.t("Fixed: {name}", name="HP 32f") == "Fest: HP 32f"
     assert i18n.t("A text nobody translated") == "A text nobody translated"
 
 
@@ -51,3 +51,18 @@ def test_the_language_is_kept_in_the_config():
     assert config.default_config()["language"] == "en"
     assert config.normalize({"language": "fr"})["language"] == "fr"
     assert config.normalize({"language": "klingon"})["language"] == "en"
+
+
+def test_the_web_window_passes_only_plain_texts_to_t():
+    """app.js: t("English text", {values}) – no template strings or sums, so
+    every text is found (and translated) by web_keys()."""
+    source = WEB_APP.read_text(encoding="utf-8")
+    assert not re.findall(r"(?<![\w.$])t\(\s*`", source)
+    assert not re.findall(r'(?<![\w.$])t\(\s*"(?:[^"\\]|\\.)*"\s*\+', source)
+    assert len(web_keys()) > 300
+
+
+@pytest.mark.parametrize("language", sorted(TABLES))
+def test_every_text_of_the_web_window_is_translated(language):
+    missing = sorted(web_keys() - set(TABLES[language]))
+    assert missing == [], f"{language} misses {missing[:10]}"

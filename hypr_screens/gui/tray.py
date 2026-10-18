@@ -90,13 +90,16 @@ MENU_XML = """
 
 
 class Tray:
-    """entries: [(label, callback)]; None entries are separators."""
+    """entries: [(label, callback)] or [(label, callback, shown)] where shown()
+    says whether the entry is in the menu right now; None entries are
+    separators."""
 
     def __init__(self, title: str, icon: str, on_activate, entries):
         self.title = title
         self.icon = icon
         self.on_activate = on_activate
         self.entries = entries
+        self.revision = 1
         self.bus = None
         self.name = f"org.kde.StatusNotifierItem-{os.getpid()}-1"
 
@@ -115,6 +118,17 @@ class Tray:
             self.bus, "org.kde.StatusNotifierWatcher", Gio.BusNameWatcherFlags.NONE,
             lambda *_args: self._register(), None,
         )
+
+    def update(self, title: str, entries) -> None:
+        """New texts (another language): the bar asks for the menu again."""
+        self.title, self.entries = title, entries
+        self.revision += 1
+        if self.bus is None:
+            return
+        for signal in ("NewTitle", "NewToolTip"):
+            self.bus.emit_signal(None, ITEM_PATH, "org.kde.StatusNotifierItem", signal, None)
+        self.bus.emit_signal(None, MENU_PATH, "com.canonical.dbusmenu", "LayoutUpdated",
+                             GLib.Variant("(ui)", (self.revision, 0)))
 
     def _register(self) -> None:
         self.bus.call(
@@ -150,10 +164,11 @@ class Tray:
         entry = self.entries[index - 1]
         if entry is None:
             return {"type": GLib.Variant("s", "separator"), "visible": GLib.Variant("b", True)}
+        shown = entry[2]() if len(entry) > 2 else True
         return {
             "label": GLib.Variant("s", entry[0]),
             "enabled": GLib.Variant("b", True),
-            "visible": GLib.Variant("b", True),
+            "visible": GLib.Variant("b", bool(shown)),
         }
 
     def _layout(self):
@@ -174,7 +189,7 @@ class Tray:
 
     def _menu_call(self, _connection, _sender, _path, _interface, method, params, invocation):
         if method == "GetLayout":
-            invocation.return_value(GLib.Variant("(u(ia{sv}av))", (1, self._layout())))
+            invocation.return_value(GLib.Variant("(u(ia{sv}av))", (self.revision, self._layout())))
         elif method == "GetGroupProperties":
             ids = params.unpack()[0] or range(1, len(self.entries) + 1)
             found = [(i, self._props(i)) for i in ids if 1 <= i <= len(self.entries)]
@@ -192,7 +207,8 @@ class Tray:
                 self._clicked(index, event)
             invocation.return_value(GLib.Variant("(ai)", ([],)))
         elif method == "AboutToShow":
-            invocation.return_value(GLib.Variant("(b)", (False,)))
+            # Entries come and go (a monitor plugged in): ask for the layout again.
+            invocation.return_value(GLib.Variant("(b)", (True,)))
         elif method == "AboutToShowGroup":
             invocation.return_value(GLib.Variant("(aiai)", ([], [])))
         else:

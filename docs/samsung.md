@@ -1,6 +1,6 @@
 # Samsung Galaxy Book
 
-On a Samsung Galaxy Book, the settings window gets a **Samsung** page with what Samsung Settings offers on Windows. It needs the `samsung-galaxybook` kernel driver (in Linux since 6.14); on other laptops the page does not show.
+On a Samsung Galaxy Book, the settings window gets a **Battery & power** page with what Samsung Settings offers on Windows. It needs the `samsung-galaxybook` kernel driver (in Linux since 6.14); on other laptops the page does not show.
 
 ## What it does
 
