@@ -46,7 +46,12 @@ def parse_value(key: str, raw: str) -> object:
             raise ValueError(f"rotation must be one of {config.ROTATIONS}")
         return value
     if key == "scale":
-        return "auto" if raw == "auto" else float(raw)
+        if raw == "auto":
+            return raw
+        value = float(raw)
+        if not 0.25 <= value <= 4:
+            raise ValueError("scale must be auto or between 0.25 and 4")
+        return value
     if key == "position":
         if raw not in config.POSITIONS:
             raise ValueError(f"position must be one of {config.POSITIONS}")
