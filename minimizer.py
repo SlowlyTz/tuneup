@@ -15,7 +15,6 @@ from pathlib import Path
 
 
 MINIMIZED_WORKSPACE = "special:minimized"
-LEGACY_STATE_FILE = Path("/tmp/hypr_minimizer_state.json")
 BRAVE_APP_CLASS_RE = re.compile(r"^brave-([a-z]+)-Default$")
 # Chromium URL web apps without a desktop file, e.g. chrome-web.whatsapp.com__-Default.
 URL_APP_CLASS_RE = re.compile(r"^chrome-(.+?)__.*-Default$")
@@ -288,9 +287,6 @@ def normalize_storage(raw_storage: object) -> dict[str, object]:
 
 def load_storage(path: Path | None = None) -> dict[str, object]:
     path = path or STATE_FILE
-    if not path.exists() and path == STATE_FILE and LEGACY_STATE_FILE.exists():
-        path = LEGACY_STATE_FILE
-
     if not path.exists():
         return normalize_storage(None)
 

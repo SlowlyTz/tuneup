@@ -81,7 +81,6 @@ def isolated_applications(tmp_path, monkeypatch):
 def state_file(tmp_path, monkeypatch):
     path = tmp_path / "hypr-minimizer" / "state.json"
     monkeypatch.setattr(minimizer, "STATE_FILE", path)
-    monkeypatch.setattr(minimizer, "LEGACY_STATE_FILE", tmp_path / "legacy-state.json")
     return path
 
 

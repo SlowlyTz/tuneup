@@ -41,6 +41,7 @@ PPD = ("org.freedesktop.UPower.PowerProfiles", "/org/freedesktop/UPower/PowerPro
        "org.freedesktop.UPower.PowerProfiles", "ActiveProfile")
 UDEV_RULE = Path("/etc/udev/rules.d/90-hypr-screens-samsung.rules")
 PPD_DROPIN = Path("/etc/systemd/system/power-profiles-daemon.service.d/hypr-screens.conf")
+COMMAND_SECONDS = 5
 
 
 # --- reading -------------------------------------------------------------------------
@@ -218,16 +219,18 @@ def cpu_profile(mode: str) -> str:
 
 def ppd_profile() -> str:
     try:
-        out = subprocess.run(["busctl", "get-property", *PPD], check=False, text=True, capture_output=True).stdout
-    except OSError:
+        out = subprocess.run(["busctl", "get-property", *PPD], check=False, text=True, capture_output=True,
+                             timeout=COMMAND_SECONDS).stdout
+    except (OSError, subprocess.TimeoutExpired):
         return ""
     return out.strip().removeprefix("s ").strip('"')
 
 
 def set_ppd(profile: str) -> None:
     try:
-        subprocess.run(["busctl", "set-property", *PPD, "s", profile], check=False, capture_output=True)
-    except OSError:
+        subprocess.run(["busctl", "set-property", *PPD, "s", profile], check=False, capture_output=True,
+                       timeout=COMMAND_SECONDS)
+    except (OSError, subprocess.TimeoutExpired):
         pass
 
 
@@ -301,8 +304,11 @@ def set_attribute(name: str, on: bool) -> bool:
 
 
 def set_keyboard(level: int) -> None:
-    subprocess.run(["brightnessctl", "-q", "-d", KEYBOARD_LED, "set", str(int(level))],
-                   check=False, capture_output=True)
+    try:
+        subprocess.run(["brightnessctl", "-q", "-d", KEYBOARD_LED, "set", str(int(level))],
+                       check=False, capture_output=True, timeout=COMMAND_SECONDS)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
 
 
 # --- watcher ---------------------------------------------------------------------------
@@ -342,18 +348,22 @@ def guard_tick(cfg: dict) -> str:
     return ", ".join(done)
 
 
+def guard_change(cfg: dict) -> bool:
+    """One guard tick on freshly loaded settings (under config.update's lock);
+    False when nothing in them changed, so nothing is written."""
+    before = json.dumps(cfg, sort_keys=True)
+    guard_tick(cfg)
+    return json.dumps(cfg, sort_keys=True) != before
+
+
 def guard() -> None:
     """Watcher thread: every second, keep the limit and the mode."""
     if not present():
         return
     while True:
         try:
-            cfg = config.load()
-            if settings(cfg) and writable():
-                before = json.dumps(cfg, sort_keys=True)
-                guard_tick(cfg)
-                if json.dumps(cfg, sort_keys=True) != before:
-                    config.save(cfg)
+            if settings(config.load()) and writable():
+                config.update(guard_change)
         except Exception as error:  # never take the watcher down
             print(f"hypr-screens samsung guard: {error}", flush=True)
         time.sleep(1.0)
@@ -434,13 +444,11 @@ def teardown(graphical: bool = False) -> bool:
     """Give everything back to Omarchy: the charge limit returns to what it was
     if a full charge is running, the app stops holding limit and mode, then the
     rule and the drop-in go."""
-    cfg = config.load()
-    samsung = cfg.setdefault("samsung", {})
+    samsung = settings(config.read())
     battery = battery_dir()
     if samsung.get("full_once") and battery is not None:
         write(battery / "charge_control_end_threshold", samsung.get("limit") or 100)
     if not run_as_root(teardown_script(), graphical):
         return False
-    cfg["samsung"] = {"limit": None, "mode": None, "full_once": False}
-    config.save(cfg)
+    config.update(lambda cfg: cfg.__setitem__("samsung", {"limit": None, "mode": None, "full_once": False}))
     return True

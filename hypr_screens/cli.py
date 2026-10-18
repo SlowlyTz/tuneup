@@ -11,18 +11,23 @@ def print_state(cfg: dict | None = None, message: str = "") -> None:
 
 
 def change(mutate) -> int:
-    """Load the config, mutate it, save, re-sync, print the new state."""
+    """Change the config under its lock, re-sync, print the new state."""
     from hypr_screens import config, engine
 
-    cfg = config.load()
+    notes = []
+
+    def work(cfg):
+        notes.append(mutate(cfg) or "")
     try:
-        message = mutate(cfg) or ""
-    except (ValueError, RuntimeError) as error:
-        print_state(cfg, f"error: {error}")
+        config.update(work)
+    except config.ConfigError as error:
+        print(f"hypr-screens: {error}", file=sys.stderr)
         return 1
-    config.save(cfg)
+    except (ValueError, RuntimeError) as error:
+        print_state(config.load(), f"error: {error}")
+        return 1
     engine.sync()
-    print_state(None, message)
+    print_state(None, notes[0] if notes else "")
     return 0
 
 
@@ -30,7 +35,7 @@ def gui(tray: bool) -> int:
     try:
         from hypr_screens.gui import app
     except (ImportError, ValueError) as error:
-        print(f"hypr-screens: the settings window needs GTK 4, libadwaita and PyGObject ({error})", file=sys.stderr)
+        print(f"hypr-screens: the settings window needs GTK 4, libadwaita, WebKitGTK 6.0 and PyGObject ({error})", file=sys.stderr)
         return 1
     return app.run(tray)
 
@@ -87,13 +92,11 @@ def power(args: argparse.Namespace) -> int:
         for mode, _label in samsung.modes():
             print(f"{mode}\t{1 if mode == current else 0}")
         return 0
-    cfg = config.load()
     try:
-        samsung.set_mode(cfg, args.mode or "")
+        config.update(lambda cfg: samsung.set_mode(cfg, args.mode or ""))
     except (ValueError, RuntimeError) as error:
         print(f"hypr-screens: {error}", file=sys.stderr)
         return 1
-    config.save(cfg)
     return 0
 
 
@@ -110,9 +113,11 @@ def camera_command(args: argparse.Namespace) -> int:
     if args.degrees not in camera.ROTATIONS:
         print(f"hypr-screens: rotation must be one of {camera.ROTATIONS}", file=sys.stderr)
         return 1
-    cfg = config.load()
-    cfg["camera"]["rotation"] = args.degrees
-    config.save(cfg)
+    try:
+        config.update(lambda cfg: cfg["camera"].__setitem__("rotation", args.degrees))
+    except config.ConfigError as error:
+        print(f"hypr-screens: {error}", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -134,16 +139,16 @@ def samsung_command(args: argparse.Namespace) -> int:
             return 1
         print(f"battery panel: {install.sync_power_panel(samsung.active())}")
         return 0
-    cfg = config.load()
-    try:
+    def work(cfg):
         if args.action == "limit":
             samsung.set_limit(cfg, int(args.value or 100))
         else:
             samsung.full_once(cfg, (args.value or "on") in ("on", "1", "true", "yes"))
+    try:
+        config.update(work)
     except (ValueError, RuntimeError) as error:
         print(f"hypr-screens: {error}", file=sys.stderr)
         return 1
-    config.save(cfg)
     return 0
 
 
@@ -170,12 +175,6 @@ def build_parser() -> argparse.ArgumentParser:
     when.add_argument("screen")
     when.add_argument("key")
     when.add_argument("other", help="screen that must be connected, or `always`")
-
-    stepper = sub.add_parser("step", help="used by the menu: cycle a value or its condition")
-    stepper.add_argument("screen")
-    stepper.add_argument("key")
-    stepper.add_argument("direction", type=int)
-    stepper.add_argument("--condition", action="store_true")
 
     favorite = sub.add_parser("favorite", help="toggle a favorite")
     favorite.add_argument("screen")
@@ -285,8 +284,13 @@ def run(args: argparse.Namespace) -> int:
         except json.JSONDecodeError:
             print("hypr-screens: placements must be JSON", file=sys.stderr)
             return 1
-        cfg = widgets.save_placements(config.load(), placements if isinstance(placements, dict) else {})
-        config.save(cfg)
+        def work(cfg):
+            widgets.save_placements(cfg, placements if isinstance(placements, dict) else {})
+        try:
+            cfg = config.update(work)
+        except config.ConfigError as error:
+            print(f"hypr-screens: {error}", file=sys.stderr)
+            return 1
         widgets.export(cfg)
         return 0
     if command == "power":
@@ -313,17 +317,6 @@ def run(args: argparse.Namespace) -> int:
             sid = resolve_screen(cfg, args.screen)
             other = None if args.other == "always" else resolve_screen(cfg, args.other)
             config.set_condition(cfg, sid, args.key, other)
-        return change(mutate)
-    if command == "step":
-        from hypr_screens import engine
-
-        def mutate(cfg):
-            sid = resolve_screen(cfg, args.screen)
-            if args.condition:
-                if not engine.step_condition(cfg, sid, args.key, args.direction):
-                    return "set a value first"
-            else:
-                engine.step_value(cfg, sid, args.key, args.direction)
         return change(mutate)
     if command == "favorite":
         def mutate(cfg):
@@ -359,41 +352,53 @@ def run(args: argparse.Namespace) -> int:
     if command == "bind":
         from hypr_screens import keybinds
 
-        cfg = config.load()
-        old = config.normalize(json.loads(json.dumps(cfg)))
+        before, notes = [], []
+
+        def work(cfg):
+            before.append(config.normalize(json.loads(json.dumps(cfg))))
+            notes.append(keybinds.set_key(cfg, args.action, args.slot - 1, args.combo))
         try:
-            note = keybinds.set_key(cfg, args.action, args.slot - 1, args.combo)
-        except ValueError as error:
-            print_state(cfg, f"error: {error}")
+            cfg = config.update(work)
+        except config.ConfigError as error:
+            print(f"hypr-screens: {error}", file=sys.stderr)
             return 1
-        config.save(cfg)
+        except ValueError as error:
+            print_state(config.load(), f"error: {error}")
+            return 1
         keybinds.write(cfg)
-        keybinds.go_live(old, cfg)
-        print_state(cfg, note)
+        keybinds.go_live(before[0], cfg)
+        print_state(cfg, notes[0])
         return 0
     if command == "option":
         from hypr_screens import keybinds
 
-        cfg = config.load()
-        old = config.normalize(json.loads(json.dumps(cfg)))
-        if args.name == "desktop_keys":
-            toggle = args.value in ("next", "prev")
-            value = not cfg["desktop_keys"] if toggle else args.value in ("on", "1", "true", "yes")
-            cfg["desktop_keys"] = value
-        else:
+        before = []
+
+        def work(cfg):
+            before.append(config.normalize(json.loads(json.dumps(cfg))))
+            if args.name == "desktop_keys":
+                toggle = args.value in ("next", "prev")
+                cfg["desktop_keys"] = not cfg["desktop_keys"] if toggle else args.value in ("on", "1", "true", "yes")
+                return
             choices = config.FIXED_DEFAULTS
             value = args.value
             if value in ("next", "prev"):
                 index = choices.index(cfg["default_fixed"]) + (1 if value == "next" else -1)
                 value = choices[index % len(choices)]
             if value not in choices:
-                print_state(cfg, f"error: default_fixed must be one of {choices}")
-                return 1
+                raise ValueError(f"default_fixed must be one of {choices}")
             cfg["default_fixed"] = value
-        config.save(cfg)
+        try:
+            cfg = config.update(work)
+        except config.ConfigError as error:
+            print(f"hypr-screens: {error}", file=sys.stderr)
+            return 1
+        except ValueError as error:
+            print_state(config.load(), f"error: {error}")
+            return 1
         if args.name == "desktop_keys":
             keybinds.write(cfg)
-            keybinds.go_live(old, cfg)
+            keybinds.go_live(before[0], cfg)
         from hypr_screens import engine
 
         engine.sync()

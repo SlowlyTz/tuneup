@@ -322,6 +322,47 @@ def test_a_preferred_mode_is_placed_again_once_its_size_shows(fake):
     assert edges_touch(laptop_now, hp_now)
 
 
+def test_a_screen_hyprland_moves_aside_is_placed_again(fake):
+    """Seen live: placing the laptop sent the monitor, placed just before, to
+    the right of everything -- touching the laptop at a corner only."""
+    hyprland = fake(hp(), laptop())  # Hyprland listed the monitor first
+    take = hyprland.take_rule
+    pushed = []
+
+    def take_and_push(monitor, rule):
+        take(monitor, rule)
+        if monitor["name"] == "eDP-1" and not pushed:
+            pushed.append(True)
+            other = hyprland.monitors[0]
+            other["x"], other["y"] = monitor["x"] + monitor["width"], 0
+    hyprland.take_rule = take_and_push
+    cfg = recorded(laptop(), hp())
+    config.set_setting(cfg, HP_ID, "position", "above")
+
+    apply.apply(cfg)
+    hp_now, laptop_now = hyprland.monitors
+    assert edges_touch(laptop_now, hp_now)
+    # Once in place, nothing is sent again.
+    sent = len(hyprland.evaluated)
+    apply.apply(cfg)
+    assert len(hyprland.evaluated) == sent
+
+
+def test_a_screen_out_of_place_since_the_last_sync_is_put_back(fake):
+    hyprland = fake(laptop(), hp())
+    cfg = recorded(laptop(), hp())
+    config.set_setting(cfg, HP_ID, "position", "above")
+    apply.apply(cfg)
+
+    laptop_now, hp_now = hyprland.monitors
+    hp_now["x"], hp_now["y"] = laptop_now["x"] + laptop_now["width"], 0
+    applied = apply.load_applied()
+    applied["DP-3"]["after"] = apply.snapshot(hp_now)
+    apply.save_applied(applied)
+    apply.apply(cfg)
+    assert edges_touch(*hyprland.monitors)
+
+
 def test_quarter_turn_lets_hyprland_place_the_screen(fake):
     hyprland = fake(laptop(), hp())
     cfg = recorded(laptop(), hp())
@@ -437,26 +478,6 @@ def test_undock_folds_the_fixed_workspace_into_the_laptops_desktop(fake):
 
 
 # --- engine -------------------------------------------------------------------------------
-
-
-def test_step_value_cycles_through_unset():
-    cfg = recorded(laptop(), hp())
-    for expected in (0, 90, 180, 270, None):
-        engine.step_value(cfg, LAPTOP_ID, "rotation", 1)
-        assert (config.get_setting(cfg, LAPTOP_ID, "rotation") or {}).get("value") == expected
-    engine.step_value(cfg, LAPTOP_ID, "rotation", -1)
-    assert config.get_setting(cfg, LAPTOP_ID, "rotation")["value"] == 270
-
-
-def test_step_condition_needs_a_value_and_cycles_other_screens():
-    cfg = recorded(laptop(), hp(), fujitsu())
-    assert engine.step_condition(cfg, LAPTOP_ID, "rotation", 1) is False
-    config.set_setting(cfg, LAPTOP_ID, "rotation", 180)
-    seen = []
-    for _ in range(3):
-        engine.step_condition(cfg, LAPTOP_ID, "rotation", 1)
-        seen.append(config.get_setting(cfg, LAPTOP_ID, "rotation")["when"])
-    assert seen == [FUJITSU_ID, HP_ID, None]
 
 
 def test_screen_list_puts_laptop_then_favorites_then_known():
