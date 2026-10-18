@@ -303,7 +303,7 @@ def put_in_force(wanted: dict, monitors: list[dict], applied: dict) -> list[str]
         reply = hypr.eval_lua(monitor_rule(monitor, rule_fields(previous, fields)))
         if hypr.rejected(reply):
             # Not recorded: the next sync tries again instead of believing it is in force.
-            print(f"hypr-screens: Hyprland rejected the rule for {name}: {reply.strip()}",
+            print(f"tuneup: Hyprland rejected the rule for {name}: {reply.strip()}",
                   file=sys.stderr, flush=True)
             continue
         done.append(name)

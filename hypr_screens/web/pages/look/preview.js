@@ -13,7 +13,7 @@ export function lpVars(v) {
 }
 
 export function lookPreview(v, mini = false) {
-  const term = `<div class="term"><div><span class="p">~/dev</span> <span class="d">❯</span> hypr-screens status</div><div><span class="g">●</span> ${esc(t("Laptop"))} <span class="d">· ${esc(t("fixed"))}</span></div><div><span class="g">●</span> HP 32f <span class="d">· ${esc(t("Desktops 1–10"))}</span></div><div><span class="p">~/dev</span> <span class="d">❯</span> <span class="y">▍</span></div></div>`;
+  const term = `<div class="term"><div><span class="p">~/dev</span> <span class="d">❯</span> tuneup status</div><div><span class="g">●</span> ${esc(t("Laptop"))} <span class="d">· ${esc(t("fixed"))}</span></div><div><span class="g">●</span> HP 32f <span class="d">· ${esc(t("Desktops 1–10"))}</span></div><div><span class="p">~/dev</span> <span class="d">❯</span> <span class="y">▍</span></div></div>`;
   const doc = '<div class="doc"><i class="h"></i><i></i><i style="width:85%"></i><i style="width:70%"></i><i class="acc"></i><i style="width:90%"></i></div>';
   const media = '<div class="media"><span class="art"></span><span class="lines"><i></i><i style="width:45%"></i><i style="width:100%;height:3px;margin-top:4px"></i></span></div>';
   return `<div class="lp${mini ? " mini" : ""}" style="${lpVars(v)}" aria-hidden="true"><div class="lp-bar"><i class="on"></i><i></i><i></i><i></i><span>14:32</span></div><div class="lp-area"><div class="lp-win a active">${term}</div><div class="lp-win">${doc}</div><div class="lp-win">${media}</div></div></div>`;

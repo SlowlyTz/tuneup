@@ -1,5 +1,5 @@
 """Background watcher: re-sync on monitor hotplug and config reloads, audit
-what hypr-screens set (drift.py, when enforcement is on), keep force-muted
+what Tuneup set (drift.py, when enforcement is on), keep force-muted
 sound devices silent (sound.guard), hold the Samsung charge limit and
 performance mode (samsung.guard) and feed the virtual camera (camera.guard),
 each guard in its own thread.
@@ -64,7 +64,7 @@ def strongest(found: set[str]) -> str:
 
 
 def log(message: str) -> None:
-    print(f"hypr-screens watch: {message}", file=sys.stderr, flush=True)
+    print(f"tuneup watch: {message}", file=sys.stderr, flush=True)
 
 
 def safe(work, what: str) -> str:

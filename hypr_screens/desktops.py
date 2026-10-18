@@ -2,7 +2,7 @@
 workspace FIXED_WS and never changes, the other holds desktops 1-10.
 
 Which screen is fixed (the "role": "panel" = laptop, "external"):
-  1. a temporary swap (`hypr-screens swap`), until the monitor is unplugged,
+  1. a temporary swap (`tuneup swap`), until the monitor is unplugged,
   2. the "one_desktop" setting of either screen (the laptop wins a tie),
   3. the global default, unless the screen it would pick says "no".
 Without a role, desktops behave like stock Hyprland.

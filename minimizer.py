@@ -1298,19 +1298,6 @@ def menu_command() -> int:
     return 1
 
 
-def first_run() -> None:
-    """Start the shared setup wizard the first time a command runs in a terminal."""
-    if not sys.stdin.isatty():
-        return
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    try:
-        from hypr_screens import config as screens_config, setup
-    except ImportError:
-        return
-    if not screens_config.exists():
-        setup.run()
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Workspace-aware LIFO minimizer for Hyprland."
@@ -1342,9 +1329,6 @@ def main() -> None:
     watch_parser.add_argument("address")
 
     args = parser.parse_args()
-    if args.command not in ("watch-peek", "list", "clear-missing"):
-        first_run()
-
     if args.command == "menu":
         raise SystemExit(menu_command())
     if args.command == "watch-peek":

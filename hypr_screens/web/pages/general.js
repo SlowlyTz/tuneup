@@ -1,4 +1,5 @@
-/* General: language, keeping the settings (the watcher's enforcer), help and version. */
+/* General: language, keeping the settings (the watcher's enforcer), help, and
+ * Info (pages/about.js: version, updates, uninstalling). */
 import { api } from "../core/api.js";
 import { change, showError } from "../core/change.js";
 import { esc } from "../core/dom.js";
@@ -10,6 +11,7 @@ import { radios, toggle } from "../ui/controls.js";
 import { ic } from "../ui/icons.js";
 import { notice, ph, row, sec } from "../ui/layout.js";
 import { toast } from "../ui/toast.js";
+import { infoSection } from "./about.js";
 
 /* Sent when the texts changed without a reload. */
 export const LANGUAGE_EVENT = "hypr-language";
@@ -52,7 +54,7 @@ function fixItem(fix) {
   return `<li>${ic(a.icon)}<span class="fix-t"><b>${esc(t(fix.what))}</b><small>${esc(where)}</small></span><time class="muted small num" datetime="${new Date(fix.time * 1000).toISOString()}">${esc(ago(fix.time))}</time></li>`;
 }
 
-/* "Keep my settings": another app changes something → hypr-screens puts it back. */
+/* "Keep my settings": another app changes something → Tuneup puts it back. */
 function enforcement() {
   const E = S.enforcement;
   if (!E) return "";
@@ -62,11 +64,11 @@ function enforcement() {
     : `<span class="pill warn" title="${esc(t("Nothing is put back while it does not run."))}">${esc(t("The background service is not running"))}</span>`;
   const main = row({
     sid: "general.enforce", icon: "lock", title: esc(t("Put back what other apps change")),
-    desc: esc(t("When another app changes a setting made here, hypr-screens sets it back.")),
+    desc: esc(t("When another app changes a setting made here, Tuneup sets it back.")),
     end: `${state}${toggle("enforce", E.enabled, set, { label: t("Keep my settings") })}`,
   });
   const until = (b) => dtf({ hour: "2-digit", minute: "2-digit" }, new Date(b.until * 1000));
-  const backedOff = (E.backedOff || []).map((b) => notice("alert", `${esc(t("“{what}” keeps being changed by another app. hypr-screens leaves it alone until {time}.", { what: t(b.what), time: until(b) }))}<small>${esc(area(b.area).name())}</small>`, "warn")).join("");
+  const backedOff = (E.backedOff || []).map((b) => notice("alert", `${esc(t("“{what}” keeps being changed by another app. Tuneup leaves it alone until {time}.", { what: t(b.what), time: until(b) }))}<small>${esc(area(b.area).name())}</small>`, "warn")).join("");
   const fixes = (E.fixes || []).slice().sort((a, b) => b.time - a.time).slice(0, FIXES_SHOWN);
   const list = !E.enabled ? "" : `<div class="card fixes"><div class="sub-h">${esc(t("Put back lately"))}</div>${fixes.length
     ? `<ul>${fixes.map(fixItem).join("")}</ul>`
@@ -79,12 +81,12 @@ const link = (key, sid, icon, title, desc, { mono = false, tip = "" } = {}) =>
 
 export function pageGeneral() {
   const A = S.about;
-  return `${ph(esc(t("General")), esc(t("Language, help and version.")))}
+  return `${ph(esc(t("General")), esc(t("Language, help, updates and version.")))}
       ${sec(esc(t("Language")), language())}
       ${enforcement()}
       ${sec(esc(t("Help")), `<div class="stack">
         ${link("guide", "general.guide", "book", t("Open the guide"), t("All about screens, keys and widgets, on GitHub"))}
         ${link("folder", "general.folder", "folder", t("Open the settings folder"), A.configPath || A.configDir, { mono: true, tip: A.configFile || "" })}
       </div>`)}
-      ${sec(esc(t("About")), `<div class="stack">${row({ sid: "general.version", icon: "info", title: "hypr-screens", desc: esc(t("For Hyprland and Omarchy")), end: `<span class="num muted">${esc(t("Version {version}", { version: A.version }))}</span>` })}</div>`)}`;
+      ${infoSection()}`;
 }

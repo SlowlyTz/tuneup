@@ -1,8 +1,8 @@
 """One running instance: the tray icon, and the settings window on demand.
 
-`hypr-screens tray` starts it in the background (autostart). `hypr-screens
-settings`, or a click on the tray icon, shows the window; a second start just
-forwards the request to the running instance (GApplication uniqueness).
+`tuneup tray` starts it in the background (autostart). `tuneup settings`, or
+a click on the tray icon, shows the window; a second start just forwards the
+request to the running instance (GApplication uniqueness).
 """
 import sys
 
@@ -10,15 +10,17 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gio, GLib  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from hypr_screens import config, desktops, hypr, i18n, theme  # noqa: E402
+from hypr_screens import brand, config, desktops, hypr, i18n, theme  # noqa: E402
 from hypr_screens.i18n import t  # noqa: E402
 from hypr_screens.gui import placement  # noqa: E402
 
-APP_ID = "io.github.slowlytz.HyprScreens"
+APP_ID = brand.APP_ID
 # The tray icon's title and tooltip: the app's name, the same in every language.
-TRAY_TITLE = "hypr-screens"
+TRAY_TITLE = brand.NAME
+# The app's icon (installed into the icon theme), else a stock one.
+TRAY_ICON, TRAY_ICON_FALLBACK = brand.COMMAND, "video-display-symbolic"
 
 
 def focused_workspace() -> int | None:
@@ -61,7 +63,7 @@ class App(Adw.Application):
         from hypr_screens.gui.tray import Tray
 
         i18n.use_configured()
-        self.tray = Tray(TRAY_TITLE, "video-display-symbolic", self.show_settings, self.tray_entries())
+        self.tray = Tray(TRAY_TITLE, tray_icon(), self.show_settings, self.tray_entries())
         self.tray.start()
         self.hold()  # keep running without a window
 
@@ -108,8 +110,16 @@ class App(Adw.Application):
         try:
             api.arrange_widgets()
         except Exception as error:  # noqa: BLE001 - a tray click must not end the app
-            print(f"hypr-screens: arranging failed: {error!r}", file=sys.stderr)
+            print(f"{brand.COMMAND}: arranging failed: {error!r}", file=sys.stderr)
         return False
+
+
+def tray_icon() -> str:
+    """Tuneup's icon when the icon theme has it (the installer puts it there)."""
+    display = Gdk.Display.get_default()
+    if display is not None and Gtk.IconTheme.get_for_display(display).has_icon(TRAY_ICON):
+        return TRAY_ICON
+    return TRAY_ICON_FALLBACK
 
 
 def external_connected() -> bool:

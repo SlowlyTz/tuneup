@@ -1,6 +1,8 @@
-# Minimizer
+# Minimize windows
 
-Hides windows in a hidden workspace (`special:minimized`) and brings them back, last in first out, **per desktop**.
+Part of Tuneup, as the command `hypr-minimizer` that the minimize keys call. It hides windows in a hidden workspace (`special:minimized`) and brings them back, last in first out, **per desktop**.
+
+The keys (`SUPER + M` hide, `SUPER + I` bring back, `SUPER + .` window menu, …) are set in Tuneup under **Keyboard**: see [keys.md](keys.md).
 
 ## Commands
 
@@ -41,7 +43,7 @@ While the scratchpad (`SUPER + S`) is open, it counts as the current desktop: `S
 
 ## Apps that ask to be shown
 
-Starting an app again from the launcher (`SUPER + SPACE`) when it already runs brings its window **to this desktop** — also when it is minimized or on another desktop. Hyprland would otherwise switch to its desktop, or open `special:minimized` and show every minimized window. Same for notifications and links that bring an app forward. Set up by `~/.config/hypr/hypr_screens.lua`.
+Starting an app again from the launcher (`SUPER + SPACE`) when it already runs brings its window **to this desktop** — also when it is minimized or on another desktop. Hyprland would otherwise switch to its desktop, or open `special:minimized` and show every minimized window. Same for notifications and links that bring an app forward. Tuneup sets this up in its generated Hyprland file.
 
 ## Bar counter (optional)
 
@@ -83,6 +85,6 @@ WidgetButton {
 | What | Where |
 |---|---|
 | minimized windows + undo | `$XDG_RUNTIME_DIR/hypr-minimizer/state.json` |
-| menu plugin | `omarchy-plugin/` → `~/.config/omarchy/plugins/hypr-minimizer.picker` |
+| menu plugin | `~/.config/omarchy/plugins/hypr-minimizer.picker` |
 
 Without Omarchy the menu falls back to `walker`, `wofi` or `rofi` (only `Enter`: brings it here).

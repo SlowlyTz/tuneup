@@ -30,7 +30,7 @@ export function captureDialog(action, slot) {
     const other = S.keys.actions.find((x) => x.id !== action && x.slots.includes(combo)) || (a.slots[1 - slot] === combo ? a : null);
     if (other) return notice("alert", `${esc(t("Already used by “{action}”.", { action: t(other.title) }))}<small>${esc(t("Taking it over removes it there."))}</small>`, "warn");
     const hypr = S.keys.hyprBinds[combo];
-    if (hypr) return notice("alert", `${esc(t("Hyprland uses it for “{action}”.", { action: t(hypr) }))}<small>${esc(t("Taking it over replaces that while hypr-screens runs."))}</small>`, "warn");
+    if (hypr) return notice("alert", `${esc(t("Hyprland uses it for “{action}”.", { action: t(hypr) }))}<small>${esc(t("Taking it over replaces that while Tuneup runs."))}</small>`, "warn");
     return "";
   };
   const shown = () => combo ? caps(combo)
@@ -49,7 +49,7 @@ export function captureDialog(action, slot) {
     closeDialog();
     const done = await change(() => api.setKey(action, slot, chosen), async () => {
       for (const b of before) for (let i = 0; i < b.slots.length; i++) await api.setKey(b.id, i, b.slots[i]);
-    }, { reload: ["keys"], msg: (r) => (r && r.conflicts && r.conflicts.length ? t("Saved · replaces Hyprland’s {keys} while hypr-screens runs", { keys: r.conflicts.map(comboText).join(", ") }) : t("Saved")) });
+    }, { reload: ["keys"], msg: (r) => (r && r.conflicts && r.conflicts.length ? t("Saved · replaces Hyprland’s {keys} while Tuneup runs", { keys: r.conflicts.map(comboText).join(", ") }) : t("Saved")) });
     if (done) { flashSaved(action, slot); render(); }
   };
   const remove = async () => {

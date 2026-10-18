@@ -5,7 +5,7 @@ Devices are keyed by card and port ("alsa_card...:[Out] Speaker"). That key
 survives a profile switch, which recreates the sink under another name; a
 device without a card port is keyed by its node name.
 
-Force mute is kept by `guard()`, which runs inside `hypr-screens watch`: it
+Force mute is kept by `guard()`, which runs inside `tuneup watch`: it
 mutes the device and sets it to 0 % on every PipeWire change and once a second.
 WirePlumber stores that state per port, so the device also comes back silent.
 """
@@ -371,5 +371,5 @@ def guard() -> None:
                         enforce(report=report_silenced)
                         last = time.monotonic()
         except Exception as error:  # never take the watcher down
-            print(f"hypr-screens sound guard: {error}", file=sys.stderr, flush=True)
+            print(f"tuneup sound guard: {error}", file=sys.stderr, flush=True)
         time.sleep(GUARD_SECONDS)

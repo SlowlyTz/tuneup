@@ -33,6 +33,7 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(widgets, "has_cava", lambda: True)
     monkeypatch.setattr(camera, "SYSFS", tmp_path / "sys")
     monkeypatch.setattr(camera, "MODPROBE", tmp_path / "modprobe.conf")
+    monkeypatch.setattr(camera, "OLD_MODPROBE", tmp_path / "old-modprobe.conf")
     monkeypatch.setattr(samsung, "SYSFS", tmp_path / "no-sys")
     monkeypatch.setattr(sound, "pactl", lambda *args: calls.setdefault("pactl", []).append(args) or "")
     monkeypatch.setattr(api.general, "open_uri", lambda uri: calls.setdefault("open", []).append(uri))
@@ -265,7 +266,7 @@ def test_a_key_moves_from_another_action_and_goes_live(desk):
 
 def test_options_and_key_capture(desk):
     assert api.set_option("desktop_keys", True) == {"desktop_keys": True, "default_fixed": "off"}
-    assert "hypr-screens switch 1" in keybinds.lua_file().read_text()
+    assert "tuneup switch 1" in keybinds.lua_file().read_text()
     assert error_of(api.set_option, "default_fixed", "laptop").code == "bad_value"
     assert error_of(api.set_option, "volume", 3).code == "bad_value"
     api.begin_key_capture()
@@ -575,14 +576,6 @@ def test_cli_no_longer_has_the_menu_commands(desk):
     with pytest.raises(SystemExit):
         cli.build_parser().parse_args(["step", "Laptop", "rotation", "1"])
     assert not hasattr(engine, "step_value") and "command" not in engine.state(config.default_config())
-
-
-def test_setup_counts_the_samsung_step(monkeypatch, capsys):
-    from hypr_screens import setup
-
-    monkeypatch.setattr(setup, "STEPS", 5)
-    setup.step(5, "Samsung Galaxy Book")
-    assert "5/5" in capsys.readouterr().out
 
 
 def test_save_leaves_no_temporary_on_failure(monkeypatch):

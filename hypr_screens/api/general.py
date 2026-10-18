@@ -2,12 +2,12 @@
 import subprocess
 from pathlib import Path
 
-from hypr_screens import config, i18n
+from hypr_screens import brand, config, i18n, updates
 from hypr_screens import theme as theme_mod
 from hypr_screens import widgets as widgets_mod
 from hypr_screens.api.core import ApiError, endpoint, need
 
-DOCS_URL = "https://github.com/SlowlyTz/hypr-minimizer/tree/master/docs"
+DOCS_URL = brand.DOCS_URL
 
 
 def open_uri(uri: str) -> None:
@@ -43,29 +43,14 @@ def translations() -> dict:
     return {"code": code, "texts": i18n.load_table(code)}
 
 
-def version() -> str:
-    try:
-        from importlib import metadata
-
-        return metadata.version("hypr-minimizer")
-    except Exception:
-        pass
-    try:
-        import tomllib
-
-        project = tomllib.loads((Path(__file__).resolve().parents[2] / "pyproject.toml").read_text())
-        return str(project["project"]["version"])
-    except Exception:
-        return "?"
-
-
 @endpoint
 def about() -> dict:
     folder = config.config_file().parent
     home = Path.home()
     shown = f"~/{folder.relative_to(home)}" if folder.is_relative_to(home) else str(folder)
-    return {"version": version(), "configDir": shown, "configPath": str(folder),
-            "configFile": str(config.config_file()), "guideUrl": DOCS_URL}
+    return {"version": updates.current_version(), "configDir": shown, "configPath": str(folder),
+            "configFile": str(config.config_file()), "guideUrl": DOCS_URL, "repoUrl": brand.REPO_URL,
+            "releasesUrl": brand.RELEASES_URL}
 
 
 @endpoint

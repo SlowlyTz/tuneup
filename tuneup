@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+"""Run Tuneup from a checkout, also through a symlink in ~/.local/bin
+(hypr-screens, its old name, is a symlink to this file)."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from hypr_screens.cli import main  # noqa: E402
+
+main()

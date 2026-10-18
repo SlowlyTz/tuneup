@@ -1,6 +1,6 @@
 # Daily cheat sheet
 
-Default keys. Yours may differ: see them in the settings window (tray icon → Keyboard) or with `hypr-screens state | jq .keybinds`.
+Default keys. Yours may differ: see them in Tuneup under **Keyboard**, or with `tuneup state | jq .keybinds`.
 
 ## Windows
 
@@ -18,11 +18,11 @@ In the window menu: `Enter` here · `Shift+Enter` back to its desktop · `-` pee
 
 | Key | Does |
 |---|---|
-| tray icon (click) | settings window |
-| tray icon (right-click) | swap the fixed screen, quit |
-| `SUPER + Y` | move window to the other screen (Hyprland, not ours) |
+| tray icon (click) | open Tuneup |
+| tray icon (right-click) | open Tuneup, swap the fixed screen, arrange widgets, quit |
+| `SUPER + Y` | move window to the other screen (Hyprland, not Tuneup) |
 
-## Desktops (if "one desktop" is on)
+## Desktops (with "one desktop" on)
 
 | Key | Does |
 |---|---|
@@ -34,13 +34,19 @@ In the window menu: `Enter` here · `Shift+Enter` back to its desktop · `-` pee
 ## Commands
 
 ```bash
-hypr-screens list                              # screens, ● connected, ★ favorite
-hypr-screens set Laptop rotation 180           # set a value (unset = remove)
-hypr-screens when Laptop rotation "HP 32f"     # only while HP 32f is connected
-hypr-screens when Laptop rotation always
-hypr-screens swap                              # swap the fixed screen until unplugged
-hypr-screens settings                          # open the settings window
-hypr-screens apply                             # apply everything now
-hypr-screens enforce [on|off]                  # keep what hypr-screens sets (status without on/off)
-hypr-minimizer list                            # minimized windows
+tuneup settings                          # open Tuneup
+tuneup list                              # screens, ● connected, ★ favorite
+tuneup set Laptop rotation 180           # set a value (unset = remove)
+tuneup when Laptop rotation "HP 32f"     # only while HP 32f is connected
+tuneup when Laptop rotation always
+tuneup swap                              # swap the fixed screen until unplugged
+tuneup apply                             # apply everything now
+tuneup enforce [on|off]                  # keep your settings in force (status without on/off)
+tuneup restart                           # restart the background service and the tray
+tuneup update --check                    # is there a new version?
+tuneup update                            # update Tuneup
+tuneup uninstall [--keep-settings]       # remove Tuneup
+hypr-minimizer list                      # minimized windows
 ```
+
+`hypr-screens` still works in place of `tuneup`.

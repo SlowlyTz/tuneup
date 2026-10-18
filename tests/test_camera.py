@@ -74,7 +74,8 @@ def test_setup_names_the_camera_and_loads_it_on_boot():
     assert "pacman -S --needed --noconfirm v4l2loopback-dkms" in script
     assert f'card_label="{camera.CARD_LABEL}" exclusive_caps=1' in script
     assert f"echo v4l2loopback > {camera.MODULES_LOAD}" in script
-    assert f"rm -f {camera.MODPROBE} {camera.MODULES_LOAD}" in camera.teardown_script()
+    assert f"rm -f {camera.MODPROBE} {camera.MODULES_LOAD} {camera.OLD_MODPROBE}" in camera.teardown_script()
+    assert "linux-omarchy" not in script and '"$kernel-headers"' in script   # the running kernel's headers
 
 
 

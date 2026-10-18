@@ -1,1 +1,1 @@
-"""hypr-screens: per-monitor settings and a fixed screen for Hyprland."""
+"""tuneup: per-monitor settings and a fixed screen for Hyprland."""

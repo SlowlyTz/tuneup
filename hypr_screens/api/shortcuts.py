@@ -75,7 +75,7 @@ def keys() -> dict:
 def set_key(action: str, slot: int, combo: str | None) -> dict:
     """Puts `combo` ("SUPER + M"; "" or None removes) on one of an action's two
     slots. Another action of ours with that key loses it; a Hyprland key on it
-    is replaced while hypr-screens runs (listed in "conflicts")."""
+    is replaced while Tuneup runs (listed in "conflicts")."""
     need(action in config.DEFAULT_KEYBINDS, "bad_value", f"unknown action: {action!r}")
     need(slot in (0, 1) and not isinstance(slot, bool), "bad_value", "slot must be 0 or 1")
     need(combo is None or isinstance(combo, str), "bad_value", "combo must be text")

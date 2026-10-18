@@ -7,8 +7,8 @@ The page gets the Omarchy colors and the texts of the chosen language before
 it starts (window.hyprBoot), and is told to refresh when config.json changes
 from outside (the tray, the CLI, the watcher).
 
-The page is served as hypr-screens://app/… (so it may use ES modules), and
-hypr-screens://camera/preview.jpg is the camera preview's newest frame, read
+The page is served as tuneup://app/… (so it may use ES modules), and
+tuneup://camera/preview.jpg is the camera preview's newest frame, read
 straight from the file the camera feeder writes -- no round trip through the
 api worker, so the preview runs at the feeder's own frame rate.
 """
@@ -26,12 +26,11 @@ gi.require_version("WebKit", "6.0")
 gi.require_version("JavaScriptCore", "6.0")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, JavaScriptCore, WebKit  # noqa: E402
 
-from hypr_screens import camera, config, i18n, theme  # noqa: E402
+from hypr_screens import brand, camera, config, i18n, theme  # noqa: E402
 from hypr_screens.gui import placement  # noqa: E402
-from hypr_screens.i18n import t  # noqa: E402
 
 WEB = Path(__file__).resolve().parent.parent / "web"
-SCHEME = "hypr-screens"
+SCHEME = brand.COMMAND
 APP_URI = f"{SCHEME}://app/"
 TYPES = {".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css",
          ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg",
@@ -53,7 +52,7 @@ def web_file(path: str) -> Path | None:
 
 
 def serve(request) -> None:
-    """hypr-screens://app/<file> and hypr-screens://camera/preview.jpg."""
+    """tuneup://app/<file> and tuneup://camera/preview.jpg."""
     uri = GLib.Uri.parse(request.get_uri(), GLib.UriFlags.NONE)
     host, path = uri.get_host(), uri.get_path()
     if host == "camera" and path == "/preview.jpg":
@@ -106,7 +105,7 @@ def boot_script() -> str:
 
 class WebWindow(Adw.ApplicationWindow):
     def __init__(self, app: Adw.Application):
-        super().__init__(application=app, title=t("Settings"),
+        super().__init__(application=app, title=brand.NAME,
                          default_width=placement.WIDTH, default_height=placement.HEIGHT)
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="api")
         self.last_call = 0.0
@@ -188,7 +187,6 @@ class WebWindow(Adw.ApplicationWindow):
 
     def reload_language(self) -> bool:
         """Texts come with the page: load it again in the new language."""
-        self.set_title(t("Settings"))
         self.add_boot_script()
         self.view.reload()
         application = self.get_application()
@@ -222,8 +220,9 @@ class WebWindow(Adw.ApplicationWindow):
                     f"window.hyprScreens.setMode({json.dumps(mode)}); window.hyprScreens.refresh(); }}")
 
     def on_policy(self, _view, decision, kind) -> bool:
-        """Only the app itself loads here; links open in the browser."""
-        if kind != WebKit.PolicyDecisionType.NAVIGATION_ACTION:
+        """Only the app itself loads here; links open in the browser (also
+        those meant for a new window, target="_blank")."""
+        if kind not in (WebKit.PolicyDecisionType.NAVIGATION_ACTION, WebKit.PolicyDecisionType.NEW_WINDOW_ACTION):
             return False
         uri = decision.get_navigation_action().get_request().get_uri()
         if uri.startswith(APP_URI) or uri == "about:blank":

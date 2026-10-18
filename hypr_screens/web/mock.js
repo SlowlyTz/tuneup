@@ -110,7 +110,10 @@
     },
     "enforcement": {"enabled": true, "running": true, "fixes": [{"time": 1792310363.0, "area": "look", "what": "Window look", "detail": "gaps_in 0 instead of 5"}, {"time": 1792310280.0, "area": "sound", "what": "Force mute", "detail": "Laptop speakers"}, {"time": 1792309500.0, "area": "keys", "what": "Shortcuts", "detail": "SUPER + M also runs Emoji picker"}, {"time": 1792306800.0, "area": "screens", "what": "Screen arrangement", "detail": "DP-3 moved or changed"}], "backedOff": [{"area": "look", "what": "Window look", "until": 1792310393.0}]},
     "language": {"code": "de", "items": [{"code": "en", "name": "English"}, {"code": "de", "name": "Deutsch"}, {"code": "es", "name": "Español"}, {"code": "fr", "name": "Français"}, {"code": "it", "name": "Italiano"}]},
-    "about": {"version": "0.1.0", "configDir": "~/.config/hypr-screens", "configPath": "/home/you/.config/hypr-screens", "configFile": "/home/you/.config/hypr-screens/config.json", "guideUrl": "https://github.com/SlowlyTz/hypr-minimizer/tree/master/docs"},
+    "about": {"version": "1.0.0", "configDir": "~/.config/tuneup", "configPath": "/home/you/.config/tuneup", "configFile": "/home/you/.config/tuneup/config.json", "guideUrl": "https://github.com/SlowlyTz/tuneup/tree/master/docs", "repoUrl": "https://github.com/SlowlyTz/tuneup", "releasesUrl": "https://github.com/SlowlyTz/tuneup/releases"},
+    "welcome": {"show": true, "kind": "installed", "from": null, "to": "1.0.0", "releasesUrl": "https://github.com/SlowlyTz/tuneup/releases"},
+    "update": {"current": "1.0.0", "latest": "1.1.0", "available": true, "commitsBehind": 7, "canUpdate": true, "reason": null},
+    "updateStatus": {"state": "idle", "from": null, "to": null, "log": [], "error": null},
     "theme": {"mode": "dark", "colors": {"background": "#1e1e2e", "foreground": "#cdd6f4", "accent": "#89b4fa", "selection": "#45475a", "lighter_background": "#313244", "dark_foreground": "#6c7086", "red": "#f38ba8", "green": "#a6e3a1", "menu_background": "#1e1e2e", "menu_text": "#cdd6f4"}, "font": "JetBrainsMono Nerd Font", "rounding": 10},
     "translations": {"code": "de", "texts": {"Screens": "Bildschirme"}}
   };
@@ -576,6 +579,33 @@
       need(typeof enabled === "boolean", "bad_value", "enabled must be true or false");
       db.enforcement.enabled = enabled;
       return reply(db.enforcement);
+    },
+
+    /* Welcome, update, uninstall */
+    welcome: () => reply(db.welcome),
+    async dismissWelcome() {
+      Object.assign(db.welcome, { show: false, kind: null, from: null });
+      return reply(db.welcome);
+    },
+    checkUpdate: () => reply(db.update),
+    async runUpdate() {
+      need(db.updateStatus.state !== "running", "busy", "an update is running already");
+      const { current, latest } = db.update;
+      Object.assign(db.updateStatus, { state: "running", from: current, to: null, error: null,
+        log: [`Updating Tuneup ${current} -> ${latest} (${db.update.commitsBehind} new commits)`] });
+      setTimeout(() => {
+        db.updateStatus.log.push("Tuneup is up to date.");
+        Object.assign(db.updateStatus, { state: "done", to: latest });
+        Object.assign(db.update, { current: latest, available: false, commitsBehind: 0, canUpdate: false });
+        Object.assign(db.welcome, { show: true, kind: "updated", from: current, to: latest });
+        db.about.version = latest;
+      }, 2500);
+      return reply({ started: true });
+    },
+    updateStatus: () => reply(db.updateStatus),
+    async uninstall(keepSettings) {
+      need(typeof keepSettings === "boolean", "bad_value", "keepSettings must be true or false");
+      return reply({ started: true });
     },
 
     /* General */

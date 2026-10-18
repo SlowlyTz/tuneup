@@ -39,8 +39,11 @@ ATTRIBUTES = {
 }
 PPD = ("org.freedesktop.UPower.PowerProfiles", "/org/freedesktop/UPower/PowerProfiles",
        "org.freedesktop.UPower.PowerProfiles", "ActiveProfile")
-UDEV_RULE = Path("/etc/udev/rules.d/90-hypr-screens-samsung.rules")
-PPD_DROPIN = Path("/etc/systemd/system/power-profiles-daemon.service.d/hypr-screens.conf")
+UDEV_RULE = Path("/etc/udev/rules.d/90-tuneup-samsung.rules")
+PPD_DROPIN = Path("/etc/systemd/system/power-profiles-daemon.service.d/tuneup.conf")
+# What hypr-screens (Tuneup's old name) installed: still counts, and goes on teardown.
+OLD_UDEV_RULE = Path("/etc/udev/rules.d/90-hypr-screens-samsung.rules")
+OLD_PPD_DROPIN = Path("/etc/systemd/system/power-profiles-daemon.service.d/hypr-screens.conf")
 COMMAND_SECONDS = 5
 
 
@@ -260,7 +263,7 @@ def apply_mode(mode: str) -> None:
 
 class NotSetUp(RuntimeError):
     def __init__(self):
-        super().__init__("needs a one-time setup first: hypr-screens samsung setup")
+        super().__init__("needs a one-time setup first: tuneup samsung setup")
 
 
 def set_mode(cfg: dict, mode: str) -> None:
@@ -377,7 +380,7 @@ def guard() -> None:
 
                 config.update(lambda cfg: guard_change(cfg, enforce))
         except Exception as error:  # never take the watcher down
-            print(f"hypr-screens samsung guard: {error}", flush=True)
+            print(f"tuneup samsung guard: {error}", flush=True)
         time.sleep(1.0)
 
 
@@ -386,7 +389,7 @@ def guard() -> None:
 
 def udev_rule(user: str) -> str:
     return "\n".join([
-        "# hypr-screens: let this user change Samsung Galaxy Book settings without root.",
+        "# Tuneup: let this user change Samsung Galaxy Book settings without root.",
         'ACTION=="add", SUBSYSTEM=="power_supply", ATTR{type}=="Battery", '
         f'RUN+="/usr/bin/chown {user} /sys%p/charge_control_end_threshold"',
         f'ACTION=="add", SUBSYSTEM=="platform-profile", RUN+="/usr/bin/chown {user} /sys%p/profile"',
@@ -398,7 +401,7 @@ def udev_rule(user: str) -> str:
 
 def ppd_dropin() -> str:
     return "\n".join([
-        "# hypr-screens owns the platform profile (4 Samsung modes); power-profiles-daemon",
+        "# Tuneup owns the platform profile (4 Samsung modes); power-profiles-daemon",
         "# keeps tuning the CPU only.",
         "[Service]",
         "ExecStart=",
@@ -410,6 +413,7 @@ def ppd_dropin() -> str:
 def setup_script(user: str) -> str:
     return "\n".join([
         "set -e",
+        f"rm -f {OLD_UDEV_RULE} {OLD_PPD_DROPIN}",
         f"mkdir -p {PPD_DROPIN.parent}",
         f"cat > {UDEV_RULE} <<'EOF'\n{udev_rule(user)}EOF",
         f"cat > {PPD_DROPIN} <<'EOF'\n{ppd_dropin()}EOF",
@@ -426,7 +430,7 @@ def setup_script(user: str) -> str:
 def teardown_script() -> str:
     """Undo setup_script: files back to root, power-profiles-daemon on its own."""
     return "\n".join([
-        f"rm -f {UDEV_RULE} {PPD_DROPIN}",
+        f"rm -f {UDEV_RULE} {PPD_DROPIN} {OLD_UDEV_RULE} {OLD_PPD_DROPIN}",
         f"rmdir {PPD_DROPIN.parent} 2>/dev/null || true",
         "chown root /sys/class/power_supply/*/charge_control_end_threshold "
         "/sys/class/platform-profile/*/profile "
@@ -438,8 +442,14 @@ def teardown_script() -> str:
     ])
 
 
+def root_files() -> list[Path]:
+    """The setup's files that are there (Tuneup's or hypr-screens' names)."""
+    return [path for path in (UDEV_RULE, PPD_DROPIN, OLD_UDEV_RULE, OLD_PPD_DROPIN) if path.exists()]
+
+
 def is_set_up() -> bool:
-    return UDEV_RULE.exists() and PPD_DROPIN.exists() and writable()
+    rule, dropin = UDEV_RULE.exists() or OLD_UDEV_RULE.exists(), PPD_DROPIN.exists() or OLD_PPD_DROPIN.exists()
+    return rule and dropin and writable()
 
 
 def active() -> bool:
@@ -452,14 +462,18 @@ def setup(graphical: bool = False) -> bool:
     return run_as_root(setup_script(getpass.getuser()), graphical)
 
 
+def end_full_charge(cfg: dict) -> None:
+    """A running "charge to 100 % once" ends: the limit from before is back."""
+    samsung, battery = settings(cfg), battery_dir()
+    if samsung.get("full_once") and battery is not None:
+        write(battery / "charge_control_end_threshold", samsung.get("limit") or 100)
+
+
 def teardown(graphical: bool = False) -> bool:
     """Give everything back to Omarchy: the charge limit returns to what it was
     if a full charge is running, the app stops holding limit and mode, then the
     rule and the drop-in go."""
-    samsung = settings(config.read())
-    battery = battery_dir()
-    if samsung.get("full_once") and battery is not None:
-        write(battery / "charge_control_end_threshold", samsung.get("limit") or 100)
+    end_full_charge(config.read())
     if not run_as_root(teardown_script(), graphical):
         return False
     config.update(lambda cfg: cfg.__setitem__("samsung", {"limit": None, "mode": None, "full_once": False}))

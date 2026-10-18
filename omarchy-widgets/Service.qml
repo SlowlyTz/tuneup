@@ -7,7 +7,7 @@ import Quickshell.Services.UPower
 import qs.Commons
 import "ColorTools.js" as ColorTools
 
-// Desktop widgets of hypr-screens, drawn behind (or above) the windows on
+// Desktop widgets of Tuneup, drawn behind (or above) the windows on
 // every chosen screen; the bar visualizer (BarWidget.qml) reads its levels
 // from here too.
 //
@@ -19,20 +19,23 @@ import "ColorTools.js" as ColorTools
 //   Placed, *View   one widget on a layer, and what it draws
 //   StylePanel      styling a widget while arranging
 //
-// Settings come from ~/.config/hypr-screens/widgets.json, written by the
-// settings window (hypr_screens/widgets.py). While arranging, every screen
-// with a widget gets an extra layer above the windows that shows the
-// wallpaper -- an empty desktop -- where the widgets can be dragged, resized
-// by their edges and corners and turned with the wheel. Its own Save/Cancel
-// (and Esc) end it, so nothing behind it is needed; Save hands places and
-// sizes to `hypr-screens widgets save`.
+// Settings come from ~/.config/tuneup/widgets.json (hypr-screens/ before the
+// rename), written by Tuneup (hypr_screens/widgets.py). While arranging,
+// every screen with a widget gets an extra layer above the windows that shows
+// the wallpaper -- an empty desktop -- where the widgets can be dragged,
+// resized by their edges and corners and turned with the wheel. Its own
+// Save/Cancel (and Esc) end it, so nothing behind it is needed; Save hands
+// places and sizes to `tuneup widgets save`.
 Item {
   id: root
 
   property var shell: null
   property var manifest: null
 
-  readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/hypr-screens"
+  readonly property string configBase: Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")
+  // Tuneup's settings; before the rename they were in hypr-screens/ (read
+  // only while Tuneup's own file is not there).
+  property bool tuneupSettings: false
   readonly property string wallpaper: Quickshell.env("HOME") + "/.local/state/omarchy/current/background"
   property var widgets: ({})
   property string cavaConfig: ""
@@ -65,11 +68,24 @@ Item {
 
   FileView {
     id: settingsFile
-    path: root.configDir + "/widgets.json"
+    path: root.configBase + "/tuneup/widgets.json"
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
-    onLoaded: root.parseSettings(text())
+    onLoaded: { root.tuneupSettings = true; root.parseSettings(text()) }
+    onLoadFailed: root.tuneupSettings = false
+  }
+  FileView {
+    id: legacySettingsFile
+    path: root.configBase + "/hypr-screens/widgets.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: if (!root.tuneupSettings) root.parseSettings(text())
+  }
+  function reloadSettings() {
+    settingsFile.reload()
+    legacySettingsFile.reload()
   }
 
   function parseSettings(text) {
@@ -275,7 +291,7 @@ Item {
                                  width: width > 0 ? Math.round(root.clamp(width, range.width)) : 0 }, sid)
   }
 
-  // hypr-screens' screen id: "make|model|serial", like config.screen_id().
+  // Tuneup's screen id: "make|model|serial", like config.screen_id().
   function screenId(screen) {
     var monitor = screen ? Hyprland.monitorFor(screen) : null
     var o = monitor ? monitor.lastIpcObject : null
@@ -649,7 +665,9 @@ Item {
     if (saver.running) return
     root.selection = null
     root.preview = null
-    saver.command = ["hypr-screens", "widgets", "save", JSON.stringify(root.draft)]
+    // `tuneup`, or `hypr-screens` before the rename.
+    saver.command = ["sh", "-c", "if command -v tuneup >/dev/null; then exec tuneup widgets save \"$1\"; "
+                     + "else exec hypr-screens widgets save \"$1\"; fi", "sh", JSON.stringify(root.draft)]
     saver.running = true
   }
   Process {
@@ -700,6 +718,6 @@ Item {
     function placements(): string { return JSON.stringify(root.draft) }
     function done(): void { root.editing = false }
     function cancel(): void { root.cancelEditing() }
-    function reload(): void { settingsFile.reload() }
+    function reload(): void { root.reloadSettings() }
   }
 }
