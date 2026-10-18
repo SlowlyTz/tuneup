@@ -4,7 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 py-modules = ["minimizer"]
-packages = ["hypr_screens"]
+
+[tool.setuptools.packages.find]
+include = ["hypr_screens*"]
+
+[tool.setuptools.package-data]
+hypr_screens = ["locales.json", "web/**/*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
@@ -12,7 +17,7 @@ testpaths = ["tests"]
 
 [project]
 name = "hypr-minimizer"
-version = "0.1.0"
+version = "1.0.0"
 description = "Workspace-aware LIFO window minimizer for Hyprland"
 readme = "README.md"
 license = { text = "MIT" }
@@ -22,7 +27,7 @@ authors = [
 ]
 keywords = ["hyprland", "minimizer", "window-manager", "workspace", "tiling"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
