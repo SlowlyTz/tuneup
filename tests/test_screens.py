@@ -28,7 +28,9 @@ def laptop(**kw):
 
 def hp(**kw):
     kw.setdefault("x", 1920)
-    return monitor("DP-3", "HP Inc.", "HP 32f", "3CM1230QVW   ", width=2560, height=1440, number=1, **kw)
+    kw.setdefault("width", 2560)
+    kw.setdefault("height", 1440)
+    return monitor("DP-3", "HP Inc.", "HP 32f", "3CM1230QVW   ", number=1, **kw)
 
 
 def fujitsu(**kw):
@@ -65,11 +67,23 @@ class FakeHyprland:
         if args[0] == "eval" and args[1].startswith("hl.monitor("):
             # Like Hyprland: the rule takes effect on the output.
             output = re.search(r'output = "([^"]+)"', args[1]).group(1)
-            transform = int(re.search(r"transform = (\d)", args[1]).group(1))
             for monitor in self.monitors:
                 if monitor["name"] == output:
-                    monitor["transform"] = transform
+                    self.take_rule(monitor, args[1])
         return "ok"
+
+    @staticmethod
+    def take_rule(monitor, rule):
+        monitor["transform"] = int(re.search(r"transform = (\d)", rule).group(1))
+        if place := re.search(r'position = "(-?\d+)x(-?\d+)"', rule):
+            monitor["x"], monitor["y"] = int(place.group(1)), int(place.group(2))
+        mode = re.search(r'mode = "([^"]+)"', rule).group(1)
+        if mode == "preferred":
+            mode = monitor["availableModes"][0]
+        size = re.match(r"(\d+)x(\d+)", mode)
+        monitor["width"], monitor["height"] = int(size.group(1)), int(size.group(2))
+        if scale := re.search(r"scale = ([\d.]+)", rule):
+            monitor["scale"] = float(scale.group(1))
 
     @property
     def dispatched(self):
@@ -200,9 +214,112 @@ def test_position_scale_and_mode_of_an_external_screen(fake):
     config.set_setting(cfg, LAPTOP_ID, "position", "left")   # ignored: laptop is the anchor
 
     apply.apply(cfg)
+    # 1920x1080 at 125 % is 1536x864: left of the laptop, centred on its edge.
     assert hyprland.evaluated == [
-        'hl.monitor({ output = "DP-3", mode = "1920x1080@60.00", position = "auto-left", scale = 1.25, transform = 0 })'
+        'hl.monitor({ output = "eDP-1", mode = "1920x1080@60.00", position = "1536x0", scale = 1.0, transform = 0 })',
+        'hl.monitor({ output = "DP-3", mode = "1920x1080@60.00", position = "0x108", scale = 1.25, transform = 0 })',
     ]
+
+
+def edges_touch(first, second):
+    """Whether two monitors share a stretch of edge (not just a corner)."""
+    def box(m):
+        width, height = apply.logical_size(m, {})
+        return m["x"], m["y"], m["x"] + width, m["y"] + height
+    (ax, ay, ax2, ay2), (bx, by, bx2, by2) = box(first), box(second)
+    side = (ax2 == bx or bx2 == ax) and min(ay2, by2) - max(ay, by) > 0
+    top = (ay2 == by or by2 == ay) and min(ax2, bx2) - max(ax, bx) > 0
+    return side or top
+
+
+def test_a_screen_above_the_laptop_shares_its_whole_top_edge(fake):
+    # The live case: Hyprland's auto-up put the HP at 0,-1080 and the laptop
+    # ("auto") right of it at 1920,0 -- corners only, the mouse could not cross.
+    hyprland = fake(hp(x=0, y=-1080, width=1920, height=1080), laptop(x=1920, y=0))
+    cfg = recorded(laptop(), hp())
+    config.set_setting(cfg, HP_ID, "position", "above")
+
+    assert apply.apply(cfg) == ["DP-3", "eDP-1"]
+    by_name = {m["name"]: m for m in hyprland.monitors}
+    assert (by_name["DP-3"]["x"], by_name["DP-3"]["y"]) == (0, 0)
+    assert (by_name["eDP-1"]["x"], by_name["eDP-1"]["y"]) == (0, 1080)
+    assert edges_touch(by_name["DP-3"], by_name["eDP-1"])
+
+    hyprland.calls.clear()
+    assert apply.apply(cfg) == []
+
+
+@pytest.mark.parametrize("side", ["left", "right", "above", "below"])
+@pytest.mark.parametrize(("scale", "rotation"), [(1, None), (1.25, None), (1.5, 90), (2, 270)])
+def test_every_side_scale_and_turn_gives_a_shared_edge(fake, side, scale, rotation):
+    hyprland = fake(laptop(), hp())
+    cfg = recorded(laptop(), hp())
+    config.set_setting(cfg, HP_ID, "position", side)
+    config.set_setting(cfg, HP_ID, "scale", scale)
+    if rotation is not None:
+        config.set_setting(cfg, HP_ID, "rotation", rotation)
+
+    apply.apply(cfg)
+    laptop_now, hp_now = hyprland.monitors
+    assert edges_touch(laptop_now, hp_now)
+    assert min(m[axis] for m in hyprland.monitors for axis in ("x", "y")) == 0
+    hp_box = apply.logical_size(hp_now, {})
+    if side in ("above", "below"):
+        assert hp_now["x"] + hp_box[0] / 2 == pytest.approx(laptop_now["x"] + 960, abs=1)
+    else:
+        assert hp_now["y"] + hp_box[1] / 2 == pytest.approx(laptop_now["y"] + 540, abs=1)
+
+
+def test_layout_stacks_screens_on_one_side_outwards_and_fills_others():
+    sizes = {"eDP-1": (1920, 1080), "DP-3": (2560, 1440), "HDMI-A-1": (1920, 1080), "DP-1": (1080, 1920)}
+    spots = apply.layout(sizes, "eDP-1", {"DP-3": "above", "HDMI-A-1": "above", "DP-1": "right"})
+    assert spots == {
+        "eDP-1": (320, 2520),
+        "DP-3": (0, 1080),          # right above the laptop, centred
+        "HDMI-A-1": (320, 0),       # above the HP
+        "DP-1": (2240, 2100),       # right of the laptop, centred on its height
+    }
+
+
+def test_logical_size_follows_mode_scale_and_turn():
+    screen = hp(width=2560, height=1440, scale=1.0)
+    assert apply.logical_size(screen, {}) == (2560, 1440)
+    assert apply.logical_size(screen, {"scale": 1.6}) == (1600, 900)
+    assert apply.logical_size(screen, {"rotation": 90, "mode": "1920x1080@60"}) == (1080, 1920)
+    assert apply.logical_size(screen, {"mode": "preferred", "scale": "auto"}) == (2560, 1440)
+    assert apply.logical_size(hp(transform=1), {}) == (1440, 2560)
+
+
+def test_without_a_laptop_the_unplaced_screen_is_the_anchor(fake):
+    hyprland = fake(hp(x=0), fujitsu(x=2560))
+    cfg = recorded(hp(), fujitsu())
+    config.set_setting(cfg, FUJITSU_ID, "position", "left")
+    apply.apply(cfg)
+    assert [(m["name"], m["x"], m["y"]) for m in hyprland.monitors] == [("DP-3", 2560, 0), ("HDMI-A-1", 0, 0)]
+
+
+def test_unplugging_the_placed_screen_gives_the_laptop_back_to_hyprland(fake):
+    hyprland = fake(laptop(), hp())
+    cfg = recorded(laptop(), hp())
+    config.set_setting(cfg, HP_ID, "position", "above")
+    apply.apply(cfg)
+
+    hyprland.monitors = [laptop(y=1440)]
+    assert apply.apply(cfg) == ["reload"]
+    assert apply.load_applied() == {}
+
+
+def test_a_preferred_mode_is_placed_again_once_its_size_shows(fake):
+    hyprland = fake(laptop(), hp(width=1920, height=1080, modes=["2560x1440@60.00Hz", "1920x1080@60.00Hz"]))
+    cfg = recorded(laptop(), hp())
+    config.set_setting(cfg, HP_ID, "position", "above")
+    config.set_setting(cfg, HP_ID, "mode", "preferred")
+
+    apply.apply(cfg)
+    laptop_now, hp_now = hyprland.monitors
+    assert (hp_now["width"], hp_now["height"]) == (2560, 1440)
+    assert (laptop_now["x"], laptop_now["y"]) == (320, 1440)
+    assert edges_touch(laptop_now, hp_now)
 
 
 def test_quarter_turn_lets_hyprland_place_the_screen(fake):
@@ -427,3 +544,31 @@ def test_watch_folds_a_burst_into_one_kind():
     assert watch.kinds(lines) == {"added", "reload"}
     assert watch.strongest({"reload", "removed"}) == "removed"
     assert watch.strongest(set()) == ""
+
+
+def test_hand_edited_values_hyprland_cannot_take_are_skipped(fake):
+    hyprland = fake(laptop(), hp())
+    cfg = recorded(laptop(), hp())
+    cfg["screens"][HP_ID]["settings"] = {
+        "rotation": {"value": 45, "when": None},
+        "scale": {"value": "big", "when": None},
+        "position": {"value": "diagonal", "when": None},
+    }
+    assert apply.apply(cfg) == []
+    assert hyprland.evaluated == []
+
+
+def test_cli_rejects_a_scale_hyprland_cannot_use():
+    from hypr_screens import cli
+
+    assert cli.parse_value("scale", "1.5") == 1.5
+    assert cli.parse_value("scale", "auto") == "auto"
+    with pytest.raises(ValueError):
+        cli.parse_value("scale", "0")
+
+
+def test_a_failing_sync_does_not_end_the_watcher(monkeypatch):
+    def broken(kind):
+        raise KeyError("transform")
+    monkeypatch.setattr(engine, "sync", broken)
+    assert watch.safe_sync("added").startswith("failed: KeyError")
