@@ -5,10 +5,13 @@ is {"value": ..., "when": <screen id> | null}; with "when" set it only applies
 while that other screen is connected. A setting that is not stored leaves the
 screen as Hyprland's own config has it.
 """
+import fcntl
 import json
 import os
 import tempfile
+import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 VERSION = 1
@@ -138,19 +141,88 @@ def normalize(raw: object) -> dict:
     return cfg
 
 
-def load() -> dict:
+class ConfigError(RuntimeError):
+    """The settings file is there but cannot be read: never write over it."""
+
+
+def read() -> dict:
+    """The settings, strictly: the defaults only when there is no file yet."""
+    path = config_file()
     try:
-        return normalize(json.loads(config_file().read_text()))
-    except (OSError, json.JSONDecodeError):
+        text = path.read_text()
+    except FileNotFoundError:
+        return default_config()
+    except OSError as error:
+        raise ConfigError(f"cannot read {path}: {error}") from error
+    try:
+        raw = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise ConfigError(f"{path} is not valid JSON: {error}") from error
+    if not isinstance(raw, dict):
+        raise ConfigError(f"{path} does not hold a settings object")
+    return normalize(raw)
+
+
+def load() -> dict:
+    """The settings for reading; an unreadable file reads as the defaults."""
+    try:
+        return read()
+    except ConfigError:
         return default_config()
 
 
 def save(cfg: dict) -> None:
+    """Replaced in one step (a unique temporary file, then a rename), so a
+    reader never sees half a file and two writers never share a temporary."""
     path = config_file()
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(normalize(cfg), indent=2, sort_keys=True) + "\n")
-    temporary.replace(path)
+    text = json.dumps(normalize(cfg), indent=2, sort_keys=True) + "\n"
+    fd, temporary = tempfile.mkstemp(prefix=".config-", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise
+
+
+_held = threading.local()
+
+
+@contextmanager
+def locked():
+    """One writer at a time, across processes (watcher, CLI, settings window).
+    Nested use in the same thread does not lock again."""
+    if getattr(_held, "depth", 0):
+        _held.depth += 1
+        try:
+            yield
+        finally:
+            _held.depth -= 1
+        return
+    with open(runtime_dir() / "config.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        _held.depth = 1
+        try:
+            yield
+        finally:
+            _held.depth = 0
+
+
+def update(mutate) -> dict:
+    """Load, change and save the settings under the lock, so no writer can lose
+    another one's change. `mutate(cfg)` changes cfg in place; returning False
+    leaves the file as it is. An unreadable file raises ConfigError and is not
+    touched. Returns the settings as they are now."""
+    with locked():
+        cfg = read()
+        if mutate(cfg) is not False:
+            save(cfg)
+            cfg = normalize(cfg)
+        return cfg
 
 
 # --- screens -----------------------------------------------------------------
@@ -280,7 +352,8 @@ def summary(cfg: dict, sid: str) -> str:
         if key == "one_desktop":
             text = "one desktop" if value else "no fixed desktop"
         elif key == "position":
-            text = f"{value} of laptop"
+            text = {"left": "left of laptop", "right": "right of laptop",
+                    "above": "above laptop", "below": "below laptop"}.get(value, str(value))
         else:
             text = value_label(key, value)
         when = setting.get("when")

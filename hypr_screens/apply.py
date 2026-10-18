@@ -13,6 +13,7 @@ touches it at a corner only -- the mouse cannot cross.
 """
 import fcntl
 import json
+import sys
 import time
 from contextlib import contextmanager
 
@@ -205,6 +206,11 @@ def needs_reset(applied: dict, wanted: dict) -> bool:
     return False
 
 
+def in_place(monitor: dict, fields: dict) -> bool:
+    """Whether the screen stands where its position says (no position: anywhere)."""
+    return "position" not in fields or fields["position"] == f"{monitor.get('x', 0)}x{monitor.get('y', 0)}"
+
+
 def put_in_force(wanted: dict, monitors: list[dict], applied: dict) -> list[str]:
     """Send the rules that are not in force yet; records them in `applied`."""
     done = []
@@ -215,12 +221,18 @@ def put_in_force(wanted: dict, monitors: list[dict], applied: dict) -> list[str]
         if not fields or monitor is None:
             continue
         previous = applied.get(name)
-        if previous and previous.get("fields") == fields and previous.get("after") == snapshot(monitor):
+        if previous and previous.get("fields") == fields and previous.get("after") == snapshot(monitor) \
+                and in_place(monitor, fields):
             continue
         if previous is None and already_there(monitor, fields):
             applied[name] = {"id": entry["id"], "fields": fields, "after": snapshot(monitor)}
             continue
-        hypr.eval_lua(monitor_rule(monitor, fields))
+        reply = hypr.eval_lua(monitor_rule(monitor, fields))
+        if hypr.rejected(reply):
+            # Not recorded: the next sync tries again instead of believing it is in force.
+            print(f"hypr-screens: Hyprland rejected the rule for {name}: {reply.strip()}",
+                  file=sys.stderr, flush=True)
+            continue
         done.append(name)
         applied[name] = {"id": entry["id"], "fields": fields}
     return done
@@ -248,9 +260,14 @@ def apply(cfg: dict) -> list[str]:
             time.sleep(RELOAD_SETTLE_SECONDS)
             monitors = hypr.monitors()
             # A "preferred" mode or an "auto" scale shows its size only now;
-            # if that moves the edges, place the screens once more.
+            # if that moves the edges, place the screens once more. So too a
+            # screen Hyprland put elsewhere while it placed the next one.
+            by_name = {str(monitor.get("name")): monitor for monitor in monitors}
             moved = {name: entry for name, entry in desired(cfg, monitors).items()
-                     if name in applied and entry["fields"] != applied[name]["fields"]}
+                     if name in applied and (entry["fields"] != applied[name]["fields"]
+                                             or not in_place(by_name.get(name, {}), entry["fields"]))}
+            for name in moved:
+                applied[name].pop("after", None)
             if moved:
                 done += [name for name in put_in_force(moved, monitors, applied) if name not in done]
                 time.sleep(RELOAD_SETTLE_SECONDS)

@@ -2,11 +2,30 @@
 import json
 import subprocess
 
+HYPRCTL_SECONDS = 5
+
 
 def hyprctl(*args: str) -> str:
-    return subprocess.run(
-        ["hyprctl", *args], check=False, text=True, capture_output=True
-    ).stdout
+    """hyprctl's reply; an error text when it hangs or is missing, so a stuck
+    compositor cannot hang the watcher or the settings window."""
+    try:
+        return subprocess.run(
+            ["hyprctl", *args], check=False, text=True, capture_output=True, timeout=HYPRCTL_SECONDS
+        ).stdout
+    except subprocess.TimeoutExpired:
+        return "error: hyprctl timed out"
+    except OSError as error:
+        return f"error: {error}"
+
+
+def rejected(reply: str) -> bool:
+    """Whether Hyprland refused a command: an error text instead of "ok" (an
+    empty answer counts as taken, as before this check existed)."""
+    text = str(reply or "").strip().lower()
+    if not text or text == "ok":
+        return False
+    return text.startswith(("error", "err:", "invalid", "unknown", "failed", "couldn't", "could not")) \
+        or "error:" in text or "lua error" in text
 
 
 def query(what: str, *args: str) -> object:

@@ -20,6 +20,7 @@ from hypr_screens import config
 from hypr_screens.i18n import t
 
 GUARD_SECONDS = 1.0
+PACTL_SECONDS = 5
 VOLUME_MAX = 100
 KINDS = ("sink", "source")
 # What a port is called on the page, by its port.type.
@@ -31,8 +32,9 @@ PORT_LABELS = {
 
 def pactl(*args: str) -> str:
     try:
-        return subprocess.run(["pactl", *args], check=False, text=True, capture_output=True).stdout
-    except OSError:
+        return subprocess.run(["pactl", *args], check=False, text=True, capture_output=True,
+                              timeout=PACTL_SECONDS).stdout
+    except (OSError, subprocess.TimeoutExpired):
         return ""
 
 

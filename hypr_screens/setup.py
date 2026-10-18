@@ -33,8 +33,11 @@ def yes(question: str, default: bool = True) -> bool:
     return default if not answer else answer.startswith(("y", "j"))
 
 
+STEPS = 4  # one more on a Samsung Galaxy Book (run() sets it)
+
+
 def step(number: int, title: str) -> None:
-    print(f"\n  {number}/4  {title}\n  " + "─" * (len(title) + 6))
+    print(f"\n  {number}/{STEPS}  {title}\n  " + "─" * (len(title) + 6))
 
 
 def show_keys(cfg: dict) -> None:
@@ -68,8 +71,14 @@ def run() -> int:
     if not sys.stdin.isatty():
         print("hypr-screens setup needs a terminal.", file=sys.stderr)
         return 1
+    global STEPS
     print(INTRO)
-    cfg = config.load()
+    STEPS = 5 if samsung.present() else 4
+    try:
+        cfg = config.read()
+    except config.ConfigError as error:
+        print(f"  ! {error}\n    Fix or remove it, then run the setup again.", file=sys.stderr)
+        return 1
 
     step(1, "Keys")
     show_keys(cfg)
@@ -90,7 +99,9 @@ def run() -> int:
         cfg["default_fixed"] = "off"
 
     step(3, "Hyprland config")
-    config.save(cfg)
+    # Only what the wizard asked; the watcher may have saved screens meanwhile.
+    answers = {key: cfg[key] for key in ("keybinds", "desktop_keys", "default_fixed")}
+    cfg = config.update(lambda fresh: fresh.update(answers))
     path = keybinds.write(cfg)
     print(f"  Wrote {path}")
     hyprland = keybinds.hyprland_file()
