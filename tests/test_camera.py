@@ -114,3 +114,14 @@ def test_status_is_reported_and_read_back(tmp_path, monkeypatch):
 def test_the_camera_is_on_unless_switched_off():
     assert camera.enabled(config.default_config())
     assert not camera.enabled({"camera": {"enabled": False}})
+
+
+def test_the_feeder_stops_when_the_virtual_camera_goes_away(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    started = []
+    feeder = camera.Feeder(tmp_path / "video42", tmp_path / "video0")
+    monkeypatch.setattr(feeder, "start_writer", lambda: started.append("writer"))
+    feeder.run()   # returns instead of starting ffmpeg over and over
+    assert started == []
+    assert camera.status()["state"] == "off"

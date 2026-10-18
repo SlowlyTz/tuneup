@@ -268,6 +268,13 @@ class Feeder:
             now = time.monotonic()
             if now - checked >= 1.0:
                 checked = now
+                if not self.virtual.exists():
+                    # Torn down (or the module unloaded): without this, ffmpeg
+                    # would be started again five times a second.
+                    self.stop_reader()
+                    self.stop_writer()
+                    write_status("off")
+                    return
                 cfg = config.load()
                 on = enabled(cfg)
                 if not on:
