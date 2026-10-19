@@ -190,6 +190,38 @@ def test_a_dark_screen_after_an_mst_dock_is_switched_off_and_on(tmp_path, monkey
     assert drift.run() == []
 
 
+def test_screens_switched_off_while_idle_are_left_alone(tmp_path, monkeypatch):
+    """Seen live: with the session idle, Hyprland turns the screens off by DPMS
+    (no CRTC in the kernel either); taking that for the dock bug switched both
+    screens off and on -- Hyprland ended up with no output, the lock screen had
+    nowhere to show, and only a hard reset brought the picture back."""
+    model = HyprlandModel(laptop_output())
+    monkeypatch.setattr(hypr, "hyprctl", model)
+    told = []
+    monkeypatch.setattr(drm, "tell_user", told.append)
+    model.plug(hp_output())
+    run(model, "added")
+    keybinds.go_live(None, config.load())
+    for monitor in model.monitors:
+        monitor["dpmsStatus"] = False
+    drm_connector(tmp_path / "sys", "eDP-1", "connected", "disabled")
+    drm_connector(tmp_path / "sys", "DP-3", "connected", "disabled")
+
+    evals = len(model.calls)
+    assert drift.run() == [] and drift.run() == []
+    assert not [c for c in model.calls[evals:] if c[0] == "eval" and "disabled = true" in c[1]]
+    assert told == []
+
+
+def test_the_laptop_panel_never_counts_as_dark():
+    found = {"eDP-1": {"status": "connected", "enabled": "disabled"},
+             "HDMI-A-1": {"status": "connected", "enabled": "disabled"}}
+    panel = {"name": "eDP-1", "disabled": False, "dpmsStatus": True}
+    tv = {"name": "HDMI-A-1", "disabled": False, "dpmsStatus": True}
+    assert drm.dark([panel, tv], found) == ["HDMI-A-1"]
+    assert drm.dark([panel, {**tv, "dpmsStatus": False}], found) == []
+
+
 # --- the watcher's timing ---------------------------------------------------------------------
 
 

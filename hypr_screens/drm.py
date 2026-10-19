@@ -14,7 +14,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from hypr_screens import apply, brand, hypr
+from hypr_screens import apply, brand, config, hypr
 from hypr_screens.i18n import t
 
 SYSFS = Path("/sys")
@@ -44,9 +44,15 @@ def stale(found: dict[str, dict]) -> list[str]:
 
 
 def dark(monitors: list[dict], found: dict[str, dict] | None = None) -> list[str]:
-    """Screens Hyprland drives that the kernel has no CRTC on."""
+    """External screens Hyprland drives and shows that the kernel has no CRTC on.
+
+    A screen switched off by DPMS (idle, lock) has no CRTC either -- Hyprland
+    turns it off that way -- so only screens Hyprland shows count. The laptop's
+    own panel never does: the dock bug hits screens plugged in, and switching
+    the panel off and on could leave nothing to show the lock screen on."""
     found = connectors() if found is None else found
-    return sorted(str(m["name"]) for m in monitors if not m.get("disabled")
+    return sorted(str(m["name"]) for m in monitors
+                  if not m.get("disabled") and m.get("dpmsStatus", True) and not config.is_internal(m)
                   and (found.get(str(m["name"])) or {}).get("status") == "connected"
                   and found[str(m["name"])]["enabled"] == "disabled")
 

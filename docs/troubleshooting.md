@@ -78,7 +78,7 @@ tuneup enforce off    # leave it to the other app
 
 ## A screen stays dark after unplugging a dock
 
-This is a known Hyprland (aquamarine) bug. The dock's screen is gone but still holds the graphics output, so the screen you plug in next gets nothing. Tuneup notices this, switches the screen off and on once, and tells you if it stays dark.
+This is a known Hyprland (aquamarine) bug. The dock's screen is gone but still holds the graphics output, so the screen you plug in next gets nothing. Tuneup notices this on an external screen, switches it off and on once, and tells you if it stays dark. Screens that are off because the computer is idle, and the laptop's own panel, are never touched.
 
 What helps then:
 - unplug and plug in again,
