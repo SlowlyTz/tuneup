@@ -350,3 +350,56 @@ def test_hyprland_not_answering_is_not_everything_unplugged(world, monkeypatch):
     monkeypatch.setattr(hypr, "hyprctl", model)
     assert desktops.load_override()["role"] == "panel"            # the swap is kept
     assert model.clients[0]["workspace"]["id"] == desktops.FIXED_WS
+
+
+# --- several desktops on the fixed screen ------------------------------------------
+
+
+@pytest.fixture()
+def five(world):
+    """The HP plugged in as the fixed screen, with five desktops of its own."""
+    config.update(lambda cfg: cfg.__setitem__("fixed_desktops", 5))
+    plug(world, hp_output("DP-3"))
+    return world
+
+
+def test_desktop_keys_follow_the_focused_screen(five):
+    model = five
+    laptop_shows = model.visible()["eDP-1"]
+    model.focus_monitor(model.monitor("DP-3"))
+    desktops.switch(config.load(), "switch", 3)
+    assert model.visible()["DP-3"] == desktops.FIXED_WS + 2          # its desktop 3
+    assert model.visible()["eDP-1"] == laptop_shows                  # the laptop stays
+    desktops.switch(config.load(), "switch", 7)                      # it has only five
+    assert model.visible()["DP-3"] == desktops.FIXED_WS + 2
+    model.focus_monitor(model.monitor("eDP-1"))
+    desktops.switch(config.load(), "switch", 3)
+    assert model.visible()["eDP-1"] == 3 and model.visible()["DP-3"] == desktops.FIXED_WS + 2
+    assert_settled(model)
+
+
+def test_the_bar_switches_either_screen_whatever_has_the_focus(five):
+    model = five
+    model.focus_monitor(model.monitor("DP-3"))
+    desktops.switch(config.load(), "switch", 4, fixed=False)         # a laptop tile clicked
+    assert model.visible()["eDP-1"] == 4 and model.visible()["DP-3"] == desktops.FIXED_WS
+    desktops.switch(config.load(), "switch", 2, fixed=True)          # a tile of the fixed screen
+    assert model.visible()["DP-3"] == desktops.FIXED_WS + 1
+
+
+def test_one_fixed_desktop_keeps_the_keys_on_the_laptop(world):
+    model = world
+    plug(model, hp_output("DP-3"))
+    model.focus_monitor(model.monitor("DP-3"))
+    desktops.switch(config.load(), "switch", 3)
+    assert model.visible()["eDP-1"] == 3 and model.visible()["DP-3"] == desktops.FIXED_WS
+
+
+def test_windows_on_the_fixed_desktops_come_back_when_unplugged(five):
+    model = five
+    model.focus_monitor(model.monitor("DP-3"))
+    desktops.switch(config.load(), "switch", 2)
+    model.clients.append({"address": "0xb", "workspace": {"id": desktops.FIXED_WS + 1, "name": "100"},
+                          "mapped": True, "at": [0, 0], "size": [100, 100], "monitor": 1})
+    unplug(model, "DP-3")
+    assert model.clients[-1]["workspace"]["id"] in desktops.DESKTOPS

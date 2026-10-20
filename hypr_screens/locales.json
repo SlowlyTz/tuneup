@@ -769,7 +769,9 @@
     "{screen} is connected but shows nothing (a known Hyprland bug after unplugging a dock). Unplug it and plug it in again; if it stays dark, switch to another console and back (Ctrl+Alt+F2, then Ctrl+Alt+F1) or log out and in.": "{screen} ist angeschlossen, zeigt aber nichts an (ein bekannter Hyprland-Fehler nach dem Abstecken eines Docks). Zieh den Stecker und steck ihn wieder ein; bleibt er dunkel, wechsle auf eine andere Konsole und zurück (Strg+Alt+F2, dann Strg+Alt+F1) oder melde dich ab und wieder an.",
     "{time} left": "noch {time}",
     "“{name}” forgotten": "„{name}“ vergessen",
-    "“{what}” keeps being changed by another app. Tuneup leaves it alone until {time}.": "„{what}“ wird immer wieder von einer anderen App geändert. Tuneup lässt es bis {time} in Ruhe."
+    "“{what}” keeps being changed by another app. Tuneup leaves it alone until {time}.": "„{what}“ wird immer wieder von einer anderen App geändert. Tuneup lässt es bis {time} in Ruhe.",
+    "Desktops on the fixed screen": "Desktops auf dem festen Bildschirm",
+    "With more than one, the desktop keys switch the desktops of the screen you are on": "Bei mehr als einem wechseln die Desktop-Tasten die Desktops des Bildschirms, auf dem du gerade bist"
   },
   "es": {
     "1 app uses it": "1 app la usa",
@@ -1541,7 +1543,9 @@
     "{screen} is connected but shows nothing (a known Hyprland bug after unplugging a dock). Unplug it and plug it in again; if it stays dark, switch to another console and back (Ctrl+Alt+F2, then Ctrl+Alt+F1) or log out and in.": "{screen} está conectada pero no muestra nada (un fallo conocido de Hyprland tras desconectar un dock). Desconéctala y vuelve a conectarla; si sigue a oscuras, cambia a otra consola y vuelve (Ctrl+Alt+F2 y luego Ctrl+Alt+F1) o cierra la sesión y vuelve a entrar.",
     "{time} left": "quedan {time}",
     "“{name}” forgotten": "«{name}» olvidada",
-    "“{what}” keeps being changed by another app. Tuneup leaves it alone until {time}.": "Otra app sigue cambiando «{what}». Tuneup lo deja en paz hasta las {time}."
+    "“{what}” keeps being changed by another app. Tuneup leaves it alone until {time}.": "Otra app sigue cambiando «{what}». Tuneup lo deja en paz hasta las {time}.",
+    "Desktops on the fixed screen": "Escritorios en la pantalla fija",
+    "With more than one, the desktop keys switch the desktops of the screen you are on": "Con más de uno, las teclas de escritorio cambian los escritorios de la pantalla en la que estás"
   },
   "fr": {
     "1 app uses it": "1 appli l’utilise",
@@ -2313,7 +2317,9 @@
     "{screen} is connected but shows nothing (a known Hyprland bug after unplugging a dock). Unplug it and plug it in again; if it stays dark, switch to another console and back (Ctrl+Alt+F2, then Ctrl+Alt+F1) or log out and in.": "{screen} est branché mais n’affiche rien (un bug connu de Hyprland après avoir débranché un dock). Débranchez-le et rebranchez-le ; s’il reste noir, passez sur une autre console puis revenez (Ctrl+Alt+F2, puis Ctrl+Alt+F1) ou fermez la session et rouvrez-la.",
     "{time} left": "encore {time}",
     "“{name}” forgotten": "« {name} » oublié",
-    "“{what}” keeps being changed by another app. Tuneup leaves it alone until {time}.": "Une autre application modifie sans cesse « {what} ». Tuneup le laisse tranquille jusqu'à {time}."
+    "“{what}” keeps being changed by another app. Tuneup leaves it alone until {time}.": "Une autre application modifie sans cesse « {what} ». Tuneup le laisse tranquille jusqu'à {time}.",
+    "Desktops on the fixed screen": "Bureaux sur l’écran fixe",
+    "With more than one, the desktop keys switch the desktops of the screen you are on": "Avec plus d’un, les touches de bureau changent les bureaux de l’écran où tu te trouves"
   },
   "it": {
     "1 app uses it": "1 app la usa",
@@ -3085,6 +3091,8 @@
     "{screen} is connected but shows nothing (a known Hyprland bug after unplugging a dock). Unplug it and plug it in again; if it stays dark, switch to another console and back (Ctrl+Alt+F2, then Ctrl+Alt+F1) or log out and in.": "{screen} è collegato ma non mostra nulla (un bug noto di Hyprland dopo aver scollegato un dock). Scollegalo e ricollegalo; se resta scuro, passa a un’altra console e torna indietro (Ctrl+Alt+F2, poi Ctrl+Alt+F1) oppure esci e rientra.",
     "{time} left": "ancora {time}",
     "“{name}” forgotten": "«{name}» dimenticato",
-    "“{what}” keeps being changed by another app. Tuneup leaves it alone until {time}.": "Un'altra app continua a cambiare «{what}». Tuneup lo lascia stare fino alle {time}."
+    "“{what}” keeps being changed by another app. Tuneup leaves it alone until {time}.": "Un'altra app continua a cambiare «{what}». Tuneup lo lascia stare fino alle {time}.",
+    "Desktops on the fixed screen": "Desktop sullo schermo fisso",
+    "With more than one, the desktop keys switch the desktops of the screen you are on": "Con più di uno, i tasti dei desktop cambiano i desktop dello schermo su cui ti trovi"
   }
 }

@@ -6,7 +6,7 @@ import { hz, nf, pct, res } from "../../core/format.js";
 import { loc, t } from "../../core/i18n.js";
 import { S, UI } from "../../core/state.js";
 import { afterRender, k, on, reg, render } from "../../core/view.js";
-import { button, group, radios, seg, toggle } from "../../ui/controls.js";
+import { button, group, radios, seg, stepper, toggle } from "../../ui/controls.js";
 import { confirmDialog } from "../../ui/dialog.js";
 import { ic, monGlyph } from "../../ui/icons.js";
 import { block, expander, notice, ph, row } from "../../ui/layout.js";
@@ -102,6 +102,17 @@ function newMonitorsRow() {
     end: seg("newmon", [{ v: "off", label: t("Off") }, { v: "external", label: t("External monitor") }, { v: "panel", label: t("Laptop") }], value,
       (v) => change(() => api.setOption("default_fixed", v), () => api.setOption("default_fixed", value), { reload: ["keys", "screens"] }),
       { label: t("For new monitors") }),
+  });
+}
+
+/* Desktops on the fixed screen: global too (whichever screen is fixed). */
+function fixedDesktopsRow() {
+  const value = S.keys.options.fixed_desktops || 1;
+  return row({
+    sid: "screens.fixeddesks", icon: "monitor", title: esc(t("Desktops on the fixed screen")),
+    desc: esc(t("With more than one, the desktop keys switch the desktops of the screen you are on")),
+    end: stepper("fixeddesks", { min: 1, max: 10, value, label: t("Desktops on the fixed screen"),
+      onChange: (v) => change(() => api.setOption("fixed_desktops", v), () => api.setOption("fixed_desktops", value), { reload: ["keys", "screens"] }) }),
   });
 }
 
@@ -241,7 +252,7 @@ export function pageScreens() {
   }));
   return `${ph(esc(t("Screens")), esc(t("Drag the screens to where they stand on your desk.")))}
       ${arrangeCard(sel, cs)}
-      <div class="stack" style="margin-bottom:var(--s5)">${newMonitorsRow()}</div>
+      <div class="stack" style="margin-bottom:var(--s5)">${newMonitorsRow()}${fixedDesktopsRow()}</div>
       ${screenHead(sel, cs)}
       <div class="stack">${positionBlock(sel)}${rotationBlock(sel)}${scaleBlock(sel)}${modeBlock(sel)}${oneDesktopRow(sel)}</div>
       <div class="stack" style="margin-top:var(--s1)">${advanced(sel)}</div>`;

@@ -86,6 +86,8 @@ def default_config() -> dict:
         "keybinds": {action: list(keys) for action, keys in DEFAULT_KEYBINDS.items()},
         "desktop_keys": False,
         "default_fixed": "off",
+        # desktops on the fixed screen (1: the classic single fixed desktop)
+        "fixed_desktops": 1,
         "enforce": True,
         "screens": {},
         "sound": {"force_mute": {}},
@@ -169,6 +171,9 @@ def normalize(raw: object) -> dict:
     cfg["desktop_keys"] = bool(raw.get("desktop_keys", False))
     if raw.get("default_fixed") in FIXED_DEFAULTS:
         cfg["default_fixed"] = raw["default_fixed"]
+    count = raw.get("fixed_desktops")
+    if isinstance(count, int) and not isinstance(count, bool) and 1 <= count <= 10:
+        cfg["fixed_desktops"] = count
     if isinstance(raw.get("enforce"), bool):
         cfg["enforce"] = raw["enforce"]
     cfg["screens"] = normalize_screens(raw)

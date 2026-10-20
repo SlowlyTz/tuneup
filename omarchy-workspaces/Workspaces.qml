@@ -8,8 +8,8 @@ import qs.Ui
 // Workspace indicator for the fixed screen of hypr-screens.
 //
 // With an external monitor attached, one screen -- laptop or external, see
-// see `hypr-screens menu` -- is pinned to one workspace and shows a single "1";
-// desktops 1-10 live on the other one. Without one, it behaves like the stock
+// `hypr-screens menu` -- keeps its own desktops (workspace 99 and up, shown as
+// 1, 2, ...; a single "1" by default); desktops 1-10 live on the other one. Without one, it behaves like the stock
 // widget. Each bar highlights the workspace active on *its own* screen, not the
 // globally focused one.
 BarWidget {
@@ -18,6 +18,10 @@ BarWidget {
 
   readonly property string panelName: "eDP-1"
   readonly property int fixedWorkspace: 99
+  // ids of the fixed screen's desktops: 99 up to 108 (Tuneup's fixed_desktops option)
+  readonly property int fixedLast: 108
+
+  function isFixed(id) { return id >= root.fixedWorkspace && id <= root.fixedLast }
 
   // The output this particular bar instance lives on.
   readonly property string screenName: {
@@ -33,8 +37,8 @@ BarWidget {
     return false
   }
 
-  // The fixed screen is whichever one shows the fixed workspace; one tile only.
-  readonly property bool pinned: root.docked && root.activeWorkspace === root.fixedWorkspace
+  // The fixed screen is whichever one shows one of the fixed desktops.
+  readonly property bool pinned: root.docked && root.isFixed(root.activeWorkspace)
 
   readonly property int activeWorkspace: {
     var monitors = Hyprland.monitors.values
@@ -64,7 +68,18 @@ BarWidget {
   }
 
   function workspaceIds() {
-    if (root.pinned) return [root.fixedWorkspace]
+    if (root.pinned) {
+      // its desktops that exist (Tuneup keeps them all while there are several)
+      var fixed = [root.fixedWorkspace]
+      var all = Hyprland.workspaces.values
+      for (var k = 0; k < all.length; k++) {
+        var wid = all[k].id
+        if (root.isFixed(wid) && fixed.indexOf(wid) === -1) fixed.push(wid)
+      }
+      if (fixed.indexOf(root.activeWorkspace) === -1) fixed.push(root.activeWorkspace)
+      fixed.sort(function(left, right) { return left - right })
+      return fixed
+    }
 
     var ids = [1, 2, 3, 4, 5]
     var values = Hyprland.workspaces.values
@@ -79,14 +94,18 @@ BarWidget {
   }
 
   function label(id) {
-    if (id === root.fixedWorkspace) return "1"
+    if (root.isFixed(id)) return String(id - root.fixedWorkspace + 1)
     return id === 10 ? "0" : String(id)
   }
 
   // Go through hypr-screens so desktops stay on the right screen.
   function focusWorkspace(id) {
-    if (!root.bar || root.pinned) return
-    root.bar.run("hypr-screens switch " + Util.shellQuote(String(id)))
+    if (!root.bar) return
+    if (root.isFixed(id)) {
+      root.bar.run("hypr-screens switch --fixed " + Util.shellQuote(String(id - root.fixedWorkspace + 1)))
+      return
+    }
+    root.bar.run("hypr-screens switch --desk " + Util.shellQuote(String(id)))
   }
 
   readonly property real trailingGap: root.vertical ? 0 : Style.spaceReal(1.5)

@@ -214,8 +214,8 @@ def build_parser() -> argparse.ArgumentParser:
     bind.add_argument("slot", type=int, choices=[1, 2])
     bind.add_argument("combo", nargs="?", default="", help="empty to clear")
 
-    option = sub.add_parser("option", help="desktop_keys on|off, default_fixed off|external|panel")
-    option.add_argument("name", choices=["desktop_keys", "default_fixed"])
+    option = sub.add_parser("option", help="desktop_keys on|off, default_fixed off|external|panel, fixed_desktops 1-10")
+    option.add_argument("name", choices=["desktop_keys", "default_fixed", "fixed_desktops"])
     option.add_argument("value", nargs="?", default="next")
 
     for name, text in (
@@ -225,6 +225,9 @@ def build_parser() -> argparse.ArgumentParser:
     ):
         desk = sub.add_parser(name, help=text)
         desk.add_argument("index", type=int)
+        where = desk.add_mutually_exclusive_group()
+        where.add_argument("--fixed", action="store_true", help="desktop N of the fixed screen (its bar)")
+        where.add_argument("--desk", action="store_true", help="desktop N of the other screen, whatever has the focus")
     sub.add_parser("next", help="next used desktop")
     sub.add_parser("prev", help="previous used desktop")
     cycle = sub.add_parser("cycle", help="focus the next visible window")
@@ -264,7 +267,7 @@ def desktop_command(args: argparse.Namespace) -> int:
     elif args.command in ("next", "prev"):
         desktops.step(config.load(), 1 if args.command == "next" else -1)
     else:
-        desktops.switch(config.load(), args.command, args.index)
+        desktops.switch(config.load(), args.command, args.index, fixed=True if args.fixed else False if args.desk else None)
     return 0
 
 
@@ -416,9 +419,16 @@ def bind_command(args: argparse.Namespace) -> int:
 
 
 def option_value(cfg: dict, name: str, value: str) -> object:
-    """desktop_keys: on/off or next/prev (toggle); default_fixed: a choice or next/prev."""
+    """desktop_keys: on/off or next/prev (toggle); default_fixed: a choice or next/prev;
+    fixed_desktops: 1-10 or next/prev."""
     from hypr_screens import config
 
+    if name == "fixed_desktops":
+        if value in ("next", "prev"):
+            return (cfg["fixed_desktops"] + (0 if value == "next" else -2)) % 10 + 1
+        if not value.isdigit() or not 1 <= int(value) <= 10:
+            raise ValueError("fixed_desktops must be 1-10")
+        return int(value)
     if name == "desktop_keys":
         return not cfg["desktop_keys"] if value in ("next", "prev") else value in ("on", "1", "true", "yes")
     choices = config.FIXED_DEFAULTS
@@ -436,7 +446,7 @@ def option_command(args: argparse.Namespace) -> int:
     if isinstance(result, int):
         return result
     before, cfg = result
-    if args.name == "desktop_keys":
+    if args.name in ("desktop_keys", "fixed_desktops"):
         keybinds.write(cfg)
         keybinds.go_live(before, cfg)
     engine.sync()

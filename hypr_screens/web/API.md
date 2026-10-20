@@ -155,8 +155,9 @@ keymap, so combos it has bound (Super+Q closes the window!) reach the page.
 Esc always drops back to the normal keymap.
 
 ### `setOption(name, value)` → `options`
-`desktop_keys` true/false (rewrites and reloads the keys, then syncs) or
-`default_fixed` `"off" | "external" | "panel"`.
+`desktop_keys` true/false (rewrites and reloads the keys, then syncs),
+`default_fixed` `"off" | "external" | "panel"` or `fixed_desktops` 1–10 (desktops
+on the fixed screen; above 1 the desktop keys act on the focused screen).
 
 ## Window look
 
