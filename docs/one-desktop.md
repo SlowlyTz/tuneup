@@ -17,6 +17,19 @@ Tuneup decides in this order:
 
 The canvas on the Screens page marks the fixed screen with a pin.
 
+## More than one desktop on the fixed screen
+
+**Desktops on the fixed screen** (Screens page, below the picture) gives it up to 10 desktops of its own
+(workspaces `99`, `100`, … shown as `1`, `2`, … in its bar). The two screens stay apart: desktops 1–10 never
+appear on the fixed screen, its own desktops never on the other one.
+
+With more than one, `SUPER + 1…0` switch the desktops of the screen you are on (`SUPER + SHIFT + 1…0` move the
+window there), swiping moves between them, and a click on a tile in either bar switches that screen.
+
+```bash
+tuneup option fixed_desktops 5
+```
+
 Example: the laptop is fixed only at the desk; any other monitor is fixed itself:
 
 ```bash

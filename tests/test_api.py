@@ -249,7 +249,7 @@ def test_keys_list_actions_and_what_hyprland_has_bound(desk):
     assert stash == {"id": "stash", "title": "Hide window", "desc": "Hides the active window.",
                      "slots": ["SUPER + M", None]}
     assert result["hyprBinds"] == {"SUPER + Q": "Close window", "SUPER + 1": "Switch to workspace 1"}
-    assert result["options"] == {"desktop_keys": False, "default_fixed": "off"}
+    assert result["options"] == {"desktop_keys": False, "default_fixed": "off", "fixed_desktops": 1}
 
 
 def test_a_key_moves_from_another_action_and_goes_live(desk):
@@ -265,7 +265,7 @@ def test_a_key_moves_from_another_action_and_goes_live(desk):
 
 
 def test_options_and_key_capture(desk):
-    assert api.set_option("desktop_keys", True) == {"desktop_keys": True, "default_fixed": "off"}
+    assert api.set_option("desktop_keys", True) == {"desktop_keys": True, "default_fixed": "off", "fixed_desktops": 1}
     assert "tuneup switch 1" in keybinds.lua_file().read_text()
     assert error_of(api.set_option, "default_fixed", "laptop").code == "bad_value"
     assert error_of(api.set_option, "volume", 3).code == "bad_value"

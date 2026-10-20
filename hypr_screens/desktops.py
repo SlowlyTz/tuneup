@@ -1,5 +1,7 @@
-"""The fixed screen: with one external monitor attached, one screen shows only
-workspace FIXED_WS and never changes, the other holds desktops 1-10.
+"""The fixed screen: with one external monitor attached, one screen keeps its
+own desktops (workspace FIXED_WS, plus FIXED_WS+1 ... with the "fixed_desktops"
+option above 1) and never shows desktops 1-10; the other holds desktops 1-10.
+With several fixed desktops, the desktop keys act on the focused screen.
 
 Which screen is fixed (the "role": "panel" = laptop, "external"):
   1. a temporary swap (`tuneup swap`), until the monitor is unplugged,
@@ -15,6 +17,17 @@ from hypr_screens import config, hypr
 
 FIXED_WS = int(os.environ.get("HYPR_SCREENS_FIXED_WS", "99"))
 DESKTOPS = range(1, 11)
+
+
+def fixed_count(cfg: dict) -> int:
+    """How many desktops the fixed screen has (1-10)."""
+    count = cfg.get("fixed_desktops", 1)
+    return count if isinstance(count, int) and 1 <= count <= 10 else 1
+
+
+def fixed_workspaces(count: int) -> range:
+    """The fixed screen's desktops: FIXED_WS is its desktop 1, the next ids follow."""
+    return range(FIXED_WS, FIXED_WS + count)
 
 
 def override_file():
@@ -45,6 +58,11 @@ class Screens:
     panel_id: str = ""
     external_id: str = ""
     role: str | None = None
+    count: int = 1
+
+    @property
+    def fixed_set(self) -> range:
+        return fixed_workspaces(self.count)
 
     @property
     def fixed(self) -> str:
@@ -85,7 +103,7 @@ def decide_role(cfg: dict, panel_id: str, external_id: str, ids: set[str], swaps
 
 def resolve(cfg: dict, monitors: list[dict] | None = None) -> Screens:
     monitors = [m for m in (monitors if monitors is not None else hypr.monitors()) if not m.get("disabled")]
-    screens = Screens(monitors=monitors)
+    screens = Screens(monitors=monitors, count=fixed_count(cfg))
     panel = next((m for m in monitors if config.is_internal(m)), None)
     external = next((m for m in monitors if not config.is_internal(m)), None)
     if panel:
@@ -110,18 +128,20 @@ def move_windows(source: int, target: int) -> None:
             )
 
 
-def pin(workspace: int, monitor: str) -> None:
+def pin(workspace: int, monitor: str, persistent: bool = False) -> None:
     """The rule covers a workspace that does not exist yet; the move pulls over
     one that already sits elsewhere -- without it, focusing it would just jump
-    to whichever monitor owns it."""
-    hypr.eval_lua(f'hl.workspace_rule({{ workspace = "{workspace}", monitor = {hypr.lua_string(monitor)} }})')
+    to whichever monitor owns it. Persistent: it exists even while empty (the
+    fixed screen's desktops, so the bar and swiping know all of them)."""
+    keep = ", persistent = true" if persistent else ""
+    hypr.eval_lua(f'hl.workspace_rule({{ workspace = "{workspace}", monitor = {hypr.lua_string(monitor)}{keep} }})')
     hypr.dispatch(f'hl.dsp.workspace.move({{ workspace = "{workspace}", monitor = {hypr.lua_string(monitor)} }})')
 
 
 def hold_fixed(screens: Screens) -> None:
-    """Keep the fixed screen on its workspace, without stealing focus."""
+    """Keep the fixed screen on one of its desktops, without stealing focus."""
     fresh = resolve_names(screens)
-    if fresh.workspace_on(screens.fixed) == FIXED_WS:
+    if fresh.workspace_on(screens.fixed) in screens.fixed_set:
         return
     pin(FIXED_WS, screens.fixed)
     refocus = fresh.focused.get("name", "")
@@ -140,6 +160,7 @@ def resolve_names(screens: Screens) -> Screens:
         panel_id=screens.panel_id,
         external_id=screens.external_id,
         role=screens.role,
+        count=screens.count,
     )
 
 
@@ -165,20 +186,22 @@ def rules_marked() -> bool:
 
 def misplaced(screens: Screens, workspaces: list[dict], rules: list[dict]) -> list[str]:
     """What is not where the role wants it (empty: all in place): the fixed
-    screen off its desktop, a desktop 1-10 on it, a rule pinning a desktop
-    elsewhere; without a fixed screen, windows left on the fixed desktop."""
+    screen off its desktops, a desktop 1-10 on it (or one of its desktops
+    elsewhere), a rule pinning a desktop elsewhere; without a fixed screen,
+    windows left on the fixed desktops."""
     if not screens.role:
-        if any(w.get("id") == FIXED_WS and w.get("windows") for w in workspaces):
-            return [f"windows on desktop {FIXED_WS}"]
-        return []
+        left = [w["id"] for w in workspaces if w.get("id") in screens.fixed_set and w.get("windows")]
+        return [f"windows on desktop {ws}" for ws in left]
     found = []
-    if screens.workspace_on(screens.fixed) != FIXED_WS:
+    if screens.workspace_on(screens.fixed) not in screens.fixed_set:
         found.append(f"{screens.fixed} does not show desktop {FIXED_WS}")
     found += [f"desktop {w['id']} on {screens.fixed}" for w in workspaces
               if w.get("id") in DESKTOPS and w.get("monitor") == screens.fixed]
+    found += [f"desktop {w['id']} on {w.get('monitor')}" for w in workspaces
+              if w.get("id") in screens.fixed_set and w.get("windows") and w.get("monitor") != screens.fixed]
     pinned = {str(rule.get("workspaceString")): rule.get("monitor") for rule in rules}
     if pinned:
-        wanted = {str(FIXED_WS): screens.fixed, **{str(ws): screens.desk for ws in DESKTOPS}}
+        wanted = {**{str(ws): screens.fixed for ws in screens.fixed_set}, **{str(ws): screens.desk for ws in DESKTOPS}}
         found += [f"rule for desktop {ws} on {pinned.get(ws) or 'no screen'}"
                   for ws, monitor in wanted.items() if pinned.get(ws) != monitor]
     return found
@@ -202,6 +225,8 @@ def arrange(screens: Screens, docking: bool = False) -> None:
             move_windows(showing, FIXED_WS)
     position = cursor() if docking else None
     pin(FIXED_WS, screens.fixed)
+    for workspace in screens.fixed_set[1:]:
+        pin(workspace, screens.fixed, persistent=True)
     for workspace in DESKTOPS:
         pin(workspace, screens.desk)
     mark_rules(True)
@@ -213,15 +238,20 @@ def arrange(screens: Screens, docking: bool = False) -> None:
 
 
 def fold_fixed(screens: Screens) -> None:
-    """Without a fixed screen its workspace means nothing: move its windows to
-    the desktop the laptop shows, or desktop 1."""
-    workspaces = {w.get("id") for w in hypr.query_list("workspaces")}
-    if FIXED_WS not in workspaces:
+    """Without a fixed screen its desktops mean nothing: move their windows to
+    the desktop the laptop shows, or desktop 1. (All ten possible ones: the
+    option may have been larger before.)"""
+    # FIXED_WS as long as it exists (as before); the others, kept by their
+    # persistent rule until a reload, only while windows are left on them
+    left = [w["id"] for w in hypr.query_list("workspaces")
+            if w.get("id") in fixed_workspaces(10) and (w.get("id") == FIXED_WS or w.get("windows"))]
+    if not left:
         return
     target = screens.workspace_on(screens.panel)
     if target not in DESKTOPS:
         target = 1
-    move_windows(FIXED_WS, target)
+    for workspace in left:
+        move_windows(workspace, target)
     hypr.dispatch(f'hl.dsp.focus({{ workspace = "{target}" }})')
 
 
@@ -254,25 +284,48 @@ def swap(cfg: dict, want: str | None = None) -> Screens:
     return screens
 
 
-def switch(cfg: dict, action: str, index: int) -> None:
+def on_fixed(screens: Screens) -> bool:
+    """The focused screen is the fixed one and has more than one desktop: the
+    desktop keys act on its own desktops."""
+    return bool(screens.role) and screens.count > 1 and screens.focused.get("name") == screens.fixed
+
+
+def switch(cfg: dict, action: str, index: int, fixed: bool | None = None) -> None:
+    """Desktop `index` of the focused screen -- of the fixed one when it has the
+    focus and several desktops (or with fixed=True), else desktops 1-10."""
     if index not in DESKTOPS:
         raise ValueError("desktop must be 1-10")
     screens = resolve(cfg)
+    there = on_fixed(screens) if fixed is None else bool(fixed and screens.role)
+    if there and index > screens.count:
+        return  # the fixed screen has fewer desktops
+    workspace = FIXED_WS + index - 1 if there else index
     if screens.role:
-        pin(index, screens.desk)
+        pin(workspace, screens.fixed if there else screens.desk, persistent=there and workspace != FIXED_WS)
     if action == "switch":
-        hypr.dispatch(f'hl.dsp.focus({{ workspace = "{index}" }})')
+        hypr.dispatch(f'hl.dsp.focus({{ workspace = "{workspace}" }})')
     elif action == "move":
-        hypr.dispatch(f'hl.dsp.window.move({{ workspace = "{index}" }})')
+        hypr.dispatch(f'hl.dsp.window.move({{ workspace = "{workspace}" }})')
     else:
-        hypr.dispatch(f'hl.dsp.window.move({{ workspace = "{index}", follow = false }})')
+        hypr.dispatch(f'hl.dsp.window.move({{ workspace = "{workspace}", follow = false }})')
     if screens.role:
         hold_fixed(screens)
 
 
 def step(cfg: dict, direction: int) -> None:
-    """Switch to the next/previous desktop that has windows."""
+    """Switch to the next/previous desktop that has windows (of the fixed screen
+    when it has the focus and several desktops)."""
     screens = resolve(cfg)
+    if on_fixed(screens):
+        current = screens.workspace_on(screens.fixed)
+        used = sorted(
+            {w["id"] for w in hypr.query_list("workspaces") if w.get("id") in screens.fixed_set and w.get("windows", 0) > 0}
+            | ({current} if current in screens.fixed_set else set())
+        )
+        if used:
+            target = used[0] if current not in used else used[(used.index(current) + direction) % len(used)]
+            switch(cfg, "switch", target - FIXED_WS + 1, fixed=True)
+        return
     current = screens.workspace_on(screens.desk) if screens.role else int(
         (screens.focused.get("activeWorkspace") or {}).get("id") or 0
     )
@@ -328,4 +381,5 @@ def status(cfg: dict) -> dict:
         "fixed": screens.role,
         "swapped": swapped,
         "fixed_workspace": FIXED_WS,
+        "fixed_workspaces": list(screens.fixed_set),
     }

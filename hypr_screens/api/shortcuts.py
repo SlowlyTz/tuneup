@@ -57,7 +57,8 @@ def action_view(cfg: dict, action: str) -> dict:
 
 
 def options_view(cfg: dict) -> dict:
-    return {"desktop_keys": bool(cfg["desktop_keys"]), "default_fixed": cfg["default_fixed"]}
+    return {"desktop_keys": bool(cfg["desktop_keys"]), "default_fixed": cfg["default_fixed"],
+            "fixed_desktops": cfg["fixed_desktops"]}
 
 
 @endpoint
@@ -115,8 +116,11 @@ def end_key_capture() -> dict:
 
 @endpoint
 def set_option(name: str, value: object) -> dict:
-    """desktop_keys: true/false; default_fixed: "off" | "external" | "panel"."""
-    if name == "desktop_keys":
+    """desktop_keys: true/false; default_fixed: "off" | "external" | "panel"; fixed_desktops: 1-10."""
+    if name == "fixed_desktops":
+        need(isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 10, "bad_value",
+             "fixed_desktops must be 1-10")
+    elif name == "desktop_keys":
         need(isinstance(value, bool), "bad_value", "desktop_keys must be true or false")
     elif name == "default_fixed":
         need(value in config.FIXED_DEFAULTS, "bad_value", f"default_fixed must be one of {config.FIXED_DEFAULTS}")
@@ -131,7 +135,7 @@ def set_option(name: str, value: object) -> dict:
         cfg[name] = value
     cfg = config.update(mutate)
     if before[0][name] != value:
-        if name == "desktop_keys":
+        if name in ("desktop_keys", "fixed_desktops"):
             keybinds.write(cfg)
             keybinds.go_live(before[0], cfg)
         run_sync()

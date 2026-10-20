@@ -241,7 +241,8 @@ def render(cfg: dict, runtime: bool = False) -> str:
                 lines += bind_line(combo, command, label)
     if cfg.get("desktop_keys"):
         lines.append("")
-        lines.append("-- Desktop keys: desktops 1-10 stay on the non-fixed screen.")
+        lines.append("-- Desktop keys: desktops 1-10 stay on the non-fixed screen"
+                     + (" (on the fixed screen, its own desktops)." if desktops.fixed_count(cfg) > 1 else "."))
         for index, code in enumerate(DESKTOP_CODES, start=1):
             for mods, command, label in DESKTOP_BINDS:
                 lines.append(f"hl.unbind({lua_quote(f'{mods} + {index % 10}')})")
@@ -268,16 +269,17 @@ def render(cfg: dict, runtime: bool = False) -> str:
             f"hl.window_rule({{ match = {{ class = {lua_quote(SETTINGS_CLASS)} }}, "
             f"float = true, size = {{ {SETTINGS_SIZE[0]}, {SETTINGS_SIZE[1]} }}, center = true }})",
             "",
-            "-- Swiping does nothing on the fixed screen (the one showing desktop "
-            f"{desktops.FIXED_WS}). Hyprland",
-            "-- skips a swipe on a monitor with a single desktop unless it may create new",
-            "-- ones, so that is switched off while the fixed screen has the focus.",
+            "-- Swiping never creates desktops on the fixed screen (the one showing desktop "
+            f"{desktops.FIXED_WS}",
+            "-- and up): with one desktop it does nothing, with several it moves between its own",
+            "-- (they are kept as persistent workspaces), so creating is off while it has the focus.",
             'local swipe_creates = hl.get_config("gestures.workspace_swipe_create_new")',
             "swipe_creates = swipe_creates == true or swipe_creates == 1",
             "local swipe_blocked = false",
             "local function guard_swipe()",
             "  local workspace = hl.get_active_workspace()",
-            f"  local blocked = workspace ~= nil and workspace.id == {desktops.FIXED_WS}",
+            f"  local blocked = workspace ~= nil and workspace.id >= {desktops.FIXED_WS} "
+            f"and workspace.id < {desktops.FIXED_WS + desktops.fixed_count(cfg)}",
             "  if blocked == swipe_blocked then return end",
             "  swipe_blocked = blocked",
             "  hl.config({ gestures = { workspace_swipe_create_new = swipe_creates and not blocked } })",

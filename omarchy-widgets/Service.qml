@@ -442,7 +442,7 @@ Item {
     return root.onDesktop(kind) && root.screenMatches(kind, screen)
            && (!group || (root.groupOf(kind) === group && root.allowedNow(kind, screen)))
   }
-  // Its rules: only on some desktops (workspace ids, 99 the fixed screen),
+  // Its rules: only on some desktops (workspace ids, 99 the fixed screen -- any of its desktops),
   // only while the desktop has no window, not on battery.
   function allowedNow(kind, screen) {
     var w = root.widget(kind)
@@ -450,7 +450,8 @@ Item {
     if (w.hide_on_battery && UPower.onBattery) return false
     var monitor = screen ? Hyprland.monitorFor(screen) : null
     var workspace = monitor ? monitor.activeWorkspace : null
-    if (w.desktops && w.desktops.length && (!workspace || w.desktops.indexOf(workspace.id) < 0)) return false
+    var desk = workspace ? (workspace.id >= 99 && workspace.id <= 108 ? 99 : workspace.id) : 0
+    if (w.desktops && w.desktops.length && (!workspace || w.desktops.indexOf(desk) < 0)) return false
     if (w.only_empty && workspace && workspace.toplevels && workspace.toplevels.values.length > 0) return false
     return true
   }

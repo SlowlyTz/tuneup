@@ -112,5 +112,6 @@ def state(cfg: dict | None = None, message: str = "") -> dict:
              "value": "on" if cfg["desktop_keys"] else "off"},
             {"key": "default_fixed", "label": "One desktop on new screens",
              "value": {"off": "off", "external": "external screen", "panel": "laptop"}[cfg["default_fixed"]]},
+            {"key": "fixed_desktops", "label": "Desktops on the fixed screen", "value": str(cfg["fixed_desktops"])},
         ],
     }
