@@ -150,6 +150,9 @@ def watch() -> int:
         return 0
 
     start_guards()
+    # hwmon numbers change between boots: point the widgets at this boot's CPU sensor.
+    if message := safe(lambda: widgets.export(config.load()), "widget export"):
+        log(message)
     path = event_socket()
     if path is None:
         log("no Hyprland event socket")
