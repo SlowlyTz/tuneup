@@ -233,6 +233,9 @@ class WebWindow(Adw.ApplicationWindow):
 
     def on_destroy(self, _window) -> None:
         self.closed = True
+        from hypr_screens.api import shortcuts
+
+        shortcuts.release_key_capture()
         self.monitor.cancel()
         if self.refresh_source:
             GLib.source_remove(self.refresh_source)
