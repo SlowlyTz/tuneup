@@ -274,6 +274,21 @@ def test_options_and_key_capture(desk):
     assert desk.dispatched[-2:] == ['hl.dsp.submap("hypr-screens-record")', 'hl.dsp.submap("reset")']
 
 
+def test_closing_the_window_while_recording_gives_the_keys_back(desk):
+    """The page can be gone before it ends a capture; Hyprland would stay in the
+    empty keymap, where not even Super+W closes a window."""
+    from hypr_screens.api import shortcuts
+
+    shortcuts.release_key_capture()
+    assert desk.dispatched == []                       # nothing to give back
+    api.begin_key_capture()
+    shortcuts.release_key_capture()
+    assert desk.dispatched[-1] == 'hl.dsp.submap("reset")'
+    sent = len(desk.dispatched)
+    shortcuts.release_key_capture()
+    assert len(desk.dispatched) == sent                # only once
+
+
 # --- window look -----------------------------------------------------------------------
 
 

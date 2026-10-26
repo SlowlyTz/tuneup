@@ -100,18 +100,34 @@ def set_key(action: str, slot: int, combo: str | None) -> dict:
     return {**action_view(cfg, action), "conflicts": keybinds.conflicts(combo) if combo else []}
 
 
+# A capture is running: Hyprland is in the empty keymap, where none of the
+# usual keys (Super+W included) work until it ends.
+_capturing = False
+
+
 @endpoint
 def begin_key_capture() -> dict:
     """While the page records a shortcut: an empty Hyprland keymap, so keys that
     are bound already reach the page instead of firing (Esc always gets out)."""
+    global _capturing
     hypr.dispatch(f'hl.dsp.submap("{keybinds.RECORD_SUBMAP}")')
+    _capturing = True
     return {"ok": True}
 
 
 @endpoint
 def end_key_capture() -> dict:
+    global _capturing
     hypr.dispatch('hl.dsp.submap("reset")')
+    _capturing = False
     return {"ok": True}
+
+
+def release_key_capture() -> None:
+    """The window closes or the app quits while recording: give the keys back
+    (the page may be gone before it could end the capture itself)."""
+    if _capturing:
+        end_key_capture()
 
 
 @endpoint

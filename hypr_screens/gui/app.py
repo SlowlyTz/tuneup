@@ -43,12 +43,19 @@ class App(Adw.Application):
             Adw.ColorScheme.FORCE_LIGHT if light else Adw.ColorScheme.FORCE_DARK)
 
     def do_command_line(self, command_line):
-        args = command_line.get_arguments()[1:]
-        if "--tray" in args:
-            self.start_tray()
-        else:
+        """The first start is always the tray instance, also from the app
+        launcher (`tuneup settings`): closing the window leaves it in the tray.
+        Later starts reach this one and just show the window."""
+        self.start_tray()
+        if "--tray" not in command_line.get_arguments()[1:]:
             self.show_settings()
         return 0
+
+    def do_shutdown(self):
+        from hypr_screens.api import shortcuts
+
+        shortcuts.release_key_capture()
+        Adw.Application.do_shutdown(self)
 
     def tray_entries(self) -> list:
         return [(t("Open settings"), self.show_settings),
