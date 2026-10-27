@@ -71,10 +71,16 @@ tuneup_scratch.toggle()
 fake.run_timers()
 check(shows(laptop) == 3, "SUPER+S leaves the row for good")
 
--- A swipe from a normal desktop into the row bounces back too.
-fake.swipe("right")            -- 202 (with its window) is the next workspace on this screen
+-- Closed, the row's desktops are put away: a swipe on a normal desktop never
+-- reaches them (seen live: two swipes right from a normal desktop landed in it).
+check(fake.workspaces[202] == nil and fake.specials["special:tuneup-scratch-202"] ~= nil,
+      "scratch desktop 2 waits hidden while the row is closed")
+fake.swipe("right")
 fake.run_timers()
-check(shows(laptop) == 3, "a swipe into the row from a normal desktop bounces back")
+check(shows(laptop) == 4, "a swipe right from the last normal desktop opens a new normal one")
+fake.swipe("left")
+fake.run_timers()
+check(shows(laptop) == 3, "and back")
 
 -- Shared by all screens: SUPER+S on the HP brings the scratch desktop there.
 fake.focus_monitor(hp)
@@ -90,7 +96,8 @@ check(shows(hp) == 99, "and back to the HP's own desktop 99")
 fake.focus_monitor(laptop)
 local mail = fake.open_window("mail")
 tuneup_scratch.move_window()
-check(mail.workspace.id == 202 and shows(laptop) == 3, "SUPER+ALT+S sends the window, the screen stays")
+check(mail.workspace.name == "special:tuneup-scratch-202" and shows(laptop) == 3,
+      "SUPER+ALT+S sends the window to the (put away) last scratch desktop, the screen stays")
 
 -- Evaluating the module again (a key changed) keeps the state, no double handlers.
 load_module()
@@ -108,7 +115,7 @@ fake.open_window("two")
 tuneup_scratch.digit("switch", 1, hl.dsp.exec_cmd("tuneup switch 1"))
 tuneup_scratch.toggle()                     -- leave on 1: it is the last one
 fake.run_timers()
-check(fake.workspaces[201].monitor == laptop and fake.workspaces[202].monitor == laptop, "both on the laptop")
+check(fake.workspaces[201] == nil and fake.workspaces[202] == nil, "both wait hidden while the row is closed")
 fake.focus_monitor(hp)
 tuneup_scratch.toggle()
 fake.run_timers()
