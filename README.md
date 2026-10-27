@@ -11,6 +11,7 @@
 | **Desktop widgets** | Clock, lyrics, a music visualizer, now playing, weather, calendar, system, battery, network and disks. You arrange and color them right on the desktop and save layouts per desk. |
 | **Sound** | Volume for every device and every app, the default device, and which output each app uses. Force Mute keeps a device silent for good. |
 | **Camera** | Turns the camera picture for every app (Discord, Zoom, the browser), like a monitor. |
+| **Scratch desktops** | `SUPER + S` flies in a row of scratch desktops instead of Omarchy's single scratchpad: several of them, shared by all screens, swipe between them, move windows there. |
 | **Minimize windows** | `SUPER + M` hides a window and `SUPER + I` brings it back. A window menu lets you **peek** at a hidden window without touching your layout. |
 | **Keeps your settings in force** | When another app or a reload changes something you set, Tuneup puts it back. |
 | **Galaxy Book support** | Samsung Settings on Linux: charge limit, the four performance modes, keyboard light and the firmware switches. Every other laptop works fully too. |
@@ -42,6 +43,7 @@ The installer checks your system and installs what is missing from the official 
 | `SUPER + M` | minimize window |
 | `SUPER + I` | bring it back |
 | `SUPER + .` | window menu (`-` = peek) |
+| `SUPER + S` | scratch desktops in / out |
 | tray icon | Tuneup settings |
 
 All keys can be changed in the app under **Keyboard**.
@@ -68,6 +70,7 @@ All keys can be changed in the app under **Keyboard**.
 | [personalization.md](docs/personalization.md) | window look and desktop widgets |
 | [sound.md](docs/sound.md) | volume per device and app, Force Mute |
 | [camera.md](docs/camera.md) | the turned camera for every app |
+| [scratch.md](docs/scratch.md) | scratch desktops: Omarchy's scratchpad, but several and on every screen |
 | [minimizer.md](docs/minimizer.md) | minimize, bring back and peek at windows |
 | [keys.md](docs/keys.md) | change a shortcut |
 | [keep-settings.md](docs/keep-settings.md) | how Tuneup keeps your settings in force |

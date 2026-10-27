@@ -214,8 +214,10 @@ def build_parser() -> argparse.ArgumentParser:
     bind.add_argument("slot", type=int, choices=[1, 2])
     bind.add_argument("combo", nargs="?", default="", help="empty to clear")
 
-    option = sub.add_parser("option", help="desktop_keys on|off, default_fixed off|external|panel, fixed_desktops 1-10")
-    option.add_argument("name", choices=["desktop_keys", "default_fixed", "fixed_desktops"])
+    option = sub.add_parser("option", help="desktop_keys on|off, default_fixed off|external|panel, fixed_desktops 1-10, "
+                                          "scratch on|off, scratch_shift_s on|off")
+    option.add_argument("name", choices=["desktop_keys", "default_fixed", "fixed_desktops", "scratch",
+                                         "scratch_shift_s"])
     option.add_argument("value", nargs="?", default="next")
 
     for name, text in (
@@ -429,8 +431,8 @@ def option_value(cfg: dict, name: str, value: str) -> object:
         if not value.isdigit() or not 1 <= int(value) <= 10:
             raise ValueError("fixed_desktops must be 1-10")
         return int(value)
-    if name == "desktop_keys":
-        return not cfg["desktop_keys"] if value in ("next", "prev") else value in ("on", "1", "true", "yes")
+    if name in ("desktop_keys", "scratch", "scratch_shift_s"):
+        return not cfg[name] if value in ("next", "prev") else value in ("on", "1", "true", "yes")
     choices = config.FIXED_DEFAULTS
     if value in ("next", "prev"):
         value = choices[(choices.index(cfg["default_fixed"]) + (1 if value == "next" else -1)) % len(choices)]
@@ -446,9 +448,14 @@ def option_command(args: argparse.Namespace) -> int:
     if isinstance(result, int):
         return result
     before, cfg = result
-    if args.name in ("desktop_keys", "fixed_desktops"):
+    if args.name in ("desktop_keys", "fixed_desktops", "scratch", "scratch_shift_s"):
         keybinds.write(cfg)
-        keybinds.go_live(before, cfg)
+        if args.name.startswith("scratch") and before[args.name] and not cfg[args.name]:
+            from hypr_screens import hypr
+
+            hypr.hyprctl("reload")  # what we took over (Omarchy's or the user's keys) comes back
+        else:
+            keybinds.go_live(before, cfg)
     engine.sync()
     print_state()
     return 0

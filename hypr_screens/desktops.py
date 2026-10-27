@@ -7,13 +7,14 @@ Which screen is fixed (the "role": "panel" = laptop, "external"):
   1. a temporary swap (`tuneup swap`), until the monitor is unplugged,
   2. the "one_desktop" setting of either screen (the laptop wins a tie),
   3. the global default, unless the screen it would pick says "no".
-Without a role, desktops behave like stock Hyprland.
+Without a role, desktops behave like stock Hyprland. The scratch desktops
+(scratch.FIRST and up) may show on any screen, the fixed one too.
 """
 import json
 import os
 from dataclasses import dataclass, field
 
-from hypr_screens import config, hypr
+from hypr_screens import config, hypr, scratch
 
 FIXED_WS = int(os.environ.get("HYPR_SCREENS_FIXED_WS", "99"))
 DESKTOPS = range(1, 11)
@@ -78,6 +79,10 @@ class Screens:
                 return int((monitor.get("activeWorkspace") or {}).get("id") or 0)
         return 0
 
+    def at_home(self, name: str) -> bool:
+        """The fixed screen shows one of its desktops, or a scratch desktop."""
+        return self.workspace_on(name) in self.fixed_set or self.workspace_on(name) >= scratch.FIRST
+
     @property
     def focused(self) -> dict:
         return next((monitor for monitor in self.monitors if monitor.get("focused")), {})
@@ -141,7 +146,7 @@ def pin(workspace: int, monitor: str, persistent: bool = False) -> None:
 def hold_fixed(screens: Screens) -> None:
     """Keep the fixed screen on one of its desktops, without stealing focus."""
     fresh = resolve_names(screens)
-    if fresh.workspace_on(screens.fixed) in screens.fixed_set:
+    if fresh.at_home(screens.fixed):
         return
     pin(FIXED_WS, screens.fixed)
     refocus = fresh.focused.get("name", "")
@@ -193,7 +198,7 @@ def misplaced(screens: Screens, workspaces: list[dict], rules: list[dict]) -> li
         left = [w["id"] for w in workspaces if w.get("id") in screens.fixed_set and w.get("windows")]
         return [f"windows on desktop {ws}" for ws in left]
     found = []
-    if screens.workspace_on(screens.fixed) not in screens.fixed_set:
+    if not screens.at_home(screens.fixed):
         found.append(f"{screens.fixed} does not show desktop {FIXED_WS}")
     found += [f"desktop {w['id']} on {screens.fixed}" for w in workspaces
               if w.get("id") in DESKTOPS and w.get("monitor") == screens.fixed]

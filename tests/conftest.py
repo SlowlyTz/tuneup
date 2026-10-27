@@ -25,3 +25,11 @@ def tuneup_command(monkeypatch):
     from hypr_screens import brand
 
     monkeypatch.setattr(brand, "command", lambda: brand.COMMAND)
+
+
+@pytest.fixture(autouse=True)
+def no_real_hyprland(monkeypatch):
+    """A test that forgets to fake Hyprland gets empty answers, never the real one."""
+    from hypr_screens import hypr
+
+    monkeypatch.setattr(hypr, "hyprctl", lambda *args: "")

@@ -530,6 +530,7 @@ def test_rendered_lua_unbinds_before_binding():
     cfg = config.default_config()
     cfg["keybinds"]["minimizer_menu"] = ["SUPER + PERIOD", "SUPER + SHIFT + F23"]
     cfg["desktop_keys"] = True
+    cfg["scratch"] = False   # the scratch desktops wrap these binds (tests/test_scratch.py)
     lua = keybinds.render(cfg)
     assert 'hl.unbind("SUPER + SHIFT + code:201")' in lua
     assert (

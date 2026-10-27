@@ -12,7 +12,7 @@ import os
 from collections import Counter
 from pathlib import Path
 
-from hypr_screens import brand, config, desktops, hypr, look
+from hypr_screens import brand, config, desktops, hypr, look, scratch
 
 RECORD_SUBMAP = "hypr-screens-record"
 # The settings window (brand.APP_ID, its size).
@@ -156,7 +156,13 @@ def own_descriptions() -> set[str]:
     labels = {label for _action, label, _command in config.ACTIONS}
     labels |= {label for _mods, _command, label in DESKTOP_BINDS}
     labels |= {label for _combo, _command, label in CYCLE_BINDS}
-    return labels
+    return labels | {scratch.TOGGLE_LABEL, scratch.MOVE_LABEL}
+
+
+def digit_keys(cfg: dict) -> bool:
+    """SUPER (+ SHIFT / + SHIFT + ALT) + 1…0 are ours: the desktop keys, or the
+    scratch desktops (which need them inside the row)."""
+    return bool(cfg.get("desktop_keys")) or scratch.enabled(cfg)
 
 
 def conflicts(combo: str, binds: list[dict] | None = None, ignore: set[str] | None = None) -> list[str]:
@@ -187,11 +193,41 @@ def lua_quote(value: str) -> str:
 
 
 def bind_line(combo: str, command: str, description: str) -> list[str]:
+    return lua_bind_line(combo, f"hl.dsp.exec_cmd({lua_quote(command)})", description)
+
+
+def lua_bind_line(combo: str, action: str, description: str) -> list[str]:
+    """Unbind whatever sits on the key (both spellings), then bind `action` (a
+    dispatcher or a Lua function) with our description."""
     lines = [f"hl.unbind({lua_quote(spelling)})" for spelling in spellings(combo)]
-    lines.append(
-        f"hl.bind({lua_quote(normalize(combo))}, hl.dsp.exec_cmd({lua_quote(command)}), "
-        f"{{ description = {lua_quote(description)} }})"
-    )
+    lines.append(f"hl.bind({lua_quote(normalize(combo))}, {action}, {{ description = {lua_quote(description)} }})")
+    return lines
+
+
+# Omarchy's own desktop keys (bindings/tiling.lua), for SUPER + 1…0 outside the
+# scratch row when the desktop keys are off.
+OMARCHY_DIGITS = {
+    "switch": 'hl.dsp.focus({{ workspace = "{n}" }})',
+    "move": 'hl.dsp.window.move({{ workspace = "{n}" }})',
+    "move-silent": 'hl.dsp.window.move({{ workspace = "{n}", follow = false }})',
+}
+
+
+def digit_lines(cfg: dict) -> list[str]:
+    """SUPER (+ SHIFT / + SHIFT + ALT) + 1…0: `tuneup switch` with the desktop
+    keys on, Omarchy's own action with them off; inside the scratch row, the
+    scratch desktops."""
+    lines = []
+    for index, code in enumerate(DESKTOP_CODES, start=1):
+        for mods, command, label in DESKTOP_BINDS:
+            lines.append(f"hl.unbind({lua_quote(f'{mods} + {index % 10}')})")
+            combo = f"{mods} + code:{code}"
+            if cfg.get("desktop_keys"):
+                otherwise = f"hl.dsp.exec_cmd({lua_quote(f'{brand.command()} {command} {index}')})"
+            else:
+                otherwise = OMARCHY_DIGITS[command].format(n=index)
+            action = scratch.digit_call(command, index, otherwise) if scratch.enabled(cfg) else otherwise
+            lines += lua_bind_line(combo, action, label)
     return lines
 
 
@@ -199,10 +235,12 @@ def wanted(cfg: dict) -> list[tuple[str, str]]:
     """(combo, description) of every key Tuneup binds."""
     keys = [(normalize(combo), label) for action, label, _command in config.ACTIONS
             for combo in cfg["keybinds"][action] if parse(combo)]
-    if cfg.get("desktop_keys"):
+    if digit_keys(cfg):
         keys += [(normalize(f"{mods} + code:{code}"), label) for code in DESKTOP_CODES
                  for mods, _command, label in DESKTOP_BINDS]
+    if cfg.get("desktop_keys"):
         keys += [(normalize(combo), label) for combo, _command, label in CYCLE_BINDS]
+    keys += [(normalize(combo), label) for combo, _call, label in scratch.binds(cfg)]
     return keys
 
 
@@ -243,12 +281,17 @@ def render(cfg: dict, runtime: bool = False) -> str:
         lines.append("")
         lines.append("-- Desktop keys: desktops 1-10 stay on the non-fixed screen"
                      + (" (on the fixed screen, its own desktops)." if desktops.fixed_count(cfg) > 1 else "."))
-        for index, code in enumerate(DESKTOP_CODES, start=1):
-            for mods, command, label in DESKTOP_BINDS:
-                lines.append(f"hl.unbind({lua_quote(f'{mods} + {index % 10}')})")
-                lines += bind_line(f"{mods} + code:{code}", f"{brand.command()} {command} {index}", label)
+    elif scratch.enabled(cfg):
+        lines += ["", "-- SUPER + 1…0 as Omarchy has them, but inside the scratch row they go to scratch desktops."]
+    if digit_keys(cfg):
+        lines += digit_lines(cfg)
+    if cfg.get("desktop_keys"):
         for combo, command, label in CYCLE_BINDS:
             lines += bind_line(combo, f"{brand.command()} {command}", label)
+    if scratch.enabled(cfg):
+        lines += ["", scratch.module_lua()]
+        for combo, body, label in scratch.binds(cfg):
+            lines += lua_bind_line(combo, scratch.call(body), label)
     window_look = look.lua_table(cfg.get("look") or {})
     if window_look:
         lines += ["", "-- Window look from Personalization → Window (overrides the Omarchy theme).", window_look]
@@ -349,12 +392,15 @@ def go_live(old: dict | None, new: dict) -> None:
             for combo in keys:
                 if parse(combo) and normalize(combo) not in kept:
                     lines += [f"hl.unbind({lua_quote(spelling)})" for spelling in spellings(combo)]
-        if old.get("desktop_keys") and not new.get("desktop_keys"):
+        if digit_keys(old) and not digit_keys(new):
             for code in DESKTOP_CODES:
                 for mods, _command, _label in DESKTOP_BINDS:
                     lines.append(f"hl.unbind({lua_quote(f'{mods} + code:{code}')})")
+        if old.get("desktop_keys") and not new.get("desktop_keys"):
             for combo, _command, _label in CYCLE_BINDS:
                 lines.append(f"hl.unbind({lua_quote(combo)})")
+        gone = {combo for combo, _b, _l in scratch.binds(old)} - {combo for combo, _b, _l in scratch.binds(new)}
+        lines += [f"hl.unbind({lua_quote(combo)})" for combo in sorted(gone)]
     code = "\n".join(lines) + "\n" + render(new, runtime=True)
     hypr.eval_lua(code)
 
