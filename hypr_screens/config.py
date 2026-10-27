@@ -94,6 +94,8 @@ def default_config() -> dict:
         # SUPER + SHIFT + S moves a window there too; None: `tuneup setup` decides
         # (only if nothing of the user's sits on that key).
         "scratch_shift_s": None,
+        # Scratch desktops that are always there while the row is open (1..10).
+        "scratch_kept": 5,
         "screens": {},
         "sound": {"force_mute": {}},
         "samsung": {"limit": None, "mode": None, "full_once": False},
@@ -185,6 +187,9 @@ def normalize(raw: object) -> dict:
         cfg["scratch"] = raw["scratch"]
     if isinstance(raw.get("scratch_shift_s"), bool):
         cfg["scratch_shift_s"] = raw["scratch_shift_s"]
+    kept = raw.get("scratch_kept")
+    if isinstance(kept, int) and not isinstance(kept, bool) and 1 <= kept <= 10:
+        cfg["scratch_kept"] = kept
     cfg["screens"] = normalize_screens(raw)
     cfg["sound"]["force_mute"] = normalize_force_mute(raw)
     normalize_samsung(raw, cfg["samsung"])

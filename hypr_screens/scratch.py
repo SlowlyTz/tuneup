@@ -34,7 +34,7 @@ FLY = {"enabled": True, "speed": 3, "bezier": "easeOutQuint", "style": "slidever
 SLIDE = {**FLY, "style": "slide"}  # set inside the row by earlier versions
 SETTLE_MS = 400
 BOUNCE_MS = 60  # after a swipe has set its workspace
-KEPT = 5  # scratch desktops that exist while the row is open, empty or not  # a bit longer than the flight (speed 3 = 300 ms)
+KEPT = 5  # scratch desktops that exist while the row is open, empty or not (config scratch_kept)  # a bit longer than the flight (speed 3 = 300 ms)
 OMARCHY_SCRATCHPAD = "special:scratchpad"
 # Closed, a scratch desktop's windows wait here, so a swipe on a normal
 # desktop never reaches them (it walks the workspaces of its screen).
@@ -190,11 +190,12 @@ do
   -- the rule is lifted when the row closes, so they leave with it.
   local function keep(monitor)
     local on = monitor ~= nil
-    if S.kept == (on and monitor.name or false) then return end
-    S.kept = on and monitor.name or false
-    for i = 0, {kept} - 1 do
-      local rule = {{ workspace = tostring(first + i), persistent = on }}
-      if on then rule.monitor = monitor.name end
+    local state = on and (monitor.name .. ":" .. {kept}) or false
+    if S.kept == state then return end
+    S.kept = state
+    for i = 0, 9 do  -- all ten: a smaller count lifts the rule from the rest
+      local rule = {{ workspace = tostring(first + i), persistent = on and i < {kept} }}
+      if rule.persistent then rule.monitor = monitor.name end
       hl.workspace_rule(rule)
     end
   end
@@ -315,10 +316,11 @@ do
 end"""
 
 
-def module_lua(user: dict | None = None) -> str:
+def module_lua(user: dict | None = None, kept: int = KEPT) -> str:
+    """kept: scratch desktops that are always there while the row is open."""
     user = user_animation() if user is None else user
     return MODULE.format(first=FIRST, settle=SETTLE_MS, user=lua_table(user), fly=lua_table(FLY),
-                         parked=PARKED, parked_pattern=PARKED.replace("-", "%-"), kept=KEPT, bounce=BOUNCE_MS)
+                         parked=PARKED, parked_pattern=PARKED.replace("-", "%-"), kept=kept, bounce=BOUNCE_MS)
 
 
 def call(body: str, otherwise: str = "") -> str:

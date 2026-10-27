@@ -217,7 +217,7 @@ def build_parser() -> argparse.ArgumentParser:
     option = sub.add_parser("option", help="desktop_keys on|off, default_fixed off|external|panel, fixed_desktops 1-10, "
                                           "scratch on|off, scratch_shift_s on|off")
     option.add_argument("name", choices=["desktop_keys", "default_fixed", "fixed_desktops", "scratch",
-                                         "scratch_shift_s"])
+                                         "scratch_shift_s", "scratch_kept"])
     option.add_argument("value", nargs="?", default="next")
 
     for name, text in (
@@ -425,11 +425,11 @@ def option_value(cfg: dict, name: str, value: str) -> object:
     fixed_desktops: 1-10 or next/prev."""
     from hypr_screens import config
 
-    if name == "fixed_desktops":
+    if name in ("fixed_desktops", "scratch_kept"):
         if value in ("next", "prev"):
-            return (cfg["fixed_desktops"] + (0 if value == "next" else -2)) % 10 + 1
+            return (cfg[name] + (0 if value == "next" else -2)) % 10 + 1
         if not value.isdigit() or not 1 <= int(value) <= 10:
-            raise ValueError("fixed_desktops must be 1-10")
+            raise ValueError(f"{name} must be 1-10")
         return int(value)
     if name in ("desktop_keys", "scratch", "scratch_shift_s"):
         return not cfg[name] if value in ("next", "prev") else value in ("on", "1", "true", "yes")
@@ -448,16 +448,7 @@ def option_command(args: argparse.Namespace) -> int:
     if isinstance(result, int):
         return result
     before, cfg = result
-    if args.name in ("desktop_keys", "fixed_desktops", "scratch", "scratch_shift_s"):
-        keybinds.write(cfg)
-        if args.name.startswith("scratch") and before[args.name] and not cfg[args.name]:
-            from hypr_screens import hypr, scratch
-
-            if args.name == "scratch":
-                scratch.unpark_all()  # nothing may stay hidden without the keys that open it
-            hypr.hyprctl("reload")  # what we took over (Omarchy's or the user's keys) comes back
-        else:
-            keybinds.go_live(before, cfg)
+    keybinds.option_changed(before, cfg, args.name)
     engine.sync()
     print_state()
     return 0

@@ -335,3 +335,8 @@
 .fixes .fix-t b { display: block; font-weight: 500; }
 .fixes .fix-t small { display: block; color: var(--text-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fixes p { margin: 0; padding: 4px var(--s4) 6px; }
+
+/* Keys of a feature, as a short list: the combo, then what it does. */
+.kvs { display: grid; gap: 4px; margin-top: 4px; }
+.kv { display: grid; grid-template-columns: minmax(150px, max-content) 1fr; gap: var(--s3); }
+.kv .mono { color: var(--text); }

@@ -14,8 +14,9 @@ import qs.Ui
 // screen, not the globally focused one.
 //
 // A screen showing a scratch desktop (workspace 201 and up, SUPER + S) shows
-// only the scratch desktops -- 1 to 5 always, more while they exist, numbered
-// as SUPER + 1…0 reach them -- in the accent color behind a scratch marker;
+// only the scratch desktops -- those that exist (Tuneup keeps the first ones
+// while the row is open), numbered as SUPER + 1…0 reach them -- in the accent
+// color behind a scratch marker;
 // elsewhere they never show.
 BarWidget {
   id: root
@@ -80,7 +81,6 @@ BarWidget {
 
   function scratchIds() {
     var ids = []
-    for (var n = 0; n < 5; n++) ids.push(root.scratchFirst + n)  // always there while the row is open
     var all = Hyprland.workspaces.values
     for (var k = 0; k < all.length; k++) {
       var wid = all[k].id
