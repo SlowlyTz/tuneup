@@ -33,6 +33,7 @@ OMARCHY_SHIFT_S = {"Google Maps"}
 FLY = {"enabled": True, "speed": 3, "bezier": "easeOutQuint", "style": "slidevert"}
 SLIDE = {**FLY, "style": "slide"}  # set inside the row by earlier versions
 SETTLE_MS = 400
+BOUNCE_MS = 60  # after a swipe has set its workspace
 KEPT = 5  # scratch desktops that exist while the row is open, empty or not  # a bit longer than the flight (speed 3 = 300 ms)
 OMARCHY_SCRATCHPAD = "special:scratchpad"
 # Closed, a scratch desktop's windows wait here, so a swipe on a normal
@@ -276,14 +277,24 @@ do
 
   -- A swipe that leaves the row (or enters it from a normal desktop) bounces back.
   local function on_active(ws)
-    if not ws or ws.special or not ws.monitor then return end
-    local before = S.shown[ws.monitor.name]
-    S.shown[ws.monitor.name] = ws.id
+    if not ws or ws.special then return end
+    local monitor = ws.monitor or hl.get_active_monitor()
+    if not monitor then return end
+    local before = S.shown[monitor.name]
+    S.shown[monitor.name] = ws.id
     if is_scratch(ws) then S.last = ws.id end
     if S.busy == 0 and before ~= nil and (before >= first) ~= is_scratch(ws)
-        and next_to(ws.monitor, before, ws.id) then
+        and next_to(monitor, before, ws.id) then
+      -- Not right away: a swipe that just ended sets its workspace after this
+      -- event, and would undo a switch made from inside it.
       ours()
-      show(before)
+      after({bounce}, function()
+        local now = hl.get_active_monitor()
+        if now and now.name == monitor.name and now.active_workspace and now.active_workspace.id == ws.id then
+          ours()  -- this switch is ours too: no bounce of the bounce
+          show(before)
+        end
+      end)
       after({settle}, settle)
       return
     end
@@ -307,7 +318,7 @@ end"""
 def module_lua(user: dict | None = None) -> str:
     user = user_animation() if user is None else user
     return MODULE.format(first=FIRST, settle=SETTLE_MS, user=lua_table(user), fly=lua_table(FLY),
-                         parked=PARKED, parked_pattern=PARKED.replace("-", "%-"), kept=KEPT)
+                         parked=PARKED, parked_pattern=PARKED.replace("-", "%-"), kept=KEPT, bounce=BOUNCE_MS)
 
 
 def call(body: str, otherwise: str = "") -> str:

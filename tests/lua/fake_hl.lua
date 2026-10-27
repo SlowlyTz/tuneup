@@ -154,7 +154,15 @@ function fake.swipe(direction)
     end
     if not target then return end  -- nothing that way: the swipe snaps back
   end
-  fake.show(here, fake.workspaces[target] or fake.workspace(target, here))
+  local ws = fake.workspaces[target] or fake.workspace(target, here)
+  fake.show(here, ws)
+  -- Like Hyprland: the ending swipe sets its workspace after the event, so a
+  -- switch made from inside the event is undone.
+  if here.active_workspace ~= ws then
+    table.insert(fake.log, "swipe ends on " .. ws.id)
+    ws.monitor = here
+    here.active_workspace = ws
+  end
 end
 
 function fake.run_timers()
