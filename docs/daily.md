@@ -22,6 +22,17 @@ In the window menu: `Enter` here · `Shift+Enter` back to its desktop · `-` pee
 | tray icon (right-click) | open Tuneup, swap the fixed screen, arrange widgets, quit |
 | `SUPER + Y` | move window to the other screen (Hyprland, not Tuneup) |
 
+## Scratch desktops
+
+| Key | Does |
+|---|---|
+| `SUPER + S` | scratch desktops in / out |
+| `SUPER + 1…0`, `+ SHIFT`, `+ SHIFT + ALT` (in the row) | scratch desktop 1–10 / move window there |
+| `SUPER + ALT + S` | move window to the last scratch desktop |
+| swipe (in the row) | next / previous scratch desktop |
+
+More: [scratch.md](scratch.md).
+
 ## Desktops (with "one desktop" on)
 
 | Key | Does |
@@ -42,6 +53,7 @@ tuneup when Laptop rotation always
 tuneup swap                              # swap the fixed screen until unplugged
 tuneup apply                             # apply everything now
 tuneup enforce [on|off]                  # keep your settings in force (status without on/off)
+tuneup option scratch on|off             # scratch desktops on SUPER + S (off: Omarchy's scratchpad)
 tuneup restart                           # restart the background service and the tray
 tuneup update --check                    # is there a new version?
 tuneup update                            # update Tuneup

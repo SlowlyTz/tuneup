@@ -6,12 +6,15 @@ every update; existing settings are kept.
 2. hypr-screens' files moved to Tuneup's names (migrate.py)
 3. the settings file (created with the defaults if there is none)
 4. the Lua file with the keys and the autostart, loaded from hyprland.lua
-5. the Omarchy shell plugins: the window list, the bar widgets, the desktop widgets
-6. the desktop entry and the icon
+5. the scratch desktops in place of Omarchy's scratchpad: SUPER + SHIFT + S is
+   taken only if nothing of the user's is on it (decided once), and windows
+   left in the scratchpad move to the first scratch desktop
+6. the Omarchy shell plugins: the window list, the bar widgets, the desktop widgets
+7. the desktop entry and the icon
 """
 from pathlib import Path
 
-from hypr_screens import brand, config, hypr, install, keybinds, migrate, samsung, widgets
+from hypr_screens import brand, config, hypr, install, keybinds, migrate, samsung, scratch, widgets
 
 
 def lua(cfg: dict, moved: bool) -> list[str]:
@@ -31,6 +34,22 @@ def lua(cfg: dict, moved: bool) -> list[str]:
     else:
         keybinds.go_live(None, cfg)
     return done
+
+
+def scratch_desktops(cfg: dict) -> tuple[dict, list[str]]:
+    if not scratch.enabled(cfg):
+        return cfg, []
+    done = []
+    if cfg["scratch_shift_s"] is None:
+        others = keybinds.conflicts(scratch.SHIFT_S)
+        take = scratch.may_take_shift_s(others)
+        cfg = config.update(lambda fresh: fresh.__setitem__("scratch_shift_s", take))
+        done.append(f"{scratch.SHIFT_S}: " + ("moves a window to a scratch desktop" if take
+                                             else f"left to {', '.join(others)}"))
+    moved = scratch.rescue_scratchpad()
+    if moved:
+        done.append(f"from the scratchpad to scratch desktop 1: {', '.join(moved)}")
+    return cfg, done
 
 
 def shell(cfg: dict) -> list[str]:
@@ -53,6 +72,8 @@ def run() -> list[str]:
     moved = migrate.run()
     done += [f"moved {item}" for item in moved]
     cfg = config.update(lambda fresh: None)  # creates the file; keeps what is there
+    cfg, notes = scratch_desktops(cfg)
+    done += notes
     done += lua(cfg, any(".lua" in item for item in moved))
     done += shell(cfg)
     widgets.export(cfg)

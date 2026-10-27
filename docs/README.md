@@ -12,6 +12,7 @@ Tuneup is the settings app Omarchy is missing: screens and desktops, window look
 | change the window look, put widgets on the desktop | [personalization.md](personalization.md) |
 | control sound per device and app, force mute | [sound.md](sound.md) |
 | turn the camera picture for every app | [camera.md](camera.md) |
+| scratch desktops on SUPER + S (several, on every screen) | [scratch.md](scratch.md) |
 | minimize, restore or peek at windows | [minimizer.md](minimizer.md) |
 | change a shortcut | [keys.md](keys.md) |
 | understand why Tuneup puts settings back | [keep-settings.md](keep-settings.md) |

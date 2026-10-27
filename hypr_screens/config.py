@@ -89,6 +89,11 @@ def default_config() -> dict:
         # desktops on the fixed screen (1: the classic single fixed desktop)
         "fixed_desktops": 1,
         "enforce": True,
+        # Scratch desktops (workspaces 201 and up) in place of Omarchy's scratchpad.
+        "scratch": True,
+        # SUPER + SHIFT + S moves a window there too; None: `tuneup setup` decides
+        # (only if nothing of the user's sits on that key).
+        "scratch_shift_s": None,
         "screens": {},
         "sound": {"force_mute": {}},
         "samsung": {"limit": None, "mode": None, "full_once": False},
@@ -176,6 +181,10 @@ def normalize(raw: object) -> dict:
         cfg["fixed_desktops"] = count
     if isinstance(raw.get("enforce"), bool):
         cfg["enforce"] = raw["enforce"]
+    if isinstance(raw.get("scratch"), bool):
+        cfg["scratch"] = raw["scratch"]
+    if isinstance(raw.get("scratch_shift_s"), bool):
+        cfg["scratch_shift_s"] = raw["scratch_shift_s"]
     cfg["screens"] = normalize_screens(raw)
     cfg["sound"]["force_mute"] = normalize_force_mute(raw)
     normalize_samsung(raw, cfg["samsung"])
