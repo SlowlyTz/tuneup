@@ -14,8 +14,9 @@ import qs.Ui
 // screen, not the globally focused one.
 //
 // A screen showing a scratch desktop (workspace 201 and up, SUPER + S) shows
-// only the scratch desktops, numbered 1, 2, 3 ... in the accent color behind a
-// scratch marker; elsewhere they never show.
+// only the scratch desktops -- 1 to 5 always, more while they exist, numbered
+// as SUPER + 1…0 reach them -- in the accent color behind a scratch marker;
+// elsewhere they never show.
 BarWidget {
   id: root
   moduleName: "hypr-screens.workspaces"
@@ -79,6 +80,7 @@ BarWidget {
 
   function scratchIds() {
     var ids = []
+    for (var n = 0; n < 5; n++) ids.push(root.scratchFirst + n)  // always there while the row is open
     var all = Hyprland.workspaces.values
     for (var k = 0; k < all.length; k++) {
       var wid = all[k].id
@@ -117,7 +119,10 @@ BarWidget {
   }
 
   function label(id) {
-    if (root.isScratch(id)) return String(root.scratchIds().indexOf(id) + 1)  // compact: 1, 2, 3 ...
+    if (root.isScratch(id)) {  // as SUPER + 1…0 reach it: 201 is 1, 210 is 0
+      var n = id - root.scratchFirst + 1
+      return n === 10 ? "0" : String(n)
+    }
     if (root.isFixed(id)) return String(id - root.fixedWorkspace + 1)
     return id === 10 ? "0" : String(id)
   }

@@ -32,7 +32,8 @@ OMARCHY_SHIFT_S = {"Google Maps"}
 # Omarchy's special workspace animation, the flight of the old scratchpad.
 FLY = {"enabled": True, "speed": 3, "bezier": "easeOutQuint", "style": "slidevert"}
 SLIDE = {**FLY, "style": "slide"}  # set inside the row by earlier versions
-SETTLE_MS = 400  # a bit longer than the flight (speed 3 = 300 ms)
+SETTLE_MS = 400
+KEPT = 5  # scratch desktops that exist while the row is open, empty or not  # a bit longer than the flight (speed 3 = 300 ms)
 OMARCHY_SCRATCHPAD = "special:scratchpad"
 # Closed, a scratch desktop's windows wait here, so a swipe on a normal
 # desktop never reaches them (it walks the workspaces of its screen).
@@ -183,6 +184,19 @@ do
   local function move_window(window, target)
     hl.dispatch(hl.dsp.window.move({{ workspace = target, follow = false, window = "address:" .. window.address }}))
   end
+  -- Scratch desktops 1 to {kept} are always there while the row is open (never
+  -- dropped when empty, so SUPER + 1…0 and the bar's numbers always match);
+  -- the rule is lifted when the row closes, so they leave with it.
+  local function keep(monitor)
+    local on = monitor ~= nil
+    if S.kept == (on and monitor.name or false) then return end
+    S.kept = on and monitor.name or false
+    for i = 0, {kept} - 1 do
+      local rule = {{ workspace = tostring(first + i), persistent = on }}
+      if on then rule.monitor = monitor.name end
+      hl.workspace_rule(rule)
+    end
+  end
   local function row_open()
     for _, monitor in ipairs(hl.get_monitors()) do
       if is_scratch(monitor.active_workspace) then return true end
@@ -191,6 +205,7 @@ do
   end
   park = function()
     if row_open() then return end
+    keep(nil)
     for _, ws in ipairs(hl.get_workspaces()) do
       if is_scratch(ws) then
         for _, window in ipairs(hl.get_workspace_windows(ws) or {{}}) do move_window(window, "{parked}" .. ws.id) end
@@ -225,6 +240,7 @@ do
       show(normal_of(monitor))
     else
       if ws and not ws.special then S.normal[monitor.name] = ws.id end
+      keep(monitor)
       unpark()
       gather(monitor)
       show(S.last)
@@ -291,7 +307,7 @@ end"""
 def module_lua(user: dict | None = None) -> str:
     user = user_animation() if user is None else user
     return MODULE.format(first=FIRST, settle=SETTLE_MS, user=lua_table(user), fly=lua_table(FLY),
-                         parked=PARKED, parked_pattern=PARKED.replace("-", "%-"))
+                         parked=PARKED, parked_pattern=PARKED.replace("-", "%-"), kept=KEPT)
 
 
 def call(body: str, otherwise: str = "") -> str:

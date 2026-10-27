@@ -4,7 +4,7 @@
 -- and a swipe like Hyprland's (to the next workspace of that screen, a new one
 -- past the last). Nothing here is Hyprland's; it only behaves like it.
 local fake = { monitors = {}, workspaces = {}, windows = {}, timers = {}, handlers = {}, log = {},
-               specials = {}, specials_order = {}, animation = nil, active_window = nil }
+               specials = {}, specials_order = {}, persistent = {}, animation = nil, active_window = nil }
 
 local function sorted_ids()
   local ids = {}
@@ -44,9 +44,10 @@ function fake.fire(event, ...)
   for _, sub in ipairs(fake.handlers[event] or {}) do sub.fn(...) end
 end
 
--- What a switch on that monitor leaves behind: an empty workspace out of sight is gone.
+-- What a switch on that monitor leaves behind: an empty workspace out of sight
+-- is gone, unless a rule keeps it (persistent).
 local function drop_if_empty(ws)
-  if not ws then return end
+  if not ws or fake.persistent[ws.id] then return end
   for _, m in ipairs(fake.monitors) do if m.active_workspace == ws then return end end
   if windows_on(ws.id) == 0 then fake.workspaces[ws.id] = nil end
 end
@@ -199,6 +200,17 @@ hl = {
     return list
   end,
   get_monitors = function() return fake.monitors end,
+  workspace_rule = function(rule)
+    local id = tonumber(rule.workspace)
+    fake.persistent[id] = rule.persistent or nil
+    if rule.persistent then
+      local monitor
+      for _, m in ipairs(fake.monitors) do if m.name == rule.monitor then monitor = m end end
+      fake.workspace(id, monitor or fake.focused())
+    else
+      drop_if_empty(fake.workspaces[id])
+    end
+  end,
   get_workspace_windows = function(ws)
     local list = {}
     for _, w in ipairs(fake.windows) do if w.workspace == ws then table.insert(list, w) end end

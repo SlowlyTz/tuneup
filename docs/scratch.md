@@ -26,8 +26,9 @@ did, but you can have several, swipe between them and move windows onto them.
   wait hidden, so swiping on your normal desktops never lands in them; `SUPER + S`
   brings them all back. Switching scratch desktops off (or uninstalling) turns
   them into normal desktops again, nothing stays hidden.
-- **Empty ones disappear** like any empty desktop; the first one is always
-  there when you press `SUPER + S`.
+- **Scratch desktops 1 to 5 are always there** while the row is open, empty or
+  not, so `SUPER + 1…5` and the numbers in the bar always mean the same desktop.
+  Further ones (6 and up) disappear when they are empty.
 - **Outside the row** `SUPER + 1…0` work as before (Omarchy's desktops, or
   Tuneup's desktop keys with "one desktop" on).
 - **The bar** shows only the scratch desktops (numbered 1, 2, 3 …, in the accent
