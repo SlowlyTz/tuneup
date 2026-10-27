@@ -20,8 +20,12 @@ did, but you can have several, swipe between them and move windows onto them.
 - **It flies.** It comes in from below and leaves downward, like the old
   scratchpad. Switching inside the row with SUPER + 1…0 uses your own desktop
   animation, as outside it (Omarchy: none); a swipe follows the finger.
-- **Swiping stays in the row.** Swiping left past the first scratch desktop,
-  or from a normal desktop into the row, bounces back.
+- **Swiping stays in the row.** Swiping left past the first scratch desktop
+  bounces back.
+- **Closed, the row is out of the way.** While no screen shows it, its desktops
+  wait hidden, so swiping on your normal desktops never lands in them; `SUPER + S`
+  brings them all back. Switching scratch desktops off (or uninstalling) turns
+  them into normal desktops again, nothing stays hidden.
 - **Empty ones disappear** like any empty desktop; the first one is always
   there when you press `SUPER + S`.
 - **Outside the row** `SUPER + 1…0` work as before (Omarchy's desktops, or

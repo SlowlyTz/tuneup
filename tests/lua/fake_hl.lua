@@ -4,7 +4,7 @@
 -- and a swipe like Hyprland's (to the next workspace of that screen, a new one
 -- past the last). Nothing here is Hyprland's; it only behaves like it.
 local fake = { monitors = {}, workspaces = {}, windows = {}, timers = {}, handlers = {}, log = {},
-               animation = nil, active_window = nil }
+               specials = {}, specials_order = {}, animation = nil, active_window = nil }
 
 local function sorted_ids()
   local ids = {}
@@ -95,14 +95,29 @@ local function dispatch(d)
     fake.show(fake.focused(), ws or fake.workspace(id, fake.focused()))
   elseif d.op == "move" then
     local window = fake.active_window
+    if d.args.window then
+      window = nil
+      for _, w in ipairs(fake.windows) do if "address:" .. w.address == d.args.window then window = w end end
+    end
     if not window then return end
-    local id = tonumber(d.args.workspace)
-    local target = fake.workspaces[id] or fake.workspace(id, fake.focused())
+    local name = tostring(d.args.workspace)
+    local id = tonumber(name)
+    local target
+    if id then
+      target = fake.workspaces[id] or fake.workspace(id, fake.focused())
+    else  -- a special workspace: hidden, out of every screen's list of workspaces
+      target = fake.specials[name]
+      if not target then
+        target = { id = -100 - #fake.specials_order, name = name, special = true, monitor = fake.focused() }
+        fake.specials[name] = target
+        table.insert(fake.specials_order, name)
+      end
+    end
     local from = window.workspace
     window.workspace = target
-    table.insert(fake.log, "window " .. window.name .. " -> " .. id)
-    if d.args.follow ~= false then fake.show(target.monitor, target) end
-    drop_if_empty(from)
+    table.insert(fake.log, "window " .. window.name .. " -> " .. name)
+    if d.args.follow ~= false and id then fake.show(target.monitor, target) end
+    if not from.special then drop_if_empty(from) end
   elseif d.op == "wsmove" then
     local ws = fake.workspaces[tonumber(d.args.workspace)]
     for _, m in ipairs(fake.monitors) do
@@ -150,7 +165,7 @@ function fake.run_timers()
 end
 
 function fake.open_window(name)
-  local window = { name = name, workspace = fake.focused().active_workspace }
+  local window = { name = name, address = "0x" .. name, workspace = fake.focused().active_workspace }
   table.insert(fake.windows, window)
   fake.active_window = window
   return window
@@ -180,6 +195,13 @@ hl = {
   get_workspaces = function()
     local list = {}
     for _, id in ipairs(sorted_ids()) do table.insert(list, fake.workspaces[id]) end
+    for _, name in ipairs(fake.specials_order) do table.insert(list, fake.specials[name]) end
+    return list
+  end,
+  get_monitors = function() return fake.monitors end,
+  get_workspace_windows = function(ws)
+    local list = {}
+    for _, w in ipairs(fake.windows) do if w.workspace == ws then table.insert(list, w) end end
     return list
   end,
 }

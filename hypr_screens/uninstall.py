@@ -13,7 +13,7 @@ monitor settings are back.
 import shutil
 import sys
 
-from hypr_screens import brand, camera, config, desktops, hypr, install, keybinds, migrate, root, samsung
+from hypr_screens import brand, camera, config, desktops, hypr, install, keybinds, migrate, root, samsung, scratch
 
 MINIMIZED = "special:minimized"
 
@@ -21,6 +21,7 @@ MINIMIZED = "special:minimized"
 def bring_back_windows() -> list[str]:
     """Minimized windows to the desktop shown now; the fixed desktop's windows
     to a normal one (without the watcher nothing would ever show them)."""
+    scratch.unpark_all()  # scratch desktops put away while closed: normal workspaces again
     hidden = [c for c in hypr.query_list("clients") if (c.get("workspace") or {}).get("name") == MINIMIZED]
     focused = next((m for m in hypr.monitors() if m.get("focused")), {})
     shown = (focused.get("activeWorkspace") or {}).get("id") or 1

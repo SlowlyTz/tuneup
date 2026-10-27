@@ -110,6 +110,15 @@ def test_windows_left_in_the_scratchpad_move_to_the_first_scratch_desktop(model)
     assert model.clients[0]["workspace"]["id"] == scratch.FIRST and model.clients[1]["workspace"]["id"] == 1
 
 
+def test_put_away_scratch_desktops_come_back_when_switched_off(model):
+    """Without the keys nothing could open them again: switching scratch
+    desktops off (or uninstalling) gives their windows back as normal desktops."""
+    model.clients = [{"address": "0xa", "class": "notes", "workspace": {"id": -101, "name": scratch.PARKED + "202"}},
+                     {"address": "0xb", "class": "web", "workspace": {"id": -97, "name": "special:minimized"}}]
+    assert scratch.unpark_all() == ["notes"]
+    assert model.clients[0]["workspace"]["id"] == 202 and model.clients[1]["workspace"]["name"] == "special:minimized"
+
+
 def test_a_scratch_desktop_on_the_fixed_screen_is_no_drift(model):
     def settings(cfg):
         cfg["screens"]["HP Inc.|HP 32f|3CM1230QVW"] = {"favorite": False, "settings": {

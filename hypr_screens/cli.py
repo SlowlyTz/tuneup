@@ -451,8 +451,10 @@ def option_command(args: argparse.Namespace) -> int:
     if args.name in ("desktop_keys", "fixed_desktops", "scratch", "scratch_shift_s"):
         keybinds.write(cfg)
         if args.name.startswith("scratch") and before[args.name] and not cfg[args.name]:
-            from hypr_screens import hypr
+            from hypr_screens import hypr, scratch
 
+            if args.name == "scratch":
+                scratch.unpark_all()  # nothing may stay hidden without the keys that open it
             hypr.hyprctl("reload")  # what we took over (Omarchy's or the user's keys) comes back
         else:
             keybinds.go_live(before, cfg)

@@ -34,6 +34,9 @@ FLY = {"enabled": True, "speed": 3, "bezier": "easeOutQuint", "style": "slidever
 SLIDE = {**FLY, "style": "slide"}  # set inside the row by earlier versions
 SETTLE_MS = 400  # a bit longer than the flight (speed 3 = 300 ms)
 OMARCHY_SCRATCHPAD = "special:scratchpad"
+# Closed, a scratch desktop's windows wait here, so a swipe on a normal
+# desktop never reaches them (it walks the workspaces of its screen).
+PARKED = "special:tuneup-scratch-"
 
 
 def enabled(cfg: dict) -> bool:
@@ -141,9 +144,12 @@ do
     local mine = S.busy
     after({settle}, function() if S.busy == mine then S.busy = 0 end end)
   end
-  -- After a flight: the user's own animation again, in the row too.
+  -- After a flight: the user's own animation again, in the row too; a closed
+  -- row's desktops are put away.
+  local park
   local function settle()
     animate("user")
+    park()
   end
   local function show(id)
     hl.dispatch(hl.dsp.focus({{ workspace = tostring(id), on_current_monitor = true }}))
@@ -172,6 +178,33 @@ do
       end
     end
   end
+  -- While no screen shows the row, its desktops wait in hidden special
+  -- workspaces; opening it brings them back first.
+  local function move_window(window, target)
+    hl.dispatch(hl.dsp.window.move({{ workspace = target, follow = false, window = "address:" .. window.address }}))
+  end
+  local function row_open()
+    for _, monitor in ipairs(hl.get_monitors()) do
+      if is_scratch(monitor.active_workspace) then return true end
+    end
+    return false
+  end
+  park = function()
+    if row_open() then return end
+    for _, ws in ipairs(hl.get_workspaces()) do
+      if is_scratch(ws) then
+        for _, window in ipairs(hl.get_workspace_windows(ws) or {{}}) do move_window(window, "{parked}" .. ws.id) end
+      end
+    end
+  end
+  local function unpark()
+    for _, ws in ipairs(hl.get_workspaces()) do
+      local id = ws.special and tonumber((ws.name or ""):match("^{parked_pattern}(%d+)$"))
+      if id then
+        for _, window in ipairs(hl.get_workspace_windows(ws) or {{}}) do move_window(window, tostring(id)) end
+      end
+    end
+  end
   local function normal_of(monitor)
     if S.normal[monitor.name] then return S.normal[monitor.name] end
     local lowest
@@ -192,6 +225,7 @@ do
       show(normal_of(monitor))
     else
       if ws and not ws.special then S.normal[monitor.name] = ws.id end
+      unpark()
       gather(monitor)
       show(S.last)
     end
@@ -219,7 +253,9 @@ do
   function M.move_window()
     local window = hl.get_active_window()
     if not window or (window.workspace and window.workspace.id == S.last) then return end
-    hl.dispatch(hl.dsp.window.move({{ workspace = tostring(S.last), follow = false }}))
+    -- A closed row's desktops are put away: the window waits with them.
+    local target = row_open() and tostring(S.last) or "{parked}" .. S.last
+    hl.dispatch(hl.dsp.window.move({{ workspace = target, follow = false }}))
   end
 
   -- A swipe that leaves the row (or enters it from a normal desktop) bounces back.
@@ -254,7 +290,8 @@ end"""
 
 def module_lua(user: dict | None = None) -> str:
     user = user_animation() if user is None else user
-    return MODULE.format(first=FIRST, settle=SETTLE_MS, user=lua_table(user), fly=lua_table(FLY))
+    return MODULE.format(first=FIRST, settle=SETTLE_MS, user=lua_table(user), fly=lua_table(FLY),
+                         parked=PARKED, parked_pattern=PARKED.replace("-", "%-"))
 
 
 def call(body: str, otherwise: str = "") -> str:
@@ -269,6 +306,19 @@ def digit_call(action: str, index: int, otherwise: str) -> str:
 
 
 # --- setup -----------------------------------------------------------------------------------
+
+
+def unpark_all() -> list[str]:
+    """Scratch desktops put away while the row was closed come back as normal
+    workspaces (switching the feature off, uninstalling): nothing stays hidden."""
+    moved = []
+    for client in hypr.query_list("clients"):
+        name = str((client.get("workspace") or {}).get("name") or "")
+        if name.startswith(PARKED) and name[len(PARKED):].isdigit():
+            hypr.dispatch(f'hl.dsp.window.move({{ workspace = "{name[len(PARKED):]}", follow = false, '
+                          f'window = "address:{client["address"]}" }})')
+            moved.append(str(client.get("class") or client["address"]))
+    return moved
 
 
 def rescue_scratchpad() -> list[str]:
