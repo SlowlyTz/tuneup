@@ -56,14 +56,20 @@ tuneup_scratch.toggle()
 fake.run_timers()
 check(shows(laptop) == 202, "SUPER+S opens the last used scratch desktop")
 
--- Swipes: sideways in the row, a new one past the end, and a bounce at the left end.
+-- Scratch desktops 1 to 5 are always there while the row is open, empty or
+-- not: SUPER + 1 is scratch desktop 1 (seen live: the bar's "1" was another).
+for id = 201, 205 do check(fake.workspaces[id] ~= nil, "scratch desktop " .. (id - 200) .. " is there") end
+
+-- Swipes: sideways in the row, and a bounce at the left end.
 fake.swipe("right")
-check(shows(laptop) == 203, "swipe right: next scratch desktop (a new one)")
+check(shows(laptop) == 203, "swipe right: scratch desktop 3")
 fake.swipe("left")
 check(shows(laptop) == 202, "swipe left: back")
-fake.swipe("left")    -- 201 is gone (empty); next on this screen is desktop 3: out of the row ...
+fake.swipe("left")
+check(shows(laptop) == 201, "swipe left: scratch desktop 1, empty but kept")
+fake.swipe("left")    -- next on this screen is desktop 3: out of the row ...
 fake.run_timers()
-check(shows(laptop) == 202, "... bounces back into the row")
+check(shows(laptop) == 201, "... bounces back into the row")
 check(fake.style() == "instant", "still the user's animation in the row")
 
 -- Leaving by key is no bounce.
@@ -75,6 +81,7 @@ check(shows(laptop) == 3, "SUPER+S leaves the row for good")
 -- reaches them (seen live: two swipes right from a normal desktop landed in it).
 check(fake.workspaces[202] == nil and fake.specials["special:tuneup-scratch-202"] ~= nil,
       "scratch desktop 2 waits hidden while the row is closed")
+check(fake.workspaces[201] == nil and fake.workspaces[205] == nil, "the kept ones leave with the row")
 fake.swipe("right")
 fake.run_timers()
 check(shows(laptop) == 4, "a swipe right from the last normal desktop opens a new normal one")
@@ -87,7 +94,8 @@ fake.focus_monitor(hp)
 check(fake.style() == "instant", "the HP is not in the row: the user's animation")
 tuneup_scratch.toggle()
 fake.run_timers()
-check(shows(hp) == 202 and fake.workspaces[202].monitor == hp, "SUPER+S on the HP: scratch desktop 2 comes over")
+check(shows(hp) == 201 and fake.workspaces[202].monitor == hp and fake.workspaces[205].monitor == hp,
+      "SUPER+S on the HP: the row (last used: 1) comes over, with its window on 2")
 tuneup_scratch.toggle()
 fake.run_timers()
 check(shows(hp) == 99, "and back to the HP's own desktop 99")
@@ -96,7 +104,7 @@ check(shows(hp) == 99, "and back to the HP's own desktop 99")
 fake.focus_monitor(laptop)
 local mail = fake.open_window("mail")
 tuneup_scratch.move_window()
-check(mail.workspace.name == "special:tuneup-scratch-202" and shows(laptop) == 3,
+check(mail.workspace.name == "special:tuneup-scratch-201" and shows(laptop) == 3,
       "SUPER+ALT+S sends the window to the (put away) last scratch desktop, the screen stays")
 
 -- Evaluating the module again (a key changed) keeps the state, no double handlers.
@@ -104,7 +112,7 @@ load_module()
 local count = #fake.handlers["workspace.active"]
 check(count == 1, "one workspace.active handler after a second load, not " .. count)
 tuneup_scratch.toggle()
-check(shows(laptop) == 202, "the last scratch desktop survives a second load")
+check(shows(laptop) == 201, "the last scratch desktop survives a second load")
 
 -- The whole row comes along to the screen that opens it, so a swipe there
 -- reaches every scratch desktop (seen live: from 1 straight to a new 3).

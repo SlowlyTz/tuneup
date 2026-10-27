@@ -318,7 +318,11 @@ class HyprlandModel:
                 self.arrange()
         elif line.startswith("hl.workspace_rule("):
             fields = lua_fields(line)
-            self.workspace_rules[int(fields["workspace"])] = fields["monitor"]
+            if str(fields.get("workspace", "")).isdigit():  # a literal rule, not a Lua function's call
+                if "monitor" in fields:
+                    self.workspace_rules[int(fields["workspace"])] = fields["monitor"]
+                else:
+                    self.workspace_rules.pop(int(fields["workspace"]), None)
         elif line.startswith("hl.unbind("):
             combo = re.search(r'hl\.unbind\("([^"]+)"\)', line).group(1)
             self.binds = [b for b in self.binds if b.get("combo") != combo]
