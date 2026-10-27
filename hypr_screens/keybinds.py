@@ -289,7 +289,7 @@ def render(cfg: dict, runtime: bool = False) -> str:
         for combo, command, label in CYCLE_BINDS:
             lines += bind_line(combo, f"{brand.command()} {command}", label)
     if scratch.enabled(cfg):
-        lines += ["", scratch.module_lua()]
+        lines += ["", scratch.module_lua(kept=cfg.get("scratch_kept", scratch.KEPT))]
         for combo, body, label in scratch.binds(cfg):
             lines += lua_bind_line(combo, scratch.call(body), label)
     window_look = look.lua_table(cfg.get("look") or {})
@@ -479,3 +479,22 @@ def set_key(cfg: dict, action: str, slot: int, combo: str) -> str:
             notes.append(f"{combo} replaces: {', '.join(others)}")
     cfg["keybinds"][action][slot] = combo
     return "; ".join(notes)
+
+
+KEY_OPTIONS = ("desktop_keys", "fixed_desktops", "scratch", "scratch_shift_s", "scratch_kept")
+
+
+def option_changed(before: dict, cfg: dict, name: str) -> None:
+    """An option that shapes the keys took a new value: the Lua file anew and
+    live. Taking a scratch key away needs a reload, which brings back what sat
+    there before (Omarchy's scratchpad, the user's own key) -- and with the
+    scratch desktops off, nothing may stay hidden."""
+    if name not in KEY_OPTIONS:
+        return
+    write(cfg)
+    if name in ("scratch", "scratch_shift_s") and before[name] and not cfg[name]:
+        if name == "scratch":
+            scratch.unpark_all()
+        hypr.hyprctl("reload")
+    else:
+        go_live(before, cfg)

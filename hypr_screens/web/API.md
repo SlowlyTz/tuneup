@@ -158,6 +158,12 @@ Esc always drops back to the normal keymap.
 `desktop_keys` true/false (rewrites and reloads the keys, then syncs),
 `default_fixed` `"off" | "external" | "panel"` or `fixed_desktops` 1–10 (desktops
 on the fixed screen; above 1 the desktop keys act on the focused screen).
+Scratch desktops: `scratch` true/false (off gives Omarchy's scratchpad keys back
+by a reload and turns hidden scratch desktops into normal ones),
+`scratch_shift_s` true/false (SUPER + SHIFT + S also sends a window there; off
+reloads so the key's earlier use comes back), `scratch_kept` 1–10 (scratch
+desktops that are always there while the row is open). `options` holds all
+three as well.
 
 ## Window look
 

@@ -249,7 +249,8 @@ def test_keys_list_actions_and_what_hyprland_has_bound(desk):
     assert stash == {"id": "stash", "title": "Hide window", "desc": "Hides the active window.",
                      "slots": ["SUPER + M", None]}
     assert result["hyprBinds"] == {"SUPER + Q": "Close window", "SUPER + 1": "Switch to workspace 1"}
-    assert result["options"] == {"desktop_keys": False, "default_fixed": "off", "fixed_desktops": 1}
+    assert result["options"] == {"desktop_keys": False, "default_fixed": "off", "fixed_desktops": 1,
+                                 "scratch": True, "scratch_shift_s": False, "scratch_kept": 5}
 
 
 def test_a_key_moves_from_another_action_and_goes_live(desk):
@@ -265,13 +266,26 @@ def test_a_key_moves_from_another_action_and_goes_live(desk):
 
 
 def test_options_and_key_capture(desk):
-    assert api.set_option("desktop_keys", True) == {"desktop_keys": True, "default_fixed": "off", "fixed_desktops": 1}
+    assert api.set_option("desktop_keys", True) == {"desktop_keys": True, "default_fixed": "off", "fixed_desktops": 1,
+                                                    "scratch": True, "scratch_shift_s": False, "scratch_kept": 5}
     assert "tuneup switch 1" in keybinds.lua_file().read_text()
     assert error_of(api.set_option, "default_fixed", "laptop").code == "bad_value"
     assert error_of(api.set_option, "volume", 3).code == "bad_value"
     api.begin_key_capture()
     api.end_key_capture()
     assert desk.dispatched[-2:] == ['hl.dsp.submap("hypr-screens-record")', 'hl.dsp.submap("reset")']
+
+
+def test_scratch_desktop_options(desk):
+    assert api.set_option("scratch_kept", 3)["scratch_kept"] == 3
+    assert 'tostring(first + i), persistent = on and i < 3' in keybinds.lua_file().read_text()
+    assert error_of(api.set_option, "scratch_kept", 11).code == "bad_value"
+    assert error_of(api.set_option, "scratch", "yes").code == "bad_value"
+    reloads = desk.calls.count(("reload",))
+    assert api.set_option("scratch", False)["scratch"] is False
+    assert desk.calls.count(("reload",)) == reloads + 1              # Omarchy's scratchpad keys come back
+    assert "tuneup_scratch" not in keybinds.lua_file().read_text()
+    assert api.set_option("scratch", True)["scratch"] is True
 
 
 def test_closing_the_window_while_recording_gives_the_keys_back(desk):

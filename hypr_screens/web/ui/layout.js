@@ -32,8 +32,9 @@ export const emptyState = (icon, title, more = "") =>
   `<div class="card empty-state">${icon === "spinner" ? spinner() : ic(icon)}<b>${title}</b>${more}</div>`;
 
 /* A row that folds out `body`; stays open across renders (UI.open). */
-export function expander(key, { icon, title, desc, sid }, body) {
+export function expander(key, { icon, title, desc, sid, end = "" }, body) {
   const open = !!UI.open[key];
   on(key, { click: () => { UI.open[key] = !open; render(); } });
-  return `<div class="exp" data-open="${open}"${sidAttr(sid)}><div class="row" role="button" tabindex="0" aria-expanded="${open}" ${k(key)}>${ic(icon)}${text(title, desc)}${ic("chevD", "exp-chev")}</div>${open ? `<div class="exp-body">${body}</div>` : ""}</div>`;
+  // `end`: a control in the header (a switch), next to the fold arrow.
+  return `<div class="exp" data-open="${open}"${sidAttr(sid)}><div class="row" role="button" tabindex="0" aria-expanded="${open}" ${k(key)}>${ic(icon)}${text(title, desc)}${end ? `<div class="row-end">${end}</div>` : ""}${ic("chevD", "exp-chev")}</div>${open ? `<div class="exp-body">${body}</div>` : ""}</div>`;
 }
