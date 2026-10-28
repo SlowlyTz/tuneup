@@ -30,7 +30,7 @@ def docked(monkeypatch):
     def settings(cfg):
         cfg["screens"].setdefault(HP_ID, {"favorite": False, "settings": {}})
         config.set_setting(cfg, HP_ID, "position", "above")
-        config.set_setting(cfg, HP_ID, "one_desktop", True)
+        cfg["default_fixed"] = "external"
         cfg["look"] = {"gaps_in": 5}
         cfg["desktop_keys"] = True
     cfg = config.update(settings)

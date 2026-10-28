@@ -155,12 +155,9 @@ def clean_value(cfg: dict, sid: str, key: str, value: object) -> object:
         need(isinstance(value, str) and (value == "preferred" or MODE_PATTERN.match(value)), "bad_value",
              "mode must be \"preferred\" or like \"2560x1440@59.95\"")
         return value
-    if key == "position":
-        need(not cfg["screens"][sid].get("internal"), "bad_value",
-             "the laptop stays where it is; place the other screen next to it")
-        need(value in config.POSITIONS, "bad_value", f"position must be one of {config.POSITIONS} or {{x, y}}")
-        return value
-    need(isinstance(value, bool), "bad_value", "one_desktop must be true, false or null")
+    need(not cfg["screens"][sid].get("internal"), "bad_value",
+         "the laptop stays where it is; place the other screen next to it")
+    need(value in config.POSITIONS, "bad_value", f"position must be one of {config.POSITIONS} or {{x, y}}")
     return value
 
 
@@ -206,7 +203,7 @@ KEEP = object()
 
 @endpoint
 def set_screen_setting(sid: str, key: str, value: object, when: object = None) -> dict:
-    """key: rotation | scale | mode | position | one_desktop; value None unsets.
+    """key: rotation | scale | mode | position; value None unsets.
     when: None (or left out) keeps the condition, [] = always, [other id] = only
     while that screen is connected. position also takes {x, y} from a drag."""
     cfg, monitors = recorded()

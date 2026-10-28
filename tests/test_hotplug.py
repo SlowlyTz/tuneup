@@ -29,7 +29,7 @@ def world(monkeypatch):
         for sid in (HP_ID, TV_ID, FUJITSU_ID):
             cfg["screens"].setdefault(sid, {"favorite": False, "settings": {}})
         config.set_setting(cfg, HP_ID, "position", "above")
-        config.set_setting(cfg, HP_ID, "one_desktop", True)
+        cfg["default_fixed"] = "external"
         config.set_setting(cfg, TV_ID, "scale", 2)
     config.update(settings)
     run(model, "added")
@@ -234,29 +234,6 @@ def test_a_dock_unplugging_in_waves_settles_with_one_sync(watched, monkeypatch):
     assert_settled(model)
 
 
-def test_desk_meeting_desk_through_the_watcher(watched):
-    """Unplugging never reloads. Plugging in the TV reloads once: the desk's
-    rules pinning desktops to the laptop must go, the TV has no fixed desktop."""
-    model, watcher, clock = watched
-    reloads = []
-    for _ in range(3):
-        before = model.reloads
-        model.plug(hp_output("DP-3"))
-        through_watcher(model, watcher, clock)
-        assert model.touching("eDP-1", "DP-3")
-        model.unplug("DP-3")
-        through_watcher(model, watcher, clock)
-        model.plug(tv_output("HDMI-A-1"))
-        through_watcher(model, watcher, clock)
-        assert model.monitor("HDMI-A-1")["scale"] == 2.0 and model.touching("eDP-1", "HDMI-A-1")
-        assert model.workspace_rules == {}
-        model.unplug("HDMI-A-1")
-        through_watcher(model, watcher, clock)
-        reloads.append(model.reloads - before)
-    assert reloads == [1, 1, 1]
-    assert_settled(model)
-
-
 def test_with_a_fixed_desktop_on_every_external_screen_nothing_reloads(watched):
     model, watcher, clock = watched
     config.update(lambda cfg: cfg.__setitem__("default_fixed", "external"))
@@ -278,7 +255,7 @@ def test_booting_docked_with_two_screens(monkeypatch):
     def settings(cfg):
         cfg["screens"].setdefault(HP_ID, {"favorite": False, "settings": {}})
         config.set_setting(cfg, HP_ID, "position", "above")
-        config.set_setting(cfg, HP_ID, "one_desktop", True)
+        cfg["default_fixed"] = "external"
     config.update(settings)
     run(model, "added")                           # the watcher's first sync
     assert model.touching("eDP-1", "DP-3") and not model.overlapping()
@@ -289,8 +266,7 @@ def test_booting_docked_with_two_screens(monkeypatch):
 
 def test_the_laptop_as_fixed_screen_gives_its_windows_back_on_unplug(world):
     model = world
-    config.update(lambda cfg: (config.set_setting(cfg, HP_ID, "one_desktop", None),
-                               config.set_setting(cfg, LAPTOP_ID, "one_desktop", True)))
+    config.update(lambda cfg: cfg.update(default_fixed="panel"))
     model.clients.append({"address": "0xa", "workspace": {"id": 1, "name": "1"}, "mapped": True,
                           "at": [0, 0], "size": [10, 10]})
     plug(model, hp_output())

@@ -71,14 +71,13 @@ recorded on every call.
   ],
   hypr: {                             // what Hyprland uses now; null while not connected
     rotation: 0, flipped: false, scale: 1, mode: "1920x1080@60.00",
-    one_desktop: false                // true = this screen is the fixed one right now
+    one_desktop: false                // true = this screen is the fixed one right now (no setting)
   },
   settings: {                         // the laptop has no "position"
     rotation:    { value: null, when: [], active: false },   // null = not set ("Von Hyprland: …")
     scale:       { value: 1.25, when: [], active: true },
     mode:        { value: null, when: [], active: false },
     position:    { value: "above", when: [], active: true }, // "left" | "right" | "above" | "below"
-    one_desktop: { value: true, when: ["Samsung Display Corp.|0x4159|"], active: true }
   },
   position: { x: 0, y: 0, w: 1920, h: 1080 },  // live, layout pixels (scaled, turned); null if not connected
   side: "above",                      // = settings.position.value
@@ -87,8 +86,8 @@ recorded on every call.
 ```
 
 Values: `rotation` 0/90/180/270; `scale` `"auto"` or 0.25–4; `mode`
-`"preferred"` or `"WxH@rate"` (best: one of `modes[].modes`); `one_desktop`
-true/false.
+`"preferred"` or `"WxH@rate"` (best: one of `modes[].modes`). Which screen is
+fixed is not a screen setting: it follows the `default_fixed` option and swaps.
 
 `when` (the condition): `[]` = always, `[id]` = only while that other
 screen is connected. **The real model has one screen at most**, not a list of
@@ -96,7 +95,7 @@ several. `active` = the value is set and its condition holds now.
 
 ### `setScreenSetting(sid, key, value, when?)` → `Screen & {applied: string[]}`
 
-- `key`: `rotation | scale | mode | position | one_desktop`; `value: null` unsets
+- `key`: `rotation | scale | mode | position`; `value: null` unsets
   (its condition goes with it).
 - `when`: `null`/left out keeps the condition, `[]` = always, `[otherId]`.
 - Saves, then applies everything (`engine.sync`: monitor rules, desktops).

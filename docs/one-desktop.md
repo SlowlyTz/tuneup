@@ -12,8 +12,7 @@ This is for **one** external monitor. Without one, everything is normal Hyprland
 Tuneup decides in this order:
 
 1. **Swap:** until you unplug the monitor. Swap from the tray menu (*Swap the fixed screen*), the **Swap** button on Home and on Screens, or `tuneup swap`.
-2. The setting **Always shows the same desktop** of a screen (Screens page). If both screens say yes, the laptop wins.
-3. **For new monitors** (Screens page, below the picture): Off · External monitor · Laptop.
+2. **For new monitors** (Screens page, below the picture): Off · External monitor · Laptop.
 
 The canvas on the Screens page marks the fixed screen with a pin.
 
@@ -28,14 +27,6 @@ window there), swiping moves between them, and a click on a tile in either bar s
 
 ```bash
 tuneup option fixed_desktops 5
-```
-
-Example: the laptop is fixed only at the desk; any other monitor is fixed itself:
-
-```bash
-tuneup set Laptop one_desktop yes
-tuneup when Laptop one_desktop "HP 32f"
-tuneup option default_fixed external
 ```
 
 ## What happens when you…

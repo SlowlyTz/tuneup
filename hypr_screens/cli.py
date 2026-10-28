@@ -61,8 +61,6 @@ def parse_value(key: str, raw: str) -> object:
         if raw not in config.POSITIONS:
             raise ValueError(f"position must be one of {config.POSITIONS}")
         return raw
-    if key == "one_desktop":
-        return raw in ("1", "true", "yes", "on")
     return raw
 
 
@@ -193,7 +191,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     setting = sub.add_parser("set", help="set a screen setting, e.g. `set Laptop rotation 180`")
     setting.add_argument("screen")
-    setting.add_argument("key", choices=["rotation", "scale", "mode", "position", "one_desktop"])
+    setting.add_argument("key", choices=["rotation", "scale", "mode", "position"])
     setting.add_argument("value", help="value, or `unset`")
 
     when = sub.add_parser("when", help="tie a setting to another screen: `when Laptop rotation \"HP 32f\"`")
