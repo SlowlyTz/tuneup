@@ -84,7 +84,7 @@ class App(Adw.Application):
 
         if self.window is None:
             self.window = WebWindow(self)
-            self.window.connect("destroy", self.on_destroyed)
+            self.window.connect("close-request", self.on_closed)
             self.window.present()
             GLib.timeout_add(150, placement.float_centered)
             return False
@@ -96,11 +96,14 @@ class App(Adw.Application):
         GLib.timeout_add(150, placement.bring_here, here)
         return False
 
-    def on_destroyed(self, window) -> None:
-        """Closed: the web view goes with it (no memory held while hidden); the
-        tray keeps the app running."""
+    def on_closed(self, window) -> bool:
+        """Closed: the next show builds a new window; the tray keeps the app
+        running. Not on "destroy": GTK 4 sends that only once nothing holds the
+        window any more, and self.window does -- a closed window shown again has
+        lost its app (wrong class, no window rule) and no longer closes."""
         if self.window is window:
             self.window = None
+        return False
 
     def swap(self) -> bool:
         try:

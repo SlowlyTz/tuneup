@@ -135,7 +135,7 @@ class WebWindow(Adw.ApplicationWindow):
 
         self.monitor = Gio.File.new_for_path(str(config.config_file())).monitor_file(Gio.FileMonitorFlags.NONE, None)
         self.monitor.connect("changed", self.on_config_changed)
-        self.connect("destroy", self.on_destroy)
+        self.connect("close-request", self.on_close)
 
     def add_boot_script(self) -> None:
         self.content.remove_all_scripts()
@@ -231,7 +231,11 @@ class WebWindow(Adw.ApplicationWindow):
         Gio.AppInfo.launch_default_for_uri_async(uri, None, None, None, None)
         return True
 
-    def on_destroy(self, _window) -> None:
+    def on_close(self, _window) -> bool:
+        """Closing (SUPER+W, Ctrl+W): stop everything now. GTK 4 frees a window
+        only once nothing holds it, and the signal handlers here hold this one
+        (a cycle through C that Python's GC cannot see), so it is disposed by
+        hand once the close went through, and its web process ended."""
         self.closed = True
         from hypr_screens.api import shortcuts
 
@@ -239,4 +243,13 @@ class WebWindow(Adw.ApplicationWindow):
         self.monitor.cancel()
         if self.refresh_source:
             GLib.source_remove(self.refresh_source)
+            self.refresh_source = 0
         self.worker.shutdown(wait=False, cancel_futures=True)
+        GLib.idle_add(self.dispose_closed)
+        return False
+
+    def dispose_closed(self) -> bool:
+        self.view.terminate_web_process()
+        self.run_dispose()
+        self.view = self.content = None  # what still holds this window must not hold the view
+        return False
