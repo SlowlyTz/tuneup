@@ -6,7 +6,7 @@
 
 | Feature | What you get |
 |---|---|
-| **Screens & desktops** | Every monitor is remembered with its own rotation, scaling, resolution and place. Drag screens into position. A setting can apply only while a certain monitor is connected. Optionally, one screen keeps one fixed desktop. |
+| **Screens & desktops** | Every monitor is remembered with its own rotation, scaling, resolution and place. Drag screens into position, or mirror the laptop onto a projector. A setting can apply only while a certain monitor is connected. Optionally, one screen keeps one fixed desktop. |
 | **Window look** | Gaps, corners, borders, blur, transparency and animation speed, with a live preview and presets. Some apps can get their own transparency. |
 | **Desktop widgets** | Clock, lyrics, a music visualizer, now playing, weather, calendar, system, battery, network and disks. You arrange and color them right on the desktop and save layouts per desk. |
 | **Sound** | Volume for every device and every app, the default device, and which output each app uses. Force Mute keeps a device silent for good. |

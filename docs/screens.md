@@ -18,6 +18,7 @@ The settings of the screen you clicked:
 
 | Setting | Choices |
 |---|---|
+| Mirror the laptop screen | on or off (external screens), see below |
 | Position | left, above, below or right of the laptop (external screens; also by dragging) |
 | Rotation | Normal · Portrait, right · Upside down · Portrait, left |
 | Scaling | Auto · 100 % · 125 % · 150 % · 200 % |
@@ -32,6 +33,16 @@ Under **Advanced**:
 ### Safety net
 
 When a change gives a screen new values (rotation, scaling, resolution, place), Tuneup asks whether to keep it. Without a click on **Keep** it goes back after 15 seconds, like the display settings of other desktops.
+
+## Mirror the laptop screen
+
+For a projector or a TV: switch on **Mirror the laptop screen** for that monitor, and it shows the same picture as the laptop. Tuneup remembers it, so the projector mirrors again the next time it is plugged in, while your desk monitor keeps its own desktops.
+
+- A mirroring screen has no place, rotation or scaling of its own. Its resolution can still be set; if it is not the laptop's shape, the picture gets black bars.
+- In the picture at the top it stands under **Mirrors the laptop**; click it there to change its settings.
+- It is no screen of its own for [one desktop](one-desktop.md): nothing is fixed while it is plugged in.
+- With the lid closed there is nothing to mirror: the monitor shows its own picture until the lid opens again.
+- Like every setting, it can apply **Always** or only while a certain other screen is connected.
 
 ## Settings tied to a monitor
 
@@ -51,6 +62,7 @@ tuneup set "HP 32f" scale 1.25
 tuneup set DP-3 position left
 tuneup set Laptop rotation 180
 tuneup set Laptop rotation unset             # back to Hyprland's own config
+tuneup set "LG TV" mirror on                 # show the laptop's picture
 tuneup when Laptop rotation "HP 32f"         # only while HP 32f is connected
 tuneup when Laptop rotation always
 tuneup favorite "HP 32f"

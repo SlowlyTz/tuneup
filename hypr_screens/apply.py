@@ -10,6 +10,10 @@ is unplugged needs nothing: its rule only matters when it comes back, and is
 checked then (another screen on that connector gets a reload, so it does not
 inherit the rule).
 
+A screen that mirrors the laptop gets `mirror = <laptop's connector>` and no
+position: it has no place of its own. Hyprland lists such a screen only in
+`monitors all`, so the applier reads that list.
+
 A position ("above" the laptop, ...) becomes explicit coordinates for both
 screens (layout()): Hyprland's auto-up/-left/... only stack a screen along one
 axis at 0, and the laptop (placed "auto", to the right of everything) then
@@ -25,7 +29,7 @@ from pathlib import Path
 from hypr_screens import config, hypr
 
 TRANSFORMS = {0: 0, 90: 1, 180: 2, 270: 3}
-MONITOR_FIELDS = ("rotation", "scale", "mode", "position")
+MONITOR_FIELDS = ("rotation", "scale", "mode", "position", "mirror")
 RELOAD_SETTLE_SECONDS = 0.5
 
 
@@ -96,7 +100,14 @@ def usable(key: str, value: object) -> bool:
         return value == "auto" or (isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0)
     if key == "position":
         return value in config.POSITIONS
+    if key == "mirror":
+        return value is True
     return isinstance(value, str) and bool(value)
+
+
+def outputs() -> list[dict]:
+    """Every monitor Hyprland knows, the mirroring ones too."""
+    return hypr.monitors(include_disabled=True)
 
 
 def desired(cfg: dict, monitors: list[dict]) -> dict[str, dict]:
@@ -104,14 +115,19 @@ def desired(cfg: dict, monitors: list[dict]) -> dict[str, dict]:
     resolved to "XxY" coordinates, the anchor screen then gets one too."""
     live = config.connected(monitors)
     ids = set(live)
+    laptop = next((str(monitor["name"]) for monitor in live.values() if config.is_internal(monitor)), None)
     result = {}
     for sid, monitor in live.items():
         fields = {}
         for key in MONITOR_FIELDS:
             value = config.active_value(cfg, sid, key, ids)
-            if not usable(key, value) or (key == "position" and config.is_internal(monitor)):
+            if not usable(key, value) or (key in ("position", "mirror") and config.is_internal(monitor)):
                 continue
             fields[key] = value
+        if fields.pop("mirror", None):
+            if laptop is not None:
+                fields.pop("position", None)
+                fields["mirror"] = laptop
         result[str(monitor["name"])] = {"id": sid, "fields": fields}
     by_name = {str(monitor["name"]): monitor for monitor in live.values()}
     sides = {name: entry["fields"].pop("position") for name, entry in result.items() if "position" in entry["fields"]}
@@ -186,7 +202,7 @@ def layout(sizes: dict[str, tuple[int, int]], anchor: str, sides: dict[str, str]
 def snapshot(monitor: dict) -> dict:
     return {
         key: monitor.get(key)
-        for key in ("x", "y", "width", "height", "refreshRate", "scale", "transform")
+        for key in ("x", "y", "width", "height", "refreshRate", "scale", "transform", "mirrorOf")
     }
 
 
@@ -202,7 +218,7 @@ def mode_matches(monitor: dict, mode: str) -> bool:
 
 def already_there(monitor: dict, fields: dict) -> bool:
     """Whether the live monitor shows these fields, as far as that can be read."""
-    if fields.get("scale") == "auto":
+    if fields.get("scale") == "auto" or ("mirror" in fields) != config.is_mirror(monitor):
         return False
     if "position" in fields and fields["position"] != f"{monitor.get('x', 0)}x{monitor.get('y', 0)}":
         return False
@@ -221,6 +237,8 @@ def monitor_rule(monitor: dict, fields: dict) -> str:
         mode = f"{monitor['width']}x{monitor['height']}@{float(monitor.get('refreshRate') or 60):.2f}"
     if "position" in fields:
         position = str(fields["position"])
+    elif "mirror" in fields:
+        position = "auto"
     elif transform % 2 != int(monitor.get("transform") or 0) % 2:
         # Width and height swap; the old spot could overlap the other screen.
         position = "auto"
@@ -228,22 +246,28 @@ def monitor_rule(monitor: dict, fields: dict) -> str:
         position = f"{monitor.get('x', 0)}x{monitor.get('y', 0)}"
     scale = fields.get("scale", monitor.get("scale") or 1)
     scale_lua = hypr.lua_string("auto") if scale == "auto" else repr(float(scale))
+    mirror = f", mirror = {hypr.lua_string(fields['mirror'])}" if "mirror" in fields else ""
     return (
         f"hl.monitor({{ output = {hypr.lua_string(monitor['name'])}, mode = {hypr.lua_string(mode)}, "
-        f"position = {hypr.lua_string(position)}, scale = {scale_lua}, transform = {transform} }})"
+        f"position = {hypr.lua_string(position)}, scale = {scale_lua}, transform = {transform}{mirror} }})"
     )
 
 
-def needs_reset(applied: dict, wanted: dict) -> bool:
+def needs_reset(applied: dict, wanted: dict, monitors: list[dict]) -> bool:
     """A connected screen still has a rule it should not have: another screen's
-    (same connector) or a field whose setting went away (but a position)."""
+    (same connector) or a field whose setting went away (but a position, and a
+    mirror Hyprland dropped itself when the laptop went dark)."""
+    by_name = {str(monitor.get("name")): monitor for monitor in monitors}
     for name, now in wanted.items():
         entry = applied.get(name)
         if entry is None:
             continue
         if now["id"] != entry.get("id"):
             return True
-        if set(entry.get("fields", {})) - set(now["fields"]) - {"position"}:
+        gone = set(entry.get("fields", {})) - set(now["fields"]) - {"position"}
+        if "mirror" in gone and not config.is_mirror(by_name.get(name, {})):
+            gone.discard("mirror")
+        if gone:
             return True
     return False
 
@@ -271,7 +295,7 @@ def drifted(cfg: dict, monitors: list[dict]) -> list[str]:
     a reload, another app or a hotplug changed them. Empty while nothing is due."""
     wanted = desired(cfg, monitors)
     applied = load_applied()
-    if needs_reset(applied, wanted):
+    if needs_reset(applied, wanted, monitors):
         return sorted(wanted)
     by_name = {str(monitor.get("name")): monitor for monitor in monitors}
     found = []
@@ -315,21 +339,21 @@ def apply(cfg: dict) -> list[str]:
     """Bring the monitors in line with the settings; returns what was done."""
     done = []
     with locked():
-        monitors = hypr.monitors()
+        monitors = outputs()
         wanted = desired(cfg, monitors)
         applied = load_applied()
 
-        if needs_reset(applied, wanted):
+        if needs_reset(applied, wanted, monitors):
             reset()
             applied = {}
             done.append("reload")
-            monitors = hypr.monitors()
+            monitors = outputs()
             wanted = desired(cfg, monitors)
 
         done += put_in_force(wanted, monitors, applied)
         if any("after" not in entry for entry in applied.values()):
             time.sleep(RELOAD_SETTLE_SECONDS)
-            monitors = hypr.monitors()
+            monitors = outputs()
             # A "preferred" mode or an "auto" scale shows its size only now;
             # if that moves the edges, place the screens once more. So too a
             # screen Hyprland put elsewhere while it placed the next one.
@@ -342,7 +366,7 @@ def apply(cfg: dict) -> list[str]:
             if moved:
                 done += [name for name in put_in_force(moved, monitors, applied) if name not in done]
                 time.sleep(RELOAD_SETTLE_SECONDS)
-                monitors = hypr.monitors()
+                monitors = outputs()
             by_name = {str(monitor.get("name")): monitor for monitor in monitors}
             for name, entry in applied.items():
                 if name in by_name:

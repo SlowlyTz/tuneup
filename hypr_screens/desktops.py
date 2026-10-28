@@ -6,7 +6,8 @@ With several fixed desktops, the desktop keys act on the focused screen.
 Which screen is fixed (the "role": "panel" = laptop, "external"):
   1. a temporary swap (`tuneup swap`), until the monitor is unplugged,
   2. the global default ("default_fixed": off, the external screen or the laptop).
-Without a role, desktops behave like stock Hyprland. The scratch desktops
+A monitor that mirrors the laptop is no screen of its own here. Without a
+role, desktops behave like stock Hyprland. The scratch desktops
 (scratch.FIRST and up) may show on any screen, the fixed one too.
 """
 import json
@@ -96,7 +97,7 @@ def decide_role(cfg: dict, panel_id: str, external_id: str, ids: set[str], swaps
 
 
 def resolve(cfg: dict, monitors: list[dict] | None = None) -> Screens:
-    monitors = [m for m in (monitors if monitors is not None else hypr.monitors()) if not m.get("disabled")]
+    monitors = [m for m in (monitors if monitors is not None else hypr.monitors()) if not m.get("disabled") and not config.is_mirror(m)]
     screens = Screens(monitors=monitors, count=fixed_count(cfg))
     panel = next((m for m in monitors if config.is_internal(m)), None)
     external = next((m for m in monitors if not config.is_internal(m)), None)
@@ -148,7 +149,7 @@ def hold_fixed(screens: Screens) -> None:
 def resolve_names(screens: Screens) -> Screens:
     """Same roles, fresh monitor data."""
     return Screens(
-        monitors=[m for m in hypr.monitors() if not m.get("disabled")],
+        monitors=[m for m in hypr.monitors() if not m.get("disabled") and not config.is_mirror(m)],
         panel=screens.panel,
         external=screens.external,
         panel_id=screens.panel_id,
@@ -335,7 +336,7 @@ def step(cfg: dict, direction: int) -> None:
 
 def cycle(direction: int) -> None:
     """Focus the next visible window in screen order (left to right)."""
-    monitors = [m for m in hypr.monitors() if not m.get("disabled")]
+    monitors = [m for m in hypr.monitors() if not m.get("disabled") and not config.is_mirror(m)]
     visible = {(m.get("activeWorkspace") or {}).get("id") for m in monitors}
     focused_id = next((m.get("id") for m in monitors if m.get("focused")), None)
     active = str((hypr.query("activewindow") or {}).get("address") or "")

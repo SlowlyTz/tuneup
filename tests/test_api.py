@@ -168,7 +168,7 @@ def test_screens_show_live_values_modes_and_settings(desk):
         {"w": 1920, "h": 1080, "rates": [60.0], "modes": ["1920x1080@60.00"], "preferred": False},
     ]
     assert hp_view["hypr"] == {"rotation": 0, "flipped": False, "scale": 1.0, "mode": "2560x1440@60.00",
-                               "one_desktop": False}
+                               "one_desktop": False, "mirror": False}
     assert hp_view["position"] == {"x": 1920, "y": 0, "w": 2560, "h": 1440}
     assert hp_view["settings"]["rotation"] == {"value": None, "when": [], "active": False}
     assert hp_view["side"] is None
@@ -188,12 +188,24 @@ def test_a_setting_with_a_condition_is_saved_and_applied(desk):
     assert config.get_setting(config.load(), LAPTOP_ID, "rotation") is None
 
 
+def test_a_mirrored_screen_has_no_place_on_the_desk(desk):
+    result = api.set_screen_setting(HP_ID, "mirror", True)
+    assert result["applied"] == ["DP-3"]
+    assert result["settings"]["mirror"] == {"value": True, "when": [], "active": True}
+    assert result["hypr"]["mirror"] is True and result["position"] is None
+    laptop = next(s for s in api.screens() if s["id"] == LAPTOP_ID)
+    assert "mirror" not in laptop["settings"] and laptop["position"] is not None
+    assert api.fixed_status()["role"] is None
+
+
 def test_bad_screen_values_are_refused(desk):
     assert error_of(api.set_screen_setting, LAPTOP_ID, "rotation", 45).code == "bad_value"
     assert error_of(api.set_screen_setting, LAPTOP_ID, "scale", 9).code == "bad_value"
     assert error_of(api.set_screen_setting, LAPTOP_ID, "mode", "huge").code == "bad_value"
     assert error_of(api.set_screen_setting, LAPTOP_ID, "position", "left").code == "bad_value"
     assert error_of(api.set_screen_setting, LAPTOP_ID, "one_desktop", True).code == "bad_value"
+    assert error_of(api.set_screen_setting, LAPTOP_ID, "mirror", True).code == "bad_value"
+    assert error_of(api.set_screen_setting, HP_ID, "mirror", "on").code == "bad_value"
     assert error_of(api.set_screen_setting, LAPTOP_ID, "rotation", 90, [HP_ID, "x"]).code == "bad_value"
     assert error_of(api.set_screen_setting, LAPTOP_ID, "rotation", 90, [LAPTOP_ID]).code == "bad_value"
     assert error_of(api.set_screen_setting, "nope", "rotation", 90).code == "unknown_screen"

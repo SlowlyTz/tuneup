@@ -14,6 +14,8 @@ Tuneup decides in this order:
 1. **Swap:** until you unplug the monitor. Swap from the tray menu (*Swap the fixed screen*), the **Swap** button on Home and on Screens, or `tuneup swap`.
 2. **For new monitors** (Screens page, below the picture): Off · External monitor · Laptop.
 
+A monitor that [mirrors the laptop](screens.md#mirror-the-laptop-screen) is no screen of its own, so nothing is fixed while it is plugged in.
+
 The canvas on the Screens page marks the fixed screen with a pin.
 
 ## More than one desktop on the fixed screen

@@ -43,6 +43,7 @@ def live_values(monitor: dict, fixed_id: str | None, sid: str) -> dict:
         "scale": round(float(monitor.get("scale") or 1), 4),
         "mode": f"{monitor.get('width')}x{monitor.get('height')}@{rate:.2f}",
         "one_desktop": fixed_id == sid,
+        "mirror": config.is_mirror(monitor),
     }
 
 
@@ -76,7 +77,7 @@ def screen_view(cfg: dict, sid: str, live: dict[str, dict], fixed_id: str | None
     internal = bool(screen.get("internal"))
     monitor = live.get(sid)
     ids = set(live)
-    keys = [key for key in config.SETTING_KEYS if not (internal and key == "position")]
+    keys = [key for key in config.SETTING_KEYS if not (internal and key in ("position", "mirror"))]
     position = config.get_setting(cfg, sid, "position") if not internal else None
     return {
         "id": sid,
@@ -90,7 +91,7 @@ def screen_view(cfg: dict, sid: str, live: dict[str, dict], fixed_id: str | None
         "modes": mode_groups(screen.get("modes") or []),
         "hypr": live_values(monitor, fixed_id, sid) if monitor else None,
         "settings": {key: setting_view(cfg, sid, key, ids) for key in keys},
-        "position": live_position(monitor) if monitor else None,
+        "position": live_position(monitor) if monitor and not config.is_mirror(monitor) else None,
         "side": (position or {}).get("value"),
         "summary": config.summary(cfg, sid),
     }
@@ -155,6 +156,10 @@ def clean_value(cfg: dict, sid: str, key: str, value: object) -> object:
         need(isinstance(value, str) and (value == "preferred" or MODE_PATTERN.match(value)), "bad_value",
              "mode must be \"preferred\" or like \"2560x1440@59.95\"")
         return value
+    if key == "mirror":
+        need(not cfg["screens"][sid].get("internal"), "bad_value", "the laptop cannot mirror itself")
+        need(isinstance(value, bool), "bad_value", "mirror must be true, false or null")
+        return value
     need(not cfg["screens"][sid].get("internal"), "bad_value",
          "the laptop stays where it is; place the other screen next to it")
     need(value in config.POSITIONS, "bad_value", f"position must be one of {config.POSITIONS} or {{x, y}}")
@@ -203,7 +208,7 @@ KEEP = object()
 
 @endpoint
 def set_screen_setting(sid: str, key: str, value: object, when: object = None) -> dict:
-    """key: rotation | scale | mode | position; value None unsets.
+    """key: rotation | scale | mode | position | mirror; value None unsets.
     when: None (or left out) keeps the condition, [] = always, [other id] = only
     while that screen is connected. position also takes {x, y} from a drag."""
     cfg, monitors = recorded()

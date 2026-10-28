@@ -13,7 +13,7 @@ import { block, expander, notice, ph, row } from "../../ui/layout.js";
 import { openListbox } from "../../ui/popover.js";
 import { bindArrange } from "./arrange.js";
 import {
-  canDrag, conn, laptopId, parseMode, rotLabel, ROT, SCALES, scaleLabel, scr, SIDES, sideText, sname,
+  canDrag, conn, laptopId, mirrors, parseMode, rotLabel, ROT, SCALES, scaleLabel, scr, SIDES, sideText, sname,
 } from "./model.js";
 
 const keepIfApplied = (r) => r && r.applied && r.applied.length > 0;
@@ -72,6 +72,7 @@ function tileSize(s) {
 
 function arrangeCard(sel, cs) {
   const fx = S.fixed || {};
+  const mirrored = mirrors();
   const tiles = cs.map((s) => {
     const fixed = fx.fixed === s.id && cs.length > 1;
     const tip = [
@@ -81,16 +82,19 @@ function arrangeCard(sel, cs) {
     return `<button type="button" class="scr${s.id === sel.id ? " sel" : ""}" data-scr="${esc(s.id)}" aria-pressed="${s.id === sel.id}" aria-label="${esc(sname(s))}${fixed ? `, ${esc(t("fixed"))}` : ""}"${tip ? ` title="${esc(tip)}"` : ""}>
         ${ic(s.laptop ? "laptop" : "monitor", "glyph-ic")}
         <span class="n">${esc(sname(s))}</span><span class="m">${tileSize(s)}</span>
-        ${fixed ? `<span class="pill fixed-badge">${ic("pin")}${esc(t("Fixed"))}</span>` : ""}</button>`;
+        ${fixed ? `<span class="pill fixed-badge">${ic("pin")}${esc(t("Fixed"))}</span>` : ""}
+        ${s.laptop && mirrored.length ? `<span class="pill fixed-badge">${ic("mirror")}${esc(t("Mirrored"))}</span>` : ""}</button>`;
   }).join("");
-  const known = S.screens.filter((s) => !s.connected);
-  const strip = known.length ? `<div class="known"><span class="known-h">${esc(t("Known screens"))}</span>${known.map((s) => {
+  /* Screens without a place on the desk, as small buttons: mirrors, then the unplugged ones. */
+  const chips = (head, list, small) => (list.length ? `<div class="known"><span class="known-h">${esc(head)}</span>${list.map((s) => {
     const m = s.modes.find((x) => x.preferred) || s.modes[0] || { w: 16, h: 9 };
     const h = Math.round((26 * m.h) / m.w);
-    return `<button type="button" class="kscr${s.id === sel.id ? " sel" : ""}" aria-pressed="${s.id === sel.id}" ${reg(`known-${s.id}`, { click: () => { UI.sel = s.id; render(); } })}><span class="mini" style="width:26px;height:${h}px"></span><span><b>${esc(sname(s))}</b><small>${m.w ? res(m.w, m.h) : ""}</small></span>${s.favorite ? `<span title="${esc(t("Favorite"))}">${ic("star", "xs")}</span>` : ""}</button>`;
-  }).join("")}</div>` : "";
+    return `<button type="button" class="kscr${s.id === sel.id ? " sel" : ""}" aria-pressed="${s.id === sel.id}" ${reg(`known-${s.id}`, { click: () => { UI.sel = s.id; render(); } })}><span class="mini" style="width:26px;height:${h}px"></span><span><b>${esc(sname(s))}</b><small>${small(s, m)}</small></span>${s.favorite ? `<span title="${esc(t("Favorite"))}">${ic("star", "xs")}</span>` : ""}</button>`;
+  }).join("")}</div>` : "");
+  const strip = chips(t("Mirrors the laptop"), mirrored, (s) => (s.hypr ? res(parseMode(s.hypr.mode).w, parseMode(s.hypr.mode).h) : ""))
+    + chips(t("Known screens"), S.screens.filter((s) => !s.connected), (s, m) => (m.w ? res(m.w, m.h) : ""));
   return `<div class="card arr-card" data-sid="screens.arrange">
-      <div class="arr-bar"><span class="hint">${ic("drag", "sm")}${esc(cs.length > 1 ? t("Drag to arrange · click to select") : t("Only one screen is connected"))}</span>${fx.swapped ? `<span class="pill">${esc(t("Swapped"))}</span>` : ""}${fx.canSwap ? swapButton("swap", t("Swap the fixed screen")) : ""}</div>
+      <div class="arr-bar"><span class="hint">${ic("drag", "sm")}${esc(cs.length > 1 ? t("Drag to arrange · click to select") : mirrored.length ? t("The other screen shows the laptop's picture") : t("Only one screen is connected"))}</span>${fx.swapped ? `<span class="pill">${esc(t("Swapped"))}</span>` : ""}${fx.canSwap ? swapButton("swap", t("Swap the fixed screen")) : ""}</div>
       <div class="arrange" id="arrange">${tiles}</div>${strip}</div>`;
 }
 
@@ -118,7 +122,8 @@ function fixedDesktopsRow() {
 
 function screenHead(sel, cs) {
   const pref = sel.modes.find((m) => m.preferred) || sel.modes[0];
-  const fixedNow = (S.fixed || {}).fixed === sel.id && cs.length > 1 ? `<span class="pill">${ic("pin")}${esc(t("Fixed now"))}</span>` : "";
+  const fixedNow = (S.fixed || {}).fixed === sel.id && cs.length > 1 ? `<span class="pill">${ic("pin")}${esc(t("Fixed now"))}</span>`
+    : sel.hypr && sel.hypr.mirror ? `<span class="pill">${ic("mirror")}${esc(t("Mirrors the laptop"))}</span>` : "";
   const meta = [
     `<span class="state-dot${sel.connected ? "" : " off"}"></span>${esc(sel.connected ? t("Connected") : t("Not connected"))}`,
     `<span class="mono">${esc(sel.connector)}</span>`,
@@ -199,6 +204,21 @@ function positionBlock(sel) {
   });
 }
 
+/* "Mirror the laptop screen": an external screen shows the laptop's picture. */
+function mirrorRow(sel) {
+  if (sel.laptop) return "";
+  const st = sel.settings.mirror;
+  const unset = st.value == null;
+  const title = t("Mirror the laptop screen");
+  const desc = st.value ? t("Shows the same picture as the laptop – for a projector or a TV") : t("Off: it has its own desktops");
+  const idle = unset || st.active || !sel.connected ? "" : `<span class="pill neutral" title="${esc(t("Its screen is not connected now"))}">${esc(t("Not in force now"))}</span>`;
+  const reset = unset ? "" : `<button type="button" class="link" ${reg("reset-mirror", { click: () => setScreen(sel, "mirror", null) })}>${esc(t("Reset"))}</button>`;
+  return row({
+    sid: "screens.mirror", icon: "mirror", title: esc(title), desc: esc(desc),
+    end: `${idle}${reset}${whenChip(sel, "mirror")}${toggle("mirror", !!st.value, (v) => setScreen(sel, "mirror", v, null, `${title}: ${v ? t("On") : t("Off")}`), { label: title, unset })}`,
+  });
+}
+
 function advanced(sel) {
   const forget = async () => {
     const name = sname(sel);
@@ -237,6 +257,8 @@ export function pageScreens() {
       ${arrangeCard(sel, cs)}
       <div class="stack" style="margin-bottom:var(--s5)">${newMonitorsRow()}${fixedDesktopsRow()}</div>
       ${screenHead(sel, cs)}
-      <div class="stack">${positionBlock(sel)}${rotationBlock(sel)}${scaleBlock(sel)}${modeBlock(sel)}</div>
+      <div class="stack">${mirrorRow(sel)}${sel.hypr && sel.hypr.mirror
+        ? `${notice("info", esc(t("While it mirrors the laptop, it has no place, rotation or scale of its own.")))}${modeBlock(sel)}`
+        : `${positionBlock(sel)}${rotationBlock(sel)}${scaleBlock(sel)}${modeBlock(sel)}`}</div>
       <div class="stack" style="margin-top:var(--s1)">${advanced(sel)}</div>`;
 }
