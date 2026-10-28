@@ -11,6 +11,7 @@ did, but you can have several, swipe between them and move windows onto them.
 | `SUPER + SHIFT + 1…0` (in the row) | move the window to scratch desktop 1–10, follow |
 | `SUPER + SHIFT + ALT + 1…0` (in the row) | move the window there, stay |
 | `SUPER + ALT + S` | move the window to the last scratch desktop, stay where you are |
+| `SUPER + CTRL + S` | the active window into the row (last used scratch desktop) – inside the row: out onto the desktop the screen showed before, and the row closes |
 | `SUPER + SHIFT + S` | the same – only if nothing of yours is on that key (see below) |
 | 3-finger swipe (in the row) | next / previous scratch desktop; past the last one a new one opens |
 

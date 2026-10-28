@@ -132,4 +132,24 @@ fake.swipe("right")
 fake.run_timers()
 check(shows(hp) == 202, "swipe right from scratch desktop 1: 2, not a new 3")
 
+-- SUPER + CTRL + S: in and out on one key.
+fake.focus_monitor(laptop)
+tuneup_scratch.toggle()                      -- the HP's row leaves; the laptop is in it now ...
+fake.run_timers()
+tuneup_scratch.toggle()                      -- ... and out again, back on its desktop
+fake.run_timers()
+local here = shows(laptop)
+local app = fake.open_window("app")
+tuneup_scratch.swap_window()
+fake.run_timers()
+check(app.workspace.special and shows(laptop) == here, "a window outside the row goes in, the screen stays")
+tuneup_scratch.toggle()
+fake.run_timers()
+check(app.workspace.id >= 201 and shows(laptop) == app.workspace.id, "SUPER+S shows it in the row")
+fake.active_window = app
+tuneup_scratch.swap_window()
+fake.run_timers()
+check(app.workspace.id == here and shows(laptop) == here and fake.active_window == app,
+      "out again: onto the desktop shown before, the row closed, the window focused")
+
 print("ok")
