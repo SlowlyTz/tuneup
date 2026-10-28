@@ -24,7 +24,7 @@ ROTATIONS = [0, 90, 180, 270]
 SCALES = ["auto", 1, 1.25, 1.5, 2]
 POSITIONS = ["left", "right", "above", "below"]
 FIXED_DEFAULTS = ["off", "external", "panel"]
-SETTING_KEYS = ["rotation", "scale", "mode", "position", "one_desktop"]
+SETTING_KEYS = ["rotation", "scale", "mode", "position"]
 LANGUAGE_CODES = ["en", "de", "es", "fr", "it"]
 INSTALL_CHOICES = ["camera", "cava", "galaxy_book"]
 
@@ -395,24 +395,20 @@ def active_value(cfg: dict, sid: str, key: str, connected_ids: set[str]) -> obje
 
 def value_label(key: str, value: object) -> str:
     if value is None:
-        return "as configured" if key != "one_desktop" else "default"
+        return "as configured"
     if key == "rotation":
         return f"{value}°"
     if key == "scale":
         return "auto" if value == "auto" else f"{value}×"
-    if key == "one_desktop":
-        return "yes" if value else "no"
     return str(value)
 
 
 def summary(cfg: dict, sid: str) -> str:
-    """Short text for the screen list, e.g. "180° if HP 32f · one desktop"."""
+    """Short text for the screen list, e.g. "180° if HP 32f · above laptop"."""
     parts = []
     for key, setting in cfg["screens"].get(sid, {}).get("settings", {}).items():
         value = setting.get("value")
-        if key == "one_desktop":
-            text = "one desktop" if value else "no fixed desktop"
-        elif key == "position":
+        if key == "position":
             text = {"left": "left of laptop", "right": "right of laptop",
                     "above": "above laptop", "below": "below laptop"}.get(value, str(value))
         else:

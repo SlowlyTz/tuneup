@@ -22,7 +22,6 @@ The settings of the screen you clicked:
 | Rotation | Normal · Portrait, right · Upside down · Portrait, left |
 | Scaling | Auto · 100 % · 125 % · 150 % · 200 % |
 | Resolution | every mode the screen offers, the recommended one first, each with its refresh rates |
-| Always shows the same desktop | on or off, see [one-desktop.md](one-desktop.md) |
 
 A setting you never touched shows **Not set**, with what Hyprland does now. **Reset** takes your value back, and Hyprland's own config decides again.
 

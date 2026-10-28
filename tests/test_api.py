@@ -193,7 +193,7 @@ def test_bad_screen_values_are_refused(desk):
     assert error_of(api.set_screen_setting, LAPTOP_ID, "scale", 9).code == "bad_value"
     assert error_of(api.set_screen_setting, LAPTOP_ID, "mode", "huge").code == "bad_value"
     assert error_of(api.set_screen_setting, LAPTOP_ID, "position", "left").code == "bad_value"
-    assert error_of(api.set_screen_setting, LAPTOP_ID, "one_desktop", 1).code == "bad_value"
+    assert error_of(api.set_screen_setting, LAPTOP_ID, "one_desktop", True).code == "bad_value"
     assert error_of(api.set_screen_setting, LAPTOP_ID, "rotation", 90, [HP_ID, "x"]).code == "bad_value"
     assert error_of(api.set_screen_setting, LAPTOP_ID, "rotation", 90, [LAPTOP_ID]).code == "bad_value"
     assert error_of(api.set_screen_setting, "nope", "rotation", 90).code == "unknown_screen"

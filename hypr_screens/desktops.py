@@ -5,8 +5,7 @@ With several fixed desktops, the desktop keys act on the focused screen.
 
 Which screen is fixed (the "role": "panel" = laptop, "external"):
   1. a temporary swap (`tuneup swap`), until the monitor is unplugged,
-  2. the "one_desktop" setting of either screen (the laptop wins a tie),
-  3. the global default, unless the screen it would pick says "no".
+  2. the global default ("default_fixed": off, the external screen or the laptop).
 Without a role, desktops behave like stock Hyprland. The scratch desktops
 (scratch.FIRST and up) may show on any screen, the fixed one too.
 """
@@ -92,18 +91,8 @@ def decide_role(cfg: dict, panel_id: str, external_id: str, ids: set[str], swaps
     override = load_override() if swaps else {}
     if override.get("external") == external_id and override.get("role") in ("panel", "external"):
         return override["role"]
-    panel = config.active_value(cfg, panel_id, "one_desktop", ids)
-    external = config.active_value(cfg, external_id, "one_desktop", ids)
-    if panel is True:
-        return "panel"
-    if external is True:
-        return "external"
     default = cfg.get("default_fixed", "off")
-    if default == "panel" and panel is None:
-        return "panel"
-    if default == "external" and external is None:
-        return "external"
-    return None
+    return default if default in ("panel", "external") else None
 
 
 def resolve(cfg: dict, monitors: list[dict] | None = None) -> Screens:

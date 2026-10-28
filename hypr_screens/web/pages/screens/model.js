@@ -30,13 +30,6 @@ export const SCALES = () => [{ v: "auto", label: t("Auto") }, ...[1, 1.25, 1.5, 
 export const scaleLabel = (v) => (v === "auto" ? t("Auto") : pct(Math.round(v * 100)));
 export const rotLabel = (v) => (ROT().find((o) => o.v === v) || { label: `${v}°` }).label;
 
-/* Does this screen show only one desktop when it has nothing set itself
- * ("For new monitors": off, the external monitor or the laptop)? */
-export function oneDesktopByDefault(s) {
-  const fixed = S.keys && S.keys.options ? S.keys.options.default_fixed : "off";
-  return fixed === "external" ? !s.laptop : fixed === "panel" ? !!s.laptop : false;
-}
-
 /* Which side of `anchor` a rectangle is on, by their middles (as api.side_of). */
 function sideOf(r, a) {
   const dx = ((r.x + r.w / 2) - (a.x + a.w / 2)) / Math.max(1, (r.w + a.w) / 2);

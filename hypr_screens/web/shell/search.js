@@ -22,7 +22,6 @@ function fixedEntries() {
     { id: "screens.rotation", r: "screens", t: t("Rotation"), d: t("Turn the screen"), syn: t("rotate portrait upside down landscape") },
     { id: "screens.scale", r: "screens", t: t("Scale"), d: t("Makes text and windows bigger or smaller"), syn: t("size zoom dpi big small") },
     { id: "screens.mode", r: "screens", t: t("Resolution"), d: t("Resolution and refresh rate"), syn: t("hz hertz frequency pixels refresh rate") },
-    { id: "screens.one", r: "screens", t: t("Always shows the same desktop"), syn: t("one desktop fixed workspace") },
     { id: "screens.newmon", r: "screens", t: t("For new monitors"), syn: t("new unknown default fixed") },
     { id: "screens.fav", r: "screens", t: t("Favorite"), exp: "scr-adv", syn: t("star top") },
     { id: "screens.forget", r: "screens", t: t("Forget this screen"), exp: "scr-adv", syn: t("delete remove forget") },

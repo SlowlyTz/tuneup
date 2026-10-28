@@ -13,10 +13,10 @@ import { block, expander, notice, ph, row } from "../../ui/layout.js";
 import { openListbox } from "../../ui/popover.js";
 import { bindArrange } from "./arrange.js";
 import {
-  canDrag, conn, laptopId, oneDesktopByDefault, parseMode, rotLabel, ROT, SCALES, scaleLabel, scr, SIDES, sideText, sname,
+  canDrag, conn, laptopId, parseMode, rotLabel, ROT, SCALES, scaleLabel, scr, SIDES, sideText, sname,
 } from "./model.js";
 
-const keepIfApplied = (key) => (r) => key !== "one_desktop" && r && r.applied && r.applied.length > 0;
+const keepIfApplied = (r) => r && r.applied && r.applied.length > 0;
 
 /* Sets one setting of screen `s` (undo puts the old value and condition back). */
 function setScreen(s, key, value, when = null, msg = undefined) {
@@ -24,7 +24,7 @@ function setScreen(s, key, value, when = null, msg = undefined) {
   return change(
     () => api.setScreenSetting(s.id, key, value, when),
     () => api.setScreenSetting(s.id, key, old.value, old.value == null ? [] : old.when),
-    { reload: ["screens"], confirm: keepIfApplied(key), msg },
+    { reload: ["screens"], confirm: keepIfApplied, msg },
   );
 }
 
@@ -199,23 +199,6 @@ function positionBlock(sel) {
   });
 }
 
-/* "Always shows the same desktop": while not set, the default of "For new monitors" shows. */
-function oneDesktopRow(sel) {
-  const od = sel.settings.one_desktop;
-  const unset = od.value == null;
-  const byDefault = oneDesktopByDefault(sel);
-  const shown = unset ? byDefault : od.value;
-  const desc = unset
-    ? (byDefault ? t("Default: on (For new monitors)") : t("Default: off (For new monitors)"))
-    : od.value ? t("Stays on one desktop; the desktops 1–10 are on the other screen") : t("Has its own desktops");
-  const title = t("Always shows the same desktop");
-  const reset = unset ? "" : `<button type="button" class="link" ${reg("reset-od", { click: () => setScreen(sel, "one_desktop", null) })}>${esc(t("Reset"))}</button>`;
-  return row({
-    sid: "screens.one", icon: "pin", title: esc(title), desc: esc(desc),
-    end: `${reset}${whenChip(sel, "one_desktop")}${toggle("od", shown, (v) => setScreen(sel, "one_desktop", v, null, `${title}: ${v ? t("On") : t("Off")}`), { label: title, unset })}`,
-  });
-}
-
 function advanced(sel) {
   const forget = async () => {
     const name = sname(sel);
@@ -246,7 +229,7 @@ export function pageScreens() {
       const old = clone(drop.target.settings.position);
       change(() => api.setScreenSetting(s.id, "position", at),
         () => api.setScreenSetting(drop.target.id, "position", old.value, old.value == null ? [] : old.when),
-        { reload: ["screens"], confirm: keepIfApplied("position") });
+        { reload: ["screens"], confirm: keepIfApplied });
     },
     onSide: (target, side) => setScreen(target, "position", side),
   }));
@@ -254,6 +237,6 @@ export function pageScreens() {
       ${arrangeCard(sel, cs)}
       <div class="stack" style="margin-bottom:var(--s5)">${newMonitorsRow()}${fixedDesktopsRow()}</div>
       ${screenHead(sel, cs)}
-      <div class="stack">${positionBlock(sel)}${rotationBlock(sel)}${scaleBlock(sel)}${modeBlock(sel)}${oneDesktopRow(sel)}</div>
+      <div class="stack">${positionBlock(sel)}${rotationBlock(sel)}${scaleBlock(sel)}${modeBlock(sel)}</div>
       <div class="stack" style="margin-top:var(--s1)">${advanced(sel)}</div>`;
 }

@@ -379,31 +379,21 @@ def test_quarter_turn_lets_hyprland_place_the_screen(fake):
 # --- desktops -----------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    ("laptop_value", "external_value", "default", "role"),
-    [
-        (True, None, "off", "panel"),
-        (None, True, "off", "external"),
-        (True, True, "off", "panel"),
-        (None, None, "external", "external"),
-        (None, False, "external", None),
-        (None, None, "off", None),
-        (False, None, "panel", None),
-    ],
-)
-def test_role_comes_from_settings_then_default(laptop_value, external_value, default, role):
+@pytest.mark.parametrize(("default", "role"), [("off", None), ("external", "external"), ("panel", "panel")])
+def test_role_comes_from_the_default(default, role):
     cfg = recorded(laptop(), hp())
     cfg["default_fixed"] = default
-    if laptop_value is not None:
-        config.set_setting(cfg, LAPTOP_ID, "one_desktop", laptop_value)
-    if external_value is not None:
-        config.set_setting(cfg, HP_ID, "one_desktop", external_value)
     assert desktops.decide_role(cfg, LAPTOP_ID, HP_ID, {LAPTOP_ID, HP_ID}) == role
+
+
+def test_old_one_desktop_settings_are_dropped():
+    cfg = config.normalize({"screens": {HP_ID: {"settings": {"one_desktop": {"value": True, "when": None}}}}})
+    assert cfg["screens"][HP_ID]["settings"] == {}
 
 
 def test_swap_override_wins_until_unplugged():
     cfg = recorded(laptop(), hp())
-    config.set_setting(cfg, LAPTOP_ID, "one_desktop", True)
+    cfg["default_fixed"] = "panel"
     desktops.save_override(HP_ID, "external")
     assert desktops.decide_role(cfg, LAPTOP_ID, HP_ID, {LAPTOP_ID, HP_ID}) == "external"
     assert desktops.decide_role(cfg, LAPTOP_ID, FUJITSU_ID, {LAPTOP_ID, FUJITSU_ID}) == "panel"
@@ -412,7 +402,7 @@ def test_swap_override_wins_until_unplugged():
 def test_switch_pins_the_desktop_to_the_desk_screen(fake):
     hyprland = fake(laptop(workspace=99), hp(workspace=2, focused=True))
     cfg = recorded(laptop(), hp())
-    config.set_setting(cfg, LAPTOP_ID, "one_desktop", True)
+    cfg["default_fixed"] = "panel"
 
     desktops.switch(cfg, "switch", 3)
     assert hyprland.evaluated == ['hl.workspace_rule({ workspace = "3", monitor = "DP-3" })']
@@ -435,7 +425,7 @@ def test_docking_keeps_the_laptops_windows_on_the_laptop(fake):
         clients=[{"address": "0xa", "workspace": {"id": 1}}, {"address": "0xb", "workspace": {"id": 2}}],
     )
     cfg = recorded(laptop(), hp())
-    config.set_setting(cfg, LAPTOP_ID, "one_desktop", True)
+    cfg["default_fixed"] = "panel"
 
     desktops.arrange(desktops.resolve(cfg), docking=True)
     assert 'hl.dsp.window.move({ workspace = "99", follow = false, window = "address:0xa" })' in hyprland.dispatched
@@ -449,7 +439,7 @@ def test_docking_keeps_the_laptops_windows_on_the_laptop(fake):
 def test_swap_trades_the_screens_and_remembers_it(fake):
     hyprland = fake(laptop(workspace=99), hp(workspace=1, focused=True))
     cfg = recorded(laptop(), hp())
-    config.set_setting(cfg, LAPTOP_ID, "one_desktop", True)
+    cfg["default_fixed"] = "panel"
 
     desktops.swap(cfg)
     assert hyprland.dispatched[0] == 'hl.dsp.workspace.swap_monitors({ monitor1 = "eDP-1", monitor2 = "DP-3" })'
@@ -459,7 +449,7 @@ def test_swap_trades_the_screens_and_remembers_it(fake):
 def test_swapping_back_forgets_the_swap(fake):
     fake(laptop(workspace=99), hp(workspace=1, focused=True))
     cfg = recorded(laptop(), hp())
-    config.set_setting(cfg, LAPTOP_ID, "one_desktop", True)
+    cfg["default_fixed"] = "panel"
     desktops.swap(cfg)
     assert desktops.status(cfg)["swapped"] is False or desktops.load_override()
     desktops.swap(cfg, "panel")

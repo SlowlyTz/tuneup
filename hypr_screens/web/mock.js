@@ -28,10 +28,10 @@
   /* ---------- data: hypr_screens.api's answers against a fake Hyprland ---------- */
   const FIXTURE = {
     "screens": [
-      {"id": "Samsung Display Corp.|0x4159|", "name": "Laptop", "description": "Samsung Display Corp. 0x4159", "connector": "eDP-1", "laptop": true, "connected": true, "favorite": false, "lastSeen": "2026-10-18", "modes": [{"w": 1920, "h": 1080, "rates": [144.0, 60.0], "modes": ["1920x1080@144.00", "1920x1080@60.00"], "preferred": true}, {"w": 1680, "h": 1050, "rates": [60.0], "modes": ["1680x1050@60.00"], "preferred": false}, {"w": 1280, "h": 720, "rates": [60.0], "modes": ["1280x720@60.00"], "preferred": false}], "hypr": {"rotation": 0, "flipped": false, "scale": 1.25, "mode": "1920x1080@144.00", "one_desktop": true}, "settings": {"rotation": {"value": null, "when": [], "active": false}, "scale": {"value": 1.25, "when": [], "active": true}, "mode": {"value": "1920x1080@144.00", "when": [], "active": true}, "one_desktop": {"value": true, "when": ["HP Inc.|HP 32f|3CM1230QVW"], "active": true}}, "position": {"x": 192, "y": 1080, "w": 1536, "h": 864}, "side": null, "summary": "1920x1080@144.00 · one desktop if HP 32f · 1.25×"},
-      {"id": "Fujitsu Siemens Computers GmbH|B27-9 TS QHD|YVEB021757", "name": "Fujitsu B27-9 TS QHD", "description": "Fujitsu Siemens Computers GmbH B27-9 TS QHD YVEB021757", "connector": "DP-2", "laptop": false, "connected": false, "favorite": true, "lastSeen": "2026-10-18", "modes": [{"w": 2560, "h": 1440, "rates": [59.95], "modes": ["2560x1440@59.95"], "preferred": true}, {"w": 1920, "h": 1080, "rates": [60.0], "modes": ["1920x1080@60.00"], "preferred": false}, {"w": 1280, "h": 720, "rates": [60.0], "modes": ["1280x720@60.00"], "preferred": false}], "hypr": null, "settings": {"rotation": {"value": null, "when": [], "active": false}, "scale": {"value": 1.25, "when": [], "active": true}, "mode": {"value": null, "when": [], "active": false}, "position": {"value": null, "when": [], "active": false}, "one_desktop": {"value": null, "when": [], "active": false}}, "position": null, "side": null, "summary": "1.25×"},
-      {"id": "HP Inc.|HP 32f|3CM1230QVW", "name": "HP 32f", "description": "HP Inc. HP 32f 3CM1230QVW", "connector": "DP-3", "laptop": false, "connected": true, "favorite": false, "lastSeen": "2026-10-18", "modes": [{"w": 1920, "h": 1080, "rates": [75.0, 60.0], "modes": ["1920x1080@75.00", "1920x1080@60.00"], "preferred": true}, {"w": 1680, "h": 1050, "rates": [59.95], "modes": ["1680x1050@59.95"], "preferred": false}, {"w": 1280, "h": 1024, "rates": [75.03, 60.02], "modes": ["1280x1024@75.03", "1280x1024@60.02"], "preferred": false}, {"w": 1280, "h": 720, "rates": [60.0], "modes": ["1280x720@60.00"], "preferred": false}], "hypr": {"rotation": 0, "flipped": false, "scale": 1.0, "mode": "1920x1080@60.00", "one_desktop": false}, "settings": {"rotation": {"value": null, "when": [], "active": false}, "scale": {"value": null, "when": [], "active": false}, "mode": {"value": null, "when": [], "active": false}, "position": {"value": "above", "when": [], "active": true}, "one_desktop": {"value": null, "when": [], "active": false}}, "position": {"x": 0, "y": 0, "w": 1920, "h": 1080}, "side": "above", "summary": "above laptop"},
-      {"id": "LG Electronics|LG TV|0x01010101", "name": "LG TV", "description": "LG Electronics LG TV 0x01010101", "connector": "HDMI-A-1", "laptop": false, "connected": false, "favorite": false, "lastSeen": "2026-10-18", "modes": [{"w": 3840, "h": 2160, "rates": [60.0, 30.0], "modes": ["3840x2160@60.00", "3840x2160@30.00"], "preferred": true}, {"w": 2560, "h": 1440, "rates": [59.95], "modes": ["2560x1440@59.95"], "preferred": false}, {"w": 1920, "h": 1080, "rates": [120.0, 60.0], "modes": ["1920x1080@120.00", "1920x1080@60.00"], "preferred": false}], "hypr": null, "settings": {"rotation": {"value": null, "when": [], "active": false}, "scale": {"value": 2, "when": [], "active": true}, "mode": {"value": null, "when": [], "active": false}, "position": {"value": null, "when": [], "active": false}, "one_desktop": {"value": null, "when": [], "active": false}}, "position": null, "side": null, "summary": "2×"}
+      {"id": "Samsung Display Corp.|0x4159|", "name": "Laptop", "description": "Samsung Display Corp. 0x4159", "connector": "eDP-1", "laptop": true, "connected": true, "favorite": false, "lastSeen": "2026-10-18", "modes": [{"w": 1920, "h": 1080, "rates": [144.0, 60.0], "modes": ["1920x1080@144.00", "1920x1080@60.00"], "preferred": true}, {"w": 1680, "h": 1050, "rates": [60.0], "modes": ["1680x1050@60.00"], "preferred": false}, {"w": 1280, "h": 720, "rates": [60.0], "modes": ["1280x720@60.00"], "preferred": false}], "hypr": {"rotation": 0, "flipped": false, "scale": 1.25, "mode": "1920x1080@144.00", "one_desktop": true}, "settings": {"rotation": {"value": null, "when": [], "active": false}, "scale": {"value": 1.25, "when": [], "active": true}, "mode": {"value": "1920x1080@144.00", "when": [], "active": true}}, "position": {"x": 192, "y": 1080, "w": 1536, "h": 864}, "side": null, "summary": "1920x1080@144.00 · 1.25×"},
+      {"id": "Fujitsu Siemens Computers GmbH|B27-9 TS QHD|YVEB021757", "name": "Fujitsu B27-9 TS QHD", "description": "Fujitsu Siemens Computers GmbH B27-9 TS QHD YVEB021757", "connector": "DP-2", "laptop": false, "connected": false, "favorite": true, "lastSeen": "2026-10-18", "modes": [{"w": 2560, "h": 1440, "rates": [59.95], "modes": ["2560x1440@59.95"], "preferred": true}, {"w": 1920, "h": 1080, "rates": [60.0], "modes": ["1920x1080@60.00"], "preferred": false}, {"w": 1280, "h": 720, "rates": [60.0], "modes": ["1280x720@60.00"], "preferred": false}], "hypr": null, "settings": {"rotation": {"value": null, "when": [], "active": false}, "scale": {"value": 1.25, "when": [], "active": true}, "mode": {"value": null, "when": [], "active": false}, "position": {"value": null, "when": [], "active": false}}, "position": null, "side": null, "summary": "1.25×"},
+      {"id": "HP Inc.|HP 32f|3CM1230QVW", "name": "HP 32f", "description": "HP Inc. HP 32f 3CM1230QVW", "connector": "DP-3", "laptop": false, "connected": true, "favorite": false, "lastSeen": "2026-10-18", "modes": [{"w": 1920, "h": 1080, "rates": [75.0, 60.0], "modes": ["1920x1080@75.00", "1920x1080@60.00"], "preferred": true}, {"w": 1680, "h": 1050, "rates": [59.95], "modes": ["1680x1050@59.95"], "preferred": false}, {"w": 1280, "h": 1024, "rates": [75.03, 60.02], "modes": ["1280x1024@75.03", "1280x1024@60.02"], "preferred": false}, {"w": 1280, "h": 720, "rates": [60.0], "modes": ["1280x720@60.00"], "preferred": false}], "hypr": {"rotation": 0, "flipped": false, "scale": 1.0, "mode": "1920x1080@60.00", "one_desktop": false}, "settings": {"rotation": {"value": null, "when": [], "active": false}, "scale": {"value": null, "when": [], "active": false}, "mode": {"value": null, "when": [], "active": false}, "position": {"value": "above", "when": [], "active": true}}, "position": {"x": 0, "y": 0, "w": 1920, "h": 1080}, "side": "above", "summary": "above laptop"},
+      {"id": "LG Electronics|LG TV|0x01010101", "name": "LG TV", "description": "LG Electronics LG TV 0x01010101", "connector": "HDMI-A-1", "laptop": false, "connected": false, "favorite": false, "lastSeen": "2026-10-18", "modes": [{"w": 3840, "h": 2160, "rates": [60.0, 30.0], "modes": ["3840x2160@60.00", "3840x2160@30.00"], "preferred": true}, {"w": 2560, "h": 1440, "rates": [59.95], "modes": ["2560x1440@59.95"], "preferred": false}, {"w": 1920, "h": 1080, "rates": [120.0, 60.0], "modes": ["1920x1080@120.00", "1920x1080@60.00"], "preferred": false}], "hypr": null, "settings": {"rotation": {"value": null, "when": [], "active": false}, "scale": {"value": 2, "when": [], "active": true}, "mode": {"value": null, "when": [], "active": false}, "position": {"value": null, "when": [], "active": false}}, "position": null, "side": null, "summary": "2×"}
     ],
     "fixed": {"fixed": "Samsung Display Corp.|0x4159|", "desk": "HP Inc.|HP 32f|3CM1230QVW", "role": "panel", "swapped": false, "panel": "Samsung Display Corp.|0x4159|", "external": "HP Inc.|HP 32f|3CM1230QVW", "canSwap": true, "fixedWorkspace": 99},
     "keys": {
@@ -225,7 +225,6 @@
       need(!s.laptop, "bad_value", "the laptop stays where it is; place the other screen next to it");
       need(SIDES.includes(value), "bad_value", "position must be left, right, above, below or {x, y}");
     }
-    if (key === "one_desktop") need(typeof value === "boolean", "bad_value", "one_desktop must be true, false or null");
     return value;
   }
   function condition(s, when) {
@@ -234,7 +233,7 @@
     if (when.length) need(when[0] !== s.id && db.screens.some((x) => x.id === when[0]), "bad_value", `when must name another known screen, not ${when[0]}`);
     return when;
   }
-  /* In the fixture, the fixed screen follows the laptop's "one_desktop" (mock only). */
+  /* Who is fixed comes from the fixture (and swaps); here only who is connected. */
   function refreshFixed() {
     const conn = db.screens.filter((s) => s.connected);
     const panel = conn.find((s) => s.laptop), ext = conn.find((s) => !s.laptop);
@@ -246,8 +245,7 @@
   function summary(s) {
     const NAMES = { left: "left of laptop", right: "right of laptop", above: "above laptop", below: "below laptop" };
     return Object.entries(s.settings).filter(([, st]) => st.value != null).map(([key, st]) => {
-      let text = key === "one_desktop" ? (st.value ? "one desktop" : "no fixed desktop")
-        : key === "position" ? NAMES[st.value] : key === "rotation" ? `${st.value}°`
+      let text = key === "position" ? NAMES[st.value] : key === "rotation" ? `${st.value}°`
           : key === "scale" ? (st.value === "auto" ? "auto" : `${st.value}×`) : String(st.value);
       if (st.when.length) text += ` if ${(db.screens.find((x) => x.id === st.when[0]) || { name: "?" }).name}`;
       return text;
@@ -333,13 +331,13 @@
   const api = {
     /* Screens */
     screens: () => reply(db.screens),
-    /** key: rotation | scale | mode | position | one_desktop; value null = unset.
+    /** key: rotation | scale | mode | position; value null = unset.
      *  when: null/undefined keeps the condition, [] = always, [sid] = only with that one.
      *  position: "left" | "right" | "above" | "below", or {x, y} from a drag. */
     async setScreenSetting(sid, key, value, when) {
       let s = screen(sid);
       const target0 = s;
-      need(["rotation", "scale", "mode", "position", "one_desktop"].includes(key), "bad_value", `unknown setting: ${key}`);
+      need(["rotation", "scale", "mode", "position"].includes(key), "bad_value", `unknown setting: ${key}`);
       if (key === "position" && value && typeof value === "object") [s, value] = sideFromPoint(s, value);
       value = cleanValue(s, key, value);
       const w = condition(s, when);

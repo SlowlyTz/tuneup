@@ -47,7 +47,6 @@ SETTING_LABELS = {
     "scale": "Scale",
     "mode": "Resolution",
     "position": "Position",
-    "one_desktop": "One desktop",
 }
 
 
@@ -68,8 +67,6 @@ def screen_rows(cfg: dict, connected_ids: set[str]) -> list[dict]:
             value = setting.get("value")
             when = setting.get("when")
             label = config.value_label(key, value)
-            if key == "one_desktop" and value is None:
-                label = f"default ({cfg.get('default_fixed', 'off')})"
             settings.append({
                 "key": key,
                 "label": SETTING_LABELS[key],

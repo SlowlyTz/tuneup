@@ -121,8 +121,7 @@ def test_put_away_scratch_desktops_come_back_when_switched_off(model):
 
 def test_a_scratch_desktop_on_the_fixed_screen_is_no_drift(model):
     def settings(cfg):
-        cfg["screens"]["HP Inc.|HP 32f|3CM1230QVW"] = {"favorite": False, "settings": {
-            "one_desktop": {"value": True, "when": None}}}
+        cfg["default_fixed"] = "external"
     config.update(settings)
     from hypr_screens import engine
 
