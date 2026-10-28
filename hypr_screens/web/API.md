@@ -71,22 +71,25 @@ recorded on every call.
   ],
   hypr: {                             // what Hyprland uses now; null while not connected
     rotation: 0, flipped: false, scale: 1, mode: "1920x1080@60.00",
-    one_desktop: false                // true = this screen is the fixed one right now (no setting)
+    one_desktop: false,               // true = this screen is the fixed one right now (no setting)
+    mirror: false                     // true = it shows the laptop's picture now
   },
-  settings: {                         // the laptop has no "position"
+  settings: {                         // the laptop has no "position" and no "mirror"
     rotation:    { value: null, when: [], active: false },   // null = not set ("Von Hyprland: …")
     scale:       { value: 1.25, when: [], active: true },
     mode:        { value: null, when: [], active: false },
     position:    { value: "above", when: [], active: true }, // "left" | "right" | "above" | "below"
+    mirror:      { value: null, when: [], active: false }    // true = show the laptop's picture
   },
-  position: { x: 0, y: 0, w: 1920, h: 1080 },  // live, layout pixels (scaled, turned); null if not connected
+  position: { x: 0, y: 0, w: 1920, h: 1080 },  // live, layout pixels (scaled, turned); null if not connected or mirroring
   side: "above",                      // = settings.position.value
   summary: "above laptop · 1.25×"     // English one-liner of the settings
 }
 ```
 
 Values: `rotation` 0/90/180/270; `scale` `"auto"` or 0.25–4; `mode`
-`"preferred"` or `"WxH@rate"` (best: one of `modes[].modes`). Which screen is
+`"preferred"` or `"WxH@rate"` (best: one of `modes[].modes`); `mirror` true/false
+(external screens only; in force while the laptop screen is on). Which screen is
 fixed is not a screen setting: it follows the `default_fixed` option and swaps.
 
 `when` (the condition): `[]` = always, `[id]` = only while that other
@@ -95,7 +98,7 @@ several. `active` = the value is set and its condition holds now.
 
 ### `setScreenSetting(sid, key, value, when?)` → `Screen & {applied: string[]}`
 
-- `key`: `rotation | scale | mode | position`; `value: null` unsets
+- `key`: `rotation | scale | mode | position | mirror`; `value: null` unsets
   (its condition goes with it).
 - `when`: `null`/left out keeps the condition, `[]` = always, `[otherId]`.
 - Saves, then applies everything (`engine.sync`: monitor rules, desktops).

@@ -33,7 +33,7 @@
       {"id": "HP Inc.|HP 32f|3CM1230QVW", "name": "HP 32f", "description": "HP Inc. HP 32f 3CM1230QVW", "connector": "DP-3", "laptop": false, "connected": true, "favorite": false, "lastSeen": "2026-10-18", "modes": [{"w": 1920, "h": 1080, "rates": [75.0, 60.0], "modes": ["1920x1080@75.00", "1920x1080@60.00"], "preferred": true}, {"w": 1680, "h": 1050, "rates": [59.95], "modes": ["1680x1050@59.95"], "preferred": false}, {"w": 1280, "h": 1024, "rates": [75.03, 60.02], "modes": ["1280x1024@75.03", "1280x1024@60.02"], "preferred": false}, {"w": 1280, "h": 720, "rates": [60.0], "modes": ["1280x720@60.00"], "preferred": false}], "hypr": {"rotation": 0, "flipped": false, "scale": 1.0, "mode": "1920x1080@60.00", "one_desktop": false}, "settings": {"rotation": {"value": null, "when": [], "active": false}, "scale": {"value": null, "when": [], "active": false}, "mode": {"value": null, "when": [], "active": false}, "position": {"value": "above", "when": [], "active": true}}, "position": {"x": 0, "y": 0, "w": 1920, "h": 1080}, "side": "above", "summary": "above laptop"},
       {"id": "LG Electronics|LG TV|0x01010101", "name": "LG TV", "description": "LG Electronics LG TV 0x01010101", "connector": "HDMI-A-1", "laptop": false, "connected": false, "favorite": false, "lastSeen": "2026-10-18", "modes": [{"w": 3840, "h": 2160, "rates": [60.0, 30.0], "modes": ["3840x2160@60.00", "3840x2160@30.00"], "preferred": true}, {"w": 2560, "h": 1440, "rates": [59.95], "modes": ["2560x1440@59.95"], "preferred": false}, {"w": 1920, "h": 1080, "rates": [120.0, 60.0], "modes": ["1920x1080@120.00", "1920x1080@60.00"], "preferred": false}], "hypr": null, "settings": {"rotation": {"value": null, "when": [], "active": false}, "scale": {"value": 2, "when": [], "active": true}, "mode": {"value": null, "when": [], "active": false}, "position": {"value": null, "when": [], "active": false}}, "position": null, "side": null, "summary": "2×"}
     ],
-    "fixed": {"fixed": "Samsung Display Corp.|0x4159|", "desk": "HP Inc.|HP 32f|3CM1230QVW", "role": "panel", "swapped": false, "panel": "Samsung Display Corp.|0x4159|", "external": "HP Inc.|HP 32f|3CM1230QVW", "canSwap": true, "fixedWorkspace": 99},
+    "fixed": {"fixed": "HP Inc.|HP 32f|3CM1230QVW", "desk": "Samsung Display Corp.|0x4159|", "role": "external", "swapped": false, "panel": "Samsung Display Corp.|0x4159|", "external": "HP Inc.|HP 32f|3CM1230QVW", "canSwap": true, "fixedWorkspace": 99},
     "keys": {
       "actions": [
         {"id": "minimizer_menu", "title": "Open window list", "desc": "Opens the list of minimized windows (there: Enter, Shift+Enter, “-” to peek).", "slots": ["SUPER + PERIOD", "SUPER + SHIFT + F23"]},
@@ -132,6 +132,12 @@
   const OPPOSITE = { left: "right", right: "left", above: "below", below: "above" };
   const screen = (sid) => db.screens.find((s) => s.id === sid) || fail("unknown_screen", `unknown screen: ${sid}`);
   const connectedIds = () => db.screens.filter((s) => s.connected).map((s) => s.id);
+  /* Every external screen can mirror the laptop (not in the fixture's JSON). */
+  for (const s of db.screens.filter((x) => !x.laptop)) {
+    s.settings.mirror = s.settings.mirror || { value: null, when: [], active: false };
+    if (s.hypr) s.hypr.mirror = false;
+  }
+  if (db.screens[0].hypr) db.screens[0].hypr.mirror = false;
 
   function parseMode(mode) {
     const [wh, rate] = String(mode).split("@");
@@ -144,6 +150,8 @@
     if (st && st.value != null && (!st.when.length || st.when.every((id) => connectedIds().includes(id)))) return st.value;
     return null;
   }
+  /* Shows the laptop's picture (apply.desired: only while the laptop is on). */
+  const mirroring = (s) => !s.laptop && s.connected && effective(s, "mirror") === true && db.screens.some((x) => x.laptop && x.connected);
   function refreshActive() {
     for (const s of db.screens) {
       for (const st of Object.values(s.settings)) {
@@ -169,18 +177,19 @@
       let w = Math.round(m.w / s.hypr.scale), h = Math.round(m.h / s.hypr.scale);
       if (s.hypr.rotation % 180) [w, h] = [h, w];
       s.position = { ...(s.position || { x: 0, y: 0 }), w, h };
+      s.hypr.mirror = mirroring(s);
       if (!eq(before, s.hypr)) applied.push(s.connector);
     }
     layout();
     for (const s of db.screens) {
       s.hypr = s.connected ? { ...s.hypr, one_desktop: db.fixed.fixed === s.id } : null;
-      if (!s.connected) s.position = null;
+      if (!s.connected || mirroring(s)) s.position = null;
     }
     return applied;
   }
   /* apply.layout: every placed screen edge to edge with the laptop, centred. */
   function layout() {
-    const conn = db.screens.filter((s) => s.connected);
+    const conn = db.screens.filter((s) => s.connected && !mirroring(s));
     const anchor = conn.find((s) => s.laptop) || conn[0];
     if (!anchor) return;
     const placed = conn.filter((s) => s !== anchor && effective(s, "position"));
@@ -206,8 +215,8 @@
   /* A drag's {x, y} -> [the screen whose side changes, the side] (api.side_from_point). */
   function sideFromPoint(s, p) {
     need(isNum(p.x) && isNum(p.y), "bad_value", "position needs numbers x and y");
-    need(s.connected, "not_connected", "only a connected screen can be dragged; pick a side instead");
-    const conn = db.screens.filter((x) => x.connected);
+    need(s.connected && !mirroring(s), "not_connected", "only a connected screen can be dragged; pick a side instead");
+    const conn = db.screens.filter((x) => x.connected && !mirroring(x));
     const others = conn.filter((x) => x !== s);
     const anchor = conn.find((x) => x.laptop) || others[0];
     need(anchor, "bad_value", "there is no other screen to place it next to");
@@ -221,6 +230,10 @@
     if (key === "rotation") need(ROTATIONS.includes(value), "bad_value", "rotation must be one of 0, 90, 180, 270");
     if (key === "scale") need(value === "auto" || (isNum(value) && value >= 0.25 && value <= 4), "bad_value", "scale must be \"auto\" or a number from 0.25 to 4");
     if (key === "mode") need(value === "preferred" || /^\d{2,5}x\d{2,5}(@\d{1,3}(\.\d{1,3})?)?$/.test(value), "bad_value", "mode must be \"preferred\" or like \"2560x1440@59.95\"");
+    if (key === "mirror") {
+      need(!s.laptop, "bad_value", "the laptop cannot mirror itself");
+      need(typeof value === "boolean", "bad_value", "mirror must be true, false or null");
+    }
     if (key === "position") {
       need(!s.laptop, "bad_value", "the laptop stays where it is; place the other screen next to it");
       need(SIDES.includes(value), "bad_value", "position must be left, right, above, below or {x, y}");
@@ -233,19 +246,24 @@
     if (when.length) need(when[0] !== s.id && db.screens.some((x) => x.id === when[0]), "bad_value", `when must name another known screen, not ${when[0]}`);
     return when;
   }
-  /* Who is fixed comes from the fixture (and swaps); here only who is connected. */
+  /* desktops.decide_role: a swap, else "For new monitors"; a mirror is no screen of its own. */
   function refreshFixed() {
-    const conn = db.screens.filter((s) => s.connected);
+    const conn = db.screens.filter((s) => s.connected && !mirroring(s));
     const panel = conn.find((s) => s.laptop), ext = conn.find((s) => !s.laptop);
-    db.fixed.panel = panel ? panel.id : null;
-    db.fixed.external = ext ? ext.id : null;
-    db.fixed.canSwap = !!ext;
-    if (!panel || !ext) Object.assign(db.fixed, { fixed: null, desk: null, role: null, swapped: false });
+    const f = db.fixed;
+    if (!panel || !ext || ext.id !== f.external) f.swapped = false;
+    f.panel = panel ? panel.id : null;
+    f.external = ext ? ext.id : null;
+    f.canSwap = !!ext;
+    const role = !panel || !ext ? null : f.swapped ? f.role : ["panel", "external"].includes(db.keys.options.default_fixed) ? db.keys.options.default_fixed : null;
+    const fixed = role === "panel" ? f.panel : role === "external" ? f.external : null;
+    Object.assign(f, { role, fixed, desk: role ? (fixed === f.panel ? f.external : f.panel) : null });
   }
   function summary(s) {
     const NAMES = { left: "left of laptop", right: "right of laptop", above: "above laptop", below: "below laptop" };
     return Object.entries(s.settings).filter(([, st]) => st.value != null).map(([key, st]) => {
-      let text = key === "position" ? NAMES[st.value] : key === "rotation" ? `${st.value}°`
+      let text = key === "mirror" ? (st.value ? "mirrors laptop" : "own picture")
+        : key === "position" ? NAMES[st.value] : key === "rotation" ? `${st.value}°`
           : key === "scale" ? (st.value === "auto" ? "auto" : `${st.value}×`) : String(st.value);
       if (st.when.length) text += ` if ${(db.screens.find((x) => x.id === st.when[0]) || { name: "?" }).name}`;
       return text;
@@ -331,13 +349,13 @@
   const api = {
     /* Screens */
     screens: () => reply(db.screens),
-    /** key: rotation | scale | mode | position; value null = unset.
+    /** key: rotation | scale | mode | position | mirror; value null = unset.
      *  when: null/undefined keeps the condition, [] = always, [sid] = only with that one.
      *  position: "left" | "right" | "above" | "below", or {x, y} from a drag. */
     async setScreenSetting(sid, key, value, when) {
       let s = screen(sid);
       const target0 = s;
-      need(["rotation", "scale", "mode", "position"].includes(key), "bad_value", `unknown setting: ${key}`);
+      need(["rotation", "scale", "mode", "position", "mirror"].includes(key), "bad_value", `unknown setting: ${key}`);
       if (key === "position" && value && typeof value === "object") [s, value] = sideFromPoint(s, value);
       value = cleanValue(s, key, value);
       const w = condition(s, when);
@@ -386,6 +404,7 @@
       else if (["fixed_desktops", "scratch_kept"].includes(name)) need(Number.isInteger(value) && value >= 1 && value <= 10, "bad_value", `${name} must be 1-10`);
       else fail("bad_value", `unknown option: ${name}`);
       db.keys.options[name] = value;
+      if (name === "default_fixed") changed();
       return reply(db.keys.options);
     },
     async beginKeyCapture() { return reply({ ok: true }); },

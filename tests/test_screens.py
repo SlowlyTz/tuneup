@@ -84,6 +84,8 @@ class FakeHyprland:
         monitor["width"], monitor["height"] = int(size.group(1)), int(size.group(2))
         if scale := re.search(r"scale = ([\d.]+)", rule):
             monitor["scale"] = float(scale.group(1))
+        mirror = re.search(r'mirror = "([^"]+)"', rule)
+        monitor["mirrorOf"] = mirror.group(1) if mirror else "none"
 
     @property
     def dispatched(self):

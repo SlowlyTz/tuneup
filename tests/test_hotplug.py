@@ -234,6 +234,30 @@ def test_a_dock_unplugging_in_waves_settles_with_one_sync(watched, monkeypatch):
     assert_settled(model)
 
 
+def test_desk_meeting_desk_with_a_mirrored_tv_through_the_watcher(watched):
+    """The TV mirrors the laptop: for the desktops that is the laptop alone, so
+    neither plugging nor unplugging reloads."""
+    model, watcher, clock = watched
+    config.update(lambda cfg: config.set_setting(cfg, TV_ID, "mirror", True))
+    reloads = []
+    for _ in range(3):
+        before = model.reloads
+        model.plug(hp_output("DP-3"))
+        through_watcher(model, watcher, clock)
+        assert model.touching("eDP-1", "DP-3") and model.visible()["DP-3"] == desktops.FIXED_WS
+        model.unplug("DP-3")
+        through_watcher(model, watcher, clock)
+        model.plug(tv_output("HDMI-A-1"))
+        through_watcher(model, watcher, clock)
+        assert model.monitor("HDMI-A-1")["mirrorOf"] == str(model.monitor("eDP-1")["id"])
+        assert list(model.visible()) == ["eDP-1"]
+        model.unplug("HDMI-A-1")
+        through_watcher(model, watcher, clock)
+        reloads.append(model.reloads - before)
+    assert reloads == [0, 0, 0]
+    assert_settled(model)
+
+
 def test_with_a_fixed_desktop_on_every_external_screen_nothing_reloads(watched):
     model, watcher, clock = watched
     config.update(lambda cfg: cfg.__setitem__("default_fixed", "external"))
@@ -379,3 +403,61 @@ def test_windows_on_the_fixed_desktops_come_back_when_unplugged(five):
                           "mapped": True, "at": [0, 0], "size": [100, 100], "monitor": 1})
     unplug(model, "DP-3")
     assert model.clients[-1]["workspace"]["id"] in desktops.DESKTOPS
+
+
+# --- mirroring the laptop -----------------------------------------------------------------
+
+
+def mirror(model, sid, value):
+    config.update(lambda cfg: config.set_setting(cfg, sid, "mirror", value))
+    return run(model, "")
+
+
+def test_mirroring_on_and_off(world):
+    model = world
+    plug(model, hp_output("DP-3"))
+    assert model.visible()["DP-3"] == desktops.FIXED_WS
+
+    mirror(model, HP_ID, True)
+    assert model.monitor("DP-3")["mirrorOf"] == str(model.monitor("eDP-1")["id"])
+    assert "mirror = \"eDP-1\"" in [c for c in model.calls if c[0] == "eval" and "DP-3" in c[1]][-1][1]
+    assert list(model.visible()) == ["eDP-1"]                     # no fixed screen, no desktops on the HP
+    assert model.visible()["eDP-1"] in desktops.DESKTOPS
+    assert desktops.resolve(config.load()).role is None
+    assert_settled(model)
+
+    reloads = model.reloads
+    mirror(model, HP_ID, None)
+    assert model.reloads == reloads + 1                            # a rule cannot be taken back otherwise
+    assert model.monitor("DP-3")["mirrorOf"] == "none"
+    assert model.box("DP-3")[3] == model.box("eDP-1")[1]          # above again
+    assert model.visible()["DP-3"] == desktops.FIXED_WS
+    assert_settled(model)
+
+
+def test_a_mirror_comes_back_mirrored(world):
+    model = world
+    mirror(model, HP_ID, True)
+    plug(model, hp_output("DP-3"))
+    assert model.monitor("DP-3")["mirrorOf"] != "none"
+    unplug(model, "DP-3")
+    plug(model, hp_output("DP-3"))
+    assert model.monitor("DP-3")["mirrorOf"] != "none"
+    assert list(model.visible()) == ["eDP-1"]
+    assert_settled(model)
+
+
+def test_nothing_to_mirror_with_the_lid_closed(world):
+    model = world
+    mirror(model, HP_ID, True)
+    plug(model, hp_output("DP-3"))
+    reloads = model.reloads
+    model.close_lid()
+    run(model, "removed")
+    assert model.monitor("DP-3")["mirrorOf"] == "none" and model.visible()["DP-3"] in desktops.DESKTOPS
+    assert_settled(model)
+    model.close_lid(closed=False)
+    run(model, "added")
+    assert model.monitor("DP-3")["mirrorOf"] != "none"
+    assert model.reloads == reloads                                # a reload would open the lid again
+    assert_settled(model)

@@ -18,6 +18,7 @@ function fixedEntries() {
   return [
     { id: "screens.arrange", r: "screens", t: t("Arrange screens"), syn: t("position left right above below beside drag layout monitor") },
     { id: "screens.swap", r: "screens", t: t("Swap the fixed screen"), syn: t("fixed swap one desktop") },
+    { id: "screens.mirror", r: "screens", t: t("Mirror the laptop screen"), syn: t("mirror duplicate same picture projector beamer tv presentation") },
     { id: "screens.position", r: "screens", t: t("Position"), syn: t("left right above below beside laptop") },
     { id: "screens.rotation", r: "screens", t: t("Rotation"), d: t("Turn the screen"), syn: t("rotate portrait upside down landscape") },
     { id: "screens.scale", r: "screens", t: t("Scale"), d: t("Makes text and windows bigger or smaller"), syn: t("size zoom dpi big small") },

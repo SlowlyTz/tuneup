@@ -47,6 +47,7 @@ SETTING_LABELS = {
     "scale": "Scale",
     "mode": "Resolution",
     "position": "Position",
+    "mirror": "Mirror laptop",
 }
 
 
@@ -61,7 +62,7 @@ def screen_rows(cfg: dict, connected_ids: set[str]) -> list[dict]:
         section = "Laptop" if screen.get("internal") else "Favorites" if screen.get("favorite") else "Known screens"
         settings = []
         for key in config.SETTING_KEYS:
-            if key == "position" and screen.get("internal"):
+            if key in ("position", "mirror") and screen.get("internal"):
                 continue
             setting = config.get_setting(cfg, sid, key) or {}
             value = setting.get("value")
@@ -94,8 +95,7 @@ def state(cfg: dict | None = None, message: str = "") -> dict:
     if cfg is None:
         everything = hypr.monitors(include_disabled=True)
         cfg = config.update(lambda fresh: config.record(fresh, everything))
-    monitors = hypr.monitors()
-    connected_ids = set(config.connected(monitors))
+    connected_ids = set(config.connected(hypr.monitors(include_disabled=True)))
     return {
         "message": message,
         "status": desktops.status(cfg),

@@ -6,6 +6,8 @@ import { S } from "../../core/state.js";
 export const scr = (id) => (S.screens || []).find((s) => s.id === id);
 /* Connected screens with a place on the desk. */
 export const conn = () => (S.screens || []).filter((s) => s.connected && s.position);
+/* Connected screens that show the laptop's picture (no place of their own). */
+export const mirrors = () => (S.screens || []).filter((s) => s.connected && s.hypr && s.hypr.mirror);
 export const laptopId = () => ((S.screens || []).find((s) => s.laptop) || (S.screens || [])[0] || {}).id;
 export const sname = (s) => (s ? (s.laptop ? t("Laptop") : s.name) : "?");
 

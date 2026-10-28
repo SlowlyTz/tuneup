@@ -1,7 +1,8 @@
 """A Hyprland that behaves like the real one where hypr-screens depends on it:
 monitor rules (the config's catch-all plus rules set at runtime, which a
 reload drops), the arrangement of src/state/MonitorPositionController.cpp,
-workspaces that move off a removed monitor, workspace rules, binds, options
+workspaces that move off a removed monitor, mirroring (a mirror is listed
+only in `monitors all` and has no workspace), workspace rules, binds, options
 and the socket2 events. It answers `hypr.hyprctl(*args)`.
 
 Outputs are plugged and unplugged with plug()/unplug(); `events` collects
@@ -94,7 +95,7 @@ class HyprlandModel:
 
     def plug(self, output: Output) -> dict:
         monitor = {"id": self.next_id, "name": output.name, **output.edid(), "output": output,
-                   "focused": not self.monitors, "disabled": False, "x": 0, "y": 0,
+                   "focused": not self.monitors, "disabled": False, "x": 0, "y": 0, "mirrorOf": "none",
                    "activeWorkspace": {"id": 0, "name": ""},
                    "specialWorkspace": {"id": 0, "name": ""}, "dpmsStatus": True, "reserved": [0, 0, 0, 0],
                    "availableModes": [f"{w}x{h}@{r:.2f}Hz" for w, h, r in output.modes]}
@@ -104,13 +105,22 @@ class HyprlandModel:
         self.arrange()
         wanted = next((ws for ws, name in sorted(self.workspace_rules.items())
                        if name == output.name and self.workspaces.get(ws) is None), None)
-        self.show(monitor, wanted if wanted is not None else self.free_workspace(output.name))
+        if monitor["mirrorOf"] == "none":
+            self.show(monitor, wanted if wanted is not None else self.free_workspace(output.name))
         self.events += [f"monitoradded>>{output.name}", f"monitoraddedv2>>{monitor['id']},{output.name},x"]
         return monitor
+
+    def release_mirrors(self, source: dict) -> None:
+        """Like CMonitor::onDisconnect: the screens mirroring `source` show their own picture."""
+        for monitor in self.monitors:
+            if monitor["mirrorOf"] == str(source["id"]):
+                monitor["mirrorOf"] = "none"
+                self.show(monitor, self.free_workspace(monitor["name"]))
 
     def unplug(self, name: str) -> None:
         monitor = self.monitor(name)
         self.monitors.remove(monitor)
+        self.release_mirrors(monitor)
         backup = self.focused() or (self.monitors[0] if self.monitors else None)
         if backup is not None and not backup["focused"]:
             backup["focused"] = True
@@ -126,7 +136,8 @@ class HyprlandModel:
         self.runtime_rules[name] = {**self.runtime_rules.get(name, {}), "disabled": closed}
         self.take_rule(monitor)
         if closed:
-            others = [m for m in self.monitors if not m["disabled"]]
+            self.release_mirrors(monitor)
+            others = [m for m in self.monitors if not m["disabled"] and m["mirrorOf"] == "none"]
             for ws, owner in list(self.workspaces.items()):
                 if owner == name and others:
                     self.workspaces[ws] = others[0]["name"]
@@ -144,6 +155,18 @@ class HyprlandModel:
             monitor["disabled"] = True
             return
         monitor["disabled"] = False
+        source = self.monitor(str(rule.get("mirror", "")))
+        was_mirror = monitor["mirrorOf"] != "none"
+        monitor["mirrorOf"] = str(source["id"]) if source is not None and source is not monitor else "none"
+        if monitor["mirrorOf"] != "none":
+            for ws, owner in list(self.workspaces.items()):
+                if owner == monitor["name"]:
+                    self.workspaces[ws] = source["name"]
+            monitor["activeWorkspace"] = {"id": -1, "name": ""}
+            if monitor["focused"]:
+                self.focus_monitor(source)
+        elif was_mirror:
+            self.show(monitor, self.free_workspace(monitor["name"]))
         output = monitor["output"]
         width, height, rate = self.pick_mode(output, str(rule["mode"]))
         monitor.update(width=width, height=height, refreshRate=rate,
@@ -169,7 +192,7 @@ class HyprlandModel:
 
     def arrange(self) -> None:
         """Hyprland's arrange(): explicit positions first, then the auto ones in order."""
-        enabled = [m for m in self.monitors if not m["disabled"]]
+        enabled = [m for m in self.monitors if not m["disabled"] and m["mirrorOf"] == "none"]
         arranged, auto = [], []
         for monitor in enabled:
             position = str(self.rule_for(monitor["name"])["position"])
@@ -246,7 +269,8 @@ class HyprlandModel:
         self.events.append(f"moveworkspacev2>>{ws},{ws},{target['name']}")
 
     def visible(self) -> dict[str, int]:
-        return {m["name"]: m["activeWorkspace"]["id"] for m in self.monitors if not m["disabled"]}
+        return {m["name"]: m["activeWorkspace"]["id"] for m in self.monitors
+                if not m["disabled"] and m["mirrorOf"] == "none"}
 
     # --- hyprctl ------------------------------------------------------------------------
 
@@ -272,7 +296,8 @@ class HyprlandModel:
 
     def query(self, what: str, *rest: str) -> object:
         if what == "monitors":
-            shown = self.monitors if rest == ("all",) else [m for m in self.monitors if not m["disabled"]]
+            shown = self.monitors if rest == ("all",) else [
+                m for m in self.monitors if not m["disabled"] and m["mirrorOf"] == "none"]
             return [{k: v for k, v in m.items() if k != "output"} for m in shown]
         if what == "workspaces":
             return [{"id": ws, "name": str(ws), "monitor": name or "", "windows": self.windows_on(ws)}
@@ -395,7 +420,7 @@ class HyprlandModel:
         return side or top
 
     def overlapping(self) -> bool:
-        names = [m["name"] for m in self.monitors if not m["disabled"]]
+        names = [m["name"] for m in self.monitors if not m["disabled"] and m["mirrorOf"] == "none"]
         for index, first in enumerate(names):
             for second in names[index + 1:]:
                 (ax, ay, ax2, ay2), (bx, by, bx2, by2) = self.box(first), self.box(second)

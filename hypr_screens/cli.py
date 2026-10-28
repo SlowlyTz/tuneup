@@ -61,6 +61,10 @@ def parse_value(key: str, raw: str) -> object:
         if raw not in config.POSITIONS:
             raise ValueError(f"position must be one of {config.POSITIONS}")
         return raw
+    if key == "mirror":
+        if raw not in ("on", "off", "yes", "no", "true", "false"):
+            raise ValueError("mirror must be on, off or unset")
+        return raw in ("on", "yes", "true")
     return raw
 
 
@@ -191,7 +195,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     setting = sub.add_parser("set", help="set a screen setting, e.g. `set Laptop rotation 180`")
     setting.add_argument("screen")
-    setting.add_argument("key", choices=["rotation", "scale", "mode", "position"])
+    setting.add_argument("key", choices=["rotation", "scale", "mode", "position", "mirror"])
     setting.add_argument("value", help="value, or `unset`")
 
     when = sub.add_parser("when", help="tie a setting to another screen: `when Laptop rotation \"HP 32f\"`")
@@ -322,7 +326,7 @@ def list_command(args: argparse.Namespace) -> int:
     from hypr_screens import config, engine, hypr
 
     cfg = config.load()
-    for row in engine.screen_rows(cfg, set(config.connected(hypr.monitors()))):
+    for row in engine.screen_rows(cfg, set(config.connected(hypr.monitors(include_disabled=True)))):
         mark = "●" if row["connected"] else "○"
         star = "★" if row["favorite"] else " "
         print(f"{mark} {star} {row['name']:<24} {row['connector']:<10} {row['summary']}")
@@ -362,7 +366,7 @@ def forget_command(args: argparse.Namespace) -> int:
         sid = resolve_screen(cfg, args.screen)
         if cfg["screens"][sid].get("internal"):
             raise ValueError("the laptop screen cannot be forgotten")
-        if sid in config.connected(hypr.monitors()):
+        if sid in config.connected(hypr.monitors(include_disabled=True)):
             raise ValueError("unplug it first")
         del cfg["screens"][sid]
         for screen in cfg["screens"].values():
