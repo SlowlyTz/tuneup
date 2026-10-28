@@ -156,7 +156,7 @@ def own_descriptions() -> set[str]:
     labels = {label for _action, label, _command in config.ACTIONS}
     labels |= {label for _mods, _command, label in DESKTOP_BINDS}
     labels |= {label for _combo, _command, label in CYCLE_BINDS}
-    return labels | {scratch.TOGGLE_LABEL, scratch.MOVE_LABEL}
+    return labels | {scratch.TOGGLE_LABEL, scratch.MOVE_LABEL, scratch.SWAP_LABEL}
 
 
 def digit_keys(cfg: dict) -> bool:

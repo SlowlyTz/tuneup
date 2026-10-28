@@ -49,6 +49,7 @@ function scratchCard(o) {
     ["Super + 1…0", t("In the row: scratch desktop 1 to 10")],
     ["Super + Shift + 1…0", t("In the row: moves the active window there")],
     ["Super + Alt + S", t("Moves the active window to the last scratch desktop")],
+    ["Super + Ctrl + S", t("Moves the active window in, or out onto your desktop")],
   ].map(([combo, what]) => `<div class="kv"><span class="mono">${esc(combo)}</span><span>${esc(what)}</span></div>`).join("");
   const body = `<div class="stack">
       ${row({ sid: "keys.scratch.kept", title: esc(t("Always there")),

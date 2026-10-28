@@ -26,6 +26,9 @@ TOGGLE_LABEL = "Scratch desktops"
 MOVE_LABEL = "Move window to scratch desktop"
 TOGGLE_KEYS = ["SUPER + S"]
 MOVE_KEYS = ["SUPER + ALT + S"]
+# In and out on one key, as the user's own scratchpad key did.
+SWAP_LABEL = "Move window into/out of scratch desktops"
+SWAP_KEYS = ["SUPER + CTRL + S"]
 SHIFT_S = "SUPER + SHIFT + S"
 # What Omarchy itself puts on SUPER + SHIFT + S: taking it over loses nothing of the user's.
 OMARCHY_SHIFT_S = {"Google Maps"}
@@ -51,7 +54,8 @@ def binds(cfg: dict) -> list[tuple[str, str, str]]:
         return []
     move = MOVE_KEYS + ([SHIFT_S] if cfg.get("scratch_shift_s") else [])
     return [(combo, "toggle()", TOGGLE_LABEL) for combo in TOGGLE_KEYS] + \
-        [(combo, "move_window()", MOVE_LABEL) for combo in move]
+        [(combo, "move_window()", MOVE_LABEL) for combo in move] + \
+        [(combo, "swap_window()", SWAP_LABEL) for combo in SWAP_KEYS]
 
 
 def may_take_shift_s(others: list[str]) -> bool:
@@ -274,6 +278,23 @@ do
     -- A closed row's desktops are put away: the window waits with them.
     local target = row_open() and tostring(S.last) or "{parked}" .. S.last
     hl.dispatch(hl.dsp.window.move({{ workspace = target, follow = false }}))
+  end
+
+  -- SUPER + CTRL + S: a window outside the row goes in (to the last scratch
+  -- desktop); one in the row comes out onto the desktop this screen showed
+  -- before, the row closes and the window keeps the focus.
+  function M.swap_window()
+    local window = hl.get_active_window()
+    local monitor = hl.get_active_monitor()
+    if not window or not window.workspace or not monitor then return end
+    if not is_scratch(window.workspace) then
+      M.move_window()
+      return
+    end
+    local target = "address:" .. window.address
+    hl.dispatch(hl.dsp.window.move({{ workspace = tostring(normal_of(monitor)), follow = false, window = target }}))
+    if is_scratch(monitor.active_workspace) then M.toggle() end
+    hl.dispatch(hl.dsp.focus({{ window = target }}))
   end
 
   -- A swipe that leaves the row (or enters it from a normal desktop) bounces back.

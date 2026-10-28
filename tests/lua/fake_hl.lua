@@ -88,7 +88,12 @@ local function focus_on_current(id)
 end
 
 local function dispatch(d)
-  if d.op == "focus" then
+  if d.op == "focus" and d.args.window then
+    for _, w in ipairs(fake.windows) do
+      if "address:" .. w.address == d.args.window then fake.active_window = w end
+    end
+    table.insert(fake.log, "focus " .. d.args.window)
+  elseif d.op == "focus" then
     local id = tonumber(d.args.workspace)
     if d.args.on_current_monitor then return focus_on_current(id) end
     local ws = fake.workspaces[id]
@@ -124,7 +129,21 @@ local function dispatch(d)
     for _, m in ipairs(fake.monitors) do
       if m.name == d.args.monitor and ws then
         table.insert(fake.log, "workspace " .. ws.id .. " -> " .. m.name)
+        local from = ws.monitor
         ws.monitor = m
+        -- Like Hyprland: the screen it was shown on shows another of its own.
+        if from and from ~= m and from.active_workspace == ws then
+          local other
+          for _, id in ipairs(sorted_ids()) do
+            if fake.workspaces[id].monitor == from and not other then other = fake.workspaces[id] end
+          end
+          if not other then
+            local id = 1
+            while fake.workspaces[id] do id = id + 1 end
+            other = fake.workspace(id, from)
+          end
+          from.active_workspace = other
+        end
       end
     end
   elseif d.op == "exec" then
