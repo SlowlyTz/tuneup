@@ -44,7 +44,7 @@
         {"id": "undo", "title": "Undo", "desc": "Undoes the last hiding or bringing back.", "slots": ["SUPER + U", null]}
       ],
       "hyprBinds": {"SUPER + Q": "Close window", "SUPER + W": "Close window", "SUPER + RETURN": "Terminal", "SUPER + SPACE": "Launch apps", "SUPER + F": "Full screen", "SUPER + B": "Browser", "SUPER + T": "Toggle floating", "SUPER + L": "Lock screen", "SUPER + K": "Show key bindings", "SUPER + E": "File manager", "SUPER + ESCAPE": "System menu"},
-      "options": {"desktop_keys": false, "default_fixed": "external", "fixed_desktops": 1, "scratch": true, "scratch_shift_s": false, "scratch_kept": 5},
+      "options": {"desktop_keys": false, "default_fixed": "external", "fixed_desktops": 1, "scratch": true, "scratch_shift_s": false, "scratch_kept": 5, "scratch_swipe": true},
       "defaultFixedChoices": [
         {"value": "off", "label": "Off – both screens have desktops"},
         {"value": "external", "label": "The external monitor"},
@@ -399,7 +399,7 @@
       return reply({ ...a, conflicts: c && db.keys.hyprBinds[c] ? [db.keys.hyprBinds[c]] : [] });
     },
     async setOption(name, value) {
-      if (["desktop_keys", "scratch", "scratch_shift_s"].includes(name)) need(typeof value === "boolean", "bad_value", `${name} must be true or false`);
+      if (["desktop_keys", "scratch", "scratch_shift_s", "scratch_swipe"].includes(name)) need(typeof value === "boolean", "bad_value", `${name} must be true or false`);
       else if (name === "default_fixed") need(["off", "external", "panel"].includes(value), "bad_value", "default_fixed must be one of off, external, panel");
       else if (["fixed_desktops", "scratch_kept"].includes(name)) need(Number.isInteger(value) && value >= 1 && value <= 10, "bad_value", `${name} must be 1-10`);
       else fail("bad_value", `unknown option: ${name}`);

@@ -306,6 +306,9 @@ def render(cfg: dict, runtime: bool = False) -> str:
         "end)",
     ]
     if not runtime:
+        gestures = scratch.gesture_lines(cfg)
+        if gestures:
+            lines += ["", "-- Three fingers up open the scratch desktops, down close them."] + gestures
         lines += [
             "",
             "-- The settings window floats, sized and centred, from its first frame.",
@@ -401,6 +404,8 @@ def go_live(old: dict | None, new: dict) -> None:
                 lines.append(f"hl.unbind({lua_quote(combo)})")
         gone = {combo for combo, _b, _l in scratch.binds(old)} - {combo for combo, _b, _l in scratch.binds(new)}
         lines += [f"hl.unbind({lua_quote(combo)})" for combo in sorted(gone)]
+    if old is None or not scratch.swipes(old):
+        lines += scratch.gesture_lines(new)  # not on every change; taking them away needs a reload
     code = "\n".join(lines) + "\n" + render(new, runtime=True)
     hypr.eval_lua(code)
 
@@ -481,18 +486,18 @@ def set_key(cfg: dict, action: str, slot: int, combo: str) -> str:
     return "; ".join(notes)
 
 
-KEY_OPTIONS = ("desktop_keys", "fixed_desktops", "scratch", "scratch_shift_s", "scratch_kept")
+KEY_OPTIONS = ("desktop_keys", "fixed_desktops", "scratch", "scratch_shift_s", "scratch_kept", "scratch_swipe")
 
 
 def option_changed(before: dict, cfg: dict, name: str) -> None:
     """An option that shapes the keys took a new value: the Lua file anew and
-    live. Taking a scratch key away needs a reload, which brings back what sat
+    live. Taking a scratch key (or the swipes) away needs a reload, which brings back what sat
     there before (Omarchy's scratchpad, the user's own key) -- and with the
     scratch desktops off, nothing may stay hidden."""
     if name not in KEY_OPTIONS:
         return
     write(cfg)
-    if name in ("scratch", "scratch_shift_s") and before[name] and not cfg[name]:
+    if name in ("scratch", "scratch_shift_s", "scratch_swipe") and before[name] and not cfg[name]:
         if name == "scratch":
             scratch.unpark_all()
         hypr.hyprctl("reload")

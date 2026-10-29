@@ -96,6 +96,8 @@ def default_config() -> dict:
         "scratch_shift_s": None,
         # Scratch desktops that are always there while the row is open (1..10).
         "scratch_kept": 5,
+        # Three fingers up on the touchpad open the scratch desktops, down close them.
+        "scratch_swipe": True,
         "screens": {},
         "sound": {"force_mute": {}},
         "samsung": {"limit": None, "mode": None, "full_once": False},
@@ -187,6 +189,8 @@ def normalize(raw: object) -> dict:
         cfg["scratch"] = raw["scratch"]
     if isinstance(raw.get("scratch_shift_s"), bool):
         cfg["scratch_shift_s"] = raw["scratch_shift_s"]
+    if isinstance(raw.get("scratch_swipe"), bool):
+        cfg["scratch_swipe"] = raw["scratch_swipe"]
     kept = raw.get("scratch_kept")
     if isinstance(kept, int) and not isinstance(kept, bool) and 1 <= kept <= 10:
         cfg["scratch_kept"] = kept

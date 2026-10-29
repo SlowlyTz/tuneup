@@ -7,7 +7,8 @@ Inside the row, SUPER + 1…0 / SHIFT + 1…0 go to / move the window to scratch
 desktop 1…10, swiping moves sideways between them, and a swipe that would
 leave the row (or enter it from a normal desktop) bounces back.
 SUPER + ALT + S (and SUPER + SHIFT + S if it is free) moves the active window
-to the last used scratch desktop.
+to the last used scratch desktop. Three fingers up on the touchpad open the
+row, down close it.
 
 All of it runs in Hyprland's Lua (module_lua(), part of the generated Lua
 file, safe to evaluate again: event handlers are replaced, the state is
@@ -30,6 +31,9 @@ MOVE_KEYS = ["SUPER + ALT + S"]
 SWAP_LABEL = "Move window into/out of scratch desktops"
 SWAP_KEYS = ["SUPER + CTRL + S"]
 SHIFT_S = "SUPER + SHIFT + S"
+# Touchpad: three fingers up opens the row, down closes it (config scratch_swipe).
+SWIPE_FINGERS = 3
+SWIPES = [("up", "open()"), ("down", "close()")]
 # What Omarchy itself puts on SUPER + SHIFT + S: taking it over loses nothing of the user's.
 OMARCHY_SHIFT_S = {"Google Maps"}
 # Omarchy's special workspace animation, the flight of the old scratchpad.
@@ -56,6 +60,21 @@ def binds(cfg: dict) -> list[tuple[str, str, str]]:
     return [(combo, "toggle()", TOGGLE_LABEL) for combo in TOGGLE_KEYS] + \
         [(combo, "move_window()", MOVE_LABEL) for combo in move] + \
         [(combo, "swap_window()", SWAP_LABEL) for combo in SWAP_KEYS]
+
+
+def swipes(cfg: dict) -> bool:
+    return enabled(cfg) and bool(cfg.get("scratch_swipe", True))
+
+
+def gesture_lines(cfg: dict) -> list[str]:
+    """The swipes as gestures. Hyprland has no way to take one back but a
+    reload, so they go in when the file is loaded, when they are switched on,
+    and when setup (an update) brings the keys live; one that ends up there
+    twice does no harm (open()/close() run once per swipe)."""
+    if not swipes(cfg):
+        return []
+    return [f"hl.gesture({{ fingers = {SWIPE_FINGERS}, direction = {hypr.lua_string(direction)}, "
+            f"action = {call(body)} }})" for direction, body in SWIPES]
 
 
 def may_take_shift_s(others: list[str]) -> bool:
@@ -253,6 +272,19 @@ do
     end
     after({settle}, settle)
   end
+
+  -- Three fingers up opens the row, down closes it: each only one way. A
+  -- gesture registered twice (Hyprland cannot take one back) fires twice in
+  -- one go; the second call is ignored until the timer has run.
+  local function swipe(inside)
+    if S.swiping then return end
+    S.swiping = true
+    after(1, function() S.swiping = false end)
+    local monitor = hl.get_active_monitor()
+    if monitor and is_scratch(monitor.active_workspace) == inside then M.toggle() end
+  end
+  function M.open() swipe(false) end
+  function M.close() swipe(true) end
 
   -- SUPER (+ SHIFT / + SHIFT + ALT) + digit: scratch desktop n inside the row,
   -- `otherwise` (a dispatcher) outside it.

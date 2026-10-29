@@ -61,6 +61,10 @@ function scratchCard(o) {
               desc: esc(t("Also moves the active window to the last scratch desktop (off: the key keeps its own use)")),
               end: toggle("scratch-shift-s", o.scratch_shift_s, (v) => set("scratch_shift_s", v, !v),
                           { label: t("Super + Shift + S too"), disabled: !o.scratch }) })}
+      ${row({ sid: "keys.scratch.swipe", title: esc(t("Swipe with three fingers")),
+              desc: esc(t("Up on the touchpad opens the scratch desktops, down closes them")),
+              end: toggle("scratch-swipe", o.scratch_swipe, (v) => set("scratch_swipe", v, !v),
+                          { label: t("Swipe with three fingers"), disabled: !o.scratch }) })}
       ${row({ title: esc(t("Keys")), desc: `<div class="kvs">${keys}</div>` })}
     </div>`;
   return expander("exp-scratch", {
