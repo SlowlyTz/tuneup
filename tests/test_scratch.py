@@ -51,6 +51,33 @@ def test_the_keys_it_takes_over():
     assert "tuneup_scratch" not in keybinds.render({**cfg, "scratch": False, "desktop_keys": False})
 
 
+def test_three_fingers_up_open_the_row_and_down_close_it(monkeypatch):
+    cfg = config.default_config()
+    lua = keybinds.render(cfg)
+    assert ('hl.gesture({ fingers = 3, direction = "up", action = function() if tuneup_scratch then '
+            'tuneup_scratch.open() end end })') in lua
+    assert 'direction = "down", action = function() if tuneup_scratch then tuneup_scratch.close()' in lua
+    # Hyprland cannot take a gesture back and would run a second one too:
+    # never in what goes live on every change ...
+    assert "hl.gesture" not in keybinds.render(cfg, runtime=True)
+    assert "hl.gesture" not in keybinds.render({**cfg, "scratch_swipe": False})
+    assert "hl.gesture" not in keybinds.render({**cfg, "scratch": False})
+    sent = []
+    monkeypatch.setattr(hypr, "eval_lua", sent.append)
+    keybinds.go_live(cfg, cfg)
+    keybinds.go_live({**cfg, "scratch_swipe": False}, cfg)       # ... only once, when switched on
+    keybinds.go_live(None, cfg)                                  # ... and by setup (an update)
+    assert "hl.gesture" not in sent[0] and sent[1].count("hl.gesture") == 2 and sent[2].count("hl.gesture") == 2
+
+
+def test_switching_the_swipes_off_reloads(model):
+    from hypr_screens import cli
+
+    assert cli.run(cli.build_parser().parse_args(["option", "scratch_swipe", "off"])) == 0
+    assert config.load()["scratch_swipe"] is False and model.reloads == 1
+    assert "hl.gesture" not in keybinds.lua_file().read_text()
+
+
 def test_our_scratch_keys_are_ours_for_the_enforcer():
     cfg = {**config.default_config(), "scratch_shift_s": True}
     combos = dict(keybinds.wanted(cfg))

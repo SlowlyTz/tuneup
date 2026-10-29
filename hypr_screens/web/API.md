@@ -164,8 +164,9 @@ Scratch desktops: `scratch` true/false (off gives Omarchy's scratchpad keys back
 by a reload and turns hidden scratch desktops into normal ones),
 `scratch_shift_s` true/false (SUPER + SHIFT + S also sends a window there; off
 reloads so the key's earlier use comes back), `scratch_kept` 1–10 (scratch
-desktops that are always there while the row is open). `options` holds all
-three as well.
+desktops that are always there while the row is open), `scratch_swipe`
+true/false (three fingers up on the touchpad open the row, down close it; off
+reloads, as Hyprland cannot take a gesture back). `options` holds them as well.
 
 ## Window look
 

@@ -13,7 +13,8 @@ did, but you can have several, swipe between them and move windows onto them.
 | `SUPER + ALT + S` | move the window to the last scratch desktop, stay where you are |
 | `SUPER + CTRL + S` | the active window into the row (last used scratch desktop) – inside the row: out onto the desktop the screen showed before, and the row closes |
 | `SUPER + SHIFT + S` | the same – only if nothing of yours is on that key (see below) |
-| 3-finger swipe (in the row) | next / previous scratch desktop; past the last one a new one opens |
+| 3-finger swipe up / down | open the scratch desktops / close them again |
+| 3-finger swipe left / right (in the row) | next / previous scratch desktop; past the last one a new one opens |
 
 - **One row for all screens.** `SUPER + S` on any screen brings the scratch
   desktop to that screen. Each screen remembers the desktop it showed and goes
@@ -44,5 +45,6 @@ Tuneup leaves it alone. Change your mind:
 
 ```bash
 tuneup option scratch_shift_s on     # or off
+tuneup option scratch_swipe off      # no 3-finger swipe up / down
 tuneup option scratch off            # no scratch desktops: Omarchy's scratchpad keys come back
 ```

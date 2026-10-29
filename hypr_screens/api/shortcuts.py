@@ -59,7 +59,8 @@ def action_view(cfg: dict, action: str) -> dict:
 def options_view(cfg: dict) -> dict:
     return {"desktop_keys": bool(cfg["desktop_keys"]), "default_fixed": cfg["default_fixed"],
             "fixed_desktops": cfg["fixed_desktops"], "scratch": bool(cfg["scratch"]),
-            "scratch_shift_s": bool(cfg["scratch_shift_s"]), "scratch_kept": cfg["scratch_kept"]}
+            "scratch_shift_s": bool(cfg["scratch_shift_s"]), "scratch_kept": cfg["scratch_kept"],
+            "scratch_swipe": bool(cfg["scratch_swipe"])}
 
 
 @endpoint
@@ -133,12 +134,12 @@ def release_key_capture() -> None:
 
 @endpoint
 def set_option(name: str, value: object) -> dict:
-    """desktop_keys, scratch, scratch_shift_s: true/false; default_fixed: "off" |
+    """desktop_keys, scratch, scratch_shift_s, scratch_swipe: true/false; default_fixed: "off" |
     "external" | "panel"; fixed_desktops, scratch_kept: 1-10."""
     if name in ("fixed_desktops", "scratch_kept"):
         need(isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 10, "bad_value",
              f"{name} must be 1-10")
-    elif name in ("desktop_keys", "scratch", "scratch_shift_s"):
+    elif name in ("desktop_keys", "scratch", "scratch_shift_s", "scratch_swipe"):
         need(isinstance(value, bool), "bad_value", f"{name} must be true or false")
     elif name == "default_fixed":
         need(value in config.FIXED_DEFAULTS, "bad_value", f"default_fixed must be one of {config.FIXED_DEFAULTS}")

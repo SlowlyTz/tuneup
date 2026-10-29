@@ -152,4 +152,20 @@ fake.run_timers()
 check(app.workspace.id == here and shows(laptop) == here and fake.active_window == app,
       "out again: onto the desktop shown before, the row closed, the window focused")
 
+-- Three fingers: up opens the row, down closes it; each only one way.
+fake.run_timers()
+tuneup_scratch.close()
+fake.run_timers()
+check(shows(laptop) == here, "down outside the row: nothing")
+tuneup_scratch.open()
+tuneup_scratch.open()                        -- the same gesture registered twice
+fake.run_timers()
+check(shows(laptop) >= 201, "up: the row flies in, once")
+tuneup_scratch.open()
+fake.run_timers()
+check(shows(laptop) >= 201, "up again in the row: it stays")
+tuneup_scratch.close()
+fake.run_timers()
+check(shows(laptop) == here, "down: back to the desktop it showed")
+
 print("ok")

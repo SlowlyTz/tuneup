@@ -217,9 +217,9 @@ def build_parser() -> argparse.ArgumentParser:
     bind.add_argument("combo", nargs="?", default="", help="empty to clear")
 
     option = sub.add_parser("option", help="desktop_keys on|off, default_fixed off|external|panel, fixed_desktops 1-10, "
-                                          "scratch on|off, scratch_shift_s on|off")
+                                          "scratch on|off, scratch_shift_s on|off, scratch_swipe on|off")
     option.add_argument("name", choices=["desktop_keys", "default_fixed", "fixed_desktops", "scratch",
-                                         "scratch_shift_s", "scratch_kept"])
+                                         "scratch_shift_s", "scratch_kept", "scratch_swipe"])
     option.add_argument("value", nargs="?", default="next")
 
     for name, text in (
@@ -433,7 +433,7 @@ def option_value(cfg: dict, name: str, value: str) -> object:
         if not value.isdigit() or not 1 <= int(value) <= 10:
             raise ValueError(f"{name} must be 1-10")
         return int(value)
-    if name in ("desktop_keys", "scratch", "scratch_shift_s"):
+    if name in ("desktop_keys", "scratch", "scratch_shift_s", "scratch_swipe"):
         return not cfg[name] if value in ("next", "prev") else value in ("on", "1", "true", "yes")
     choices = config.FIXED_DEFAULTS
     if value in ("next", "prev"):

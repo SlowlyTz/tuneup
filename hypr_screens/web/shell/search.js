@@ -30,6 +30,7 @@ function fixedEntries() {
     { id: "keys.desktop", r: "keys", t: t("Desktop keys"), syn: t("super 1 tab workspace switch") },
     { id: "keys.scratch", r: "keys", t: t("Scratch desktops"), syn: t("scratchpad super s stash") },
     { id: "keys.scratch.kept", r: "keys", t: t("Always there"), d: t("Scratch desktops"), exp: "exp-scratch", syn: t("scratchpad persistent empty") },
+    { id: "keys.scratch.swipe", r: "keys", t: t("Swipe with three fingers"), d: t("Scratch desktops"), exp: "exp-scratch", syn: t("touchpad gesture swipe up scratchpad") },
     { id: "look.presets", r: "look", t: t("Window style"), d: ((S.look && S.look.presets) || []).map((p) => t(p.name)).join(", "), syn: t("preset template look theme") },
     { id: "look.gapsIn", r: "look", t: t("Inner gaps"), syn: t("gaps space between windows") },
     { id: "look.gapsOut", r: "look", t: t("Outer gaps"), syn: t("gaps edge of the screen") },
