@@ -25,10 +25,11 @@ def place_desktops(cfg: dict, docking: bool = False) -> list[str]:
     if not screens.external:
         # The rules pinning desktops stay until a reload; harmless while
         # their screen is away, and replaced when it comes back.
-        desktops.undock(screens)
+        desktops.undock(screens, cfg["unplug_windows"])
     elif screens.role:
         desktops.arrange(screens, docking=docking)
     else:
+        desktops.remember_role(None)
         desktops.fold_fixed(screens)
         if desktops.rules_marked() and len(screens.monitors) > 1:
             # Workspace rules pinning desktops to one screen only go away
@@ -109,6 +110,6 @@ def state(cfg: dict | None = None, message: str = "") -> dict:
              "value": "on" if cfg["desktop_keys"] else "off"},
             {"key": "default_fixed", "label": "One desktop on new screens",
              "value": {"off": "off", "external": "external screen", "panel": "laptop"}[cfg["default_fixed"]]},
-            {"key": "fixed_desktops", "label": "Desktops on the fixed screen", "value": str(cfg["fixed_desktops"])},
+            {"key": "fixed_desktops", "label": "Number of own desktops", "value": str(cfg["fixed_desktops"])},
         ],
     }

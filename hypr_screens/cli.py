@@ -217,8 +217,8 @@ def build_parser() -> argparse.ArgumentParser:
     bind.add_argument("combo", nargs="?", default="", help="empty to clear")
 
     option = sub.add_parser("option", help="desktop_keys on|off, default_fixed off|external|panel, fixed_desktops 1-10, "
-                                          "scratch on|off, scratch_shift_s on|off, scratch_swipe on|off")
-    option.add_argument("name", choices=["desktop_keys", "default_fixed", "fixed_desktops", "scratch",
+                                          "unplug_windows fold|spread|close, scratch on|off, scratch_shift_s on|off, scratch_swipe on|off")
+    option.add_argument("name", choices=["desktop_keys", "default_fixed", "fixed_desktops", "unplug_windows", "scratch",
                                          "scratch_shift_s", "scratch_kept", "scratch_swipe"])
     option.add_argument("value", nargs="?", default="next")
 
@@ -424,7 +424,7 @@ def bind_command(args: argparse.Namespace) -> int:
 
 def option_value(cfg: dict, name: str, value: str) -> object:
     """desktop_keys: on/off or next/prev (toggle); default_fixed: a choice or next/prev;
-    fixed_desktops: 1-10 or next/prev."""
+    fixed_desktops: 1-10 or next/prev; unplug_windows: a choice or next/prev."""
     from hypr_screens import config
 
     if name in ("fixed_desktops", "scratch_kept"):
@@ -435,11 +435,11 @@ def option_value(cfg: dict, name: str, value: str) -> object:
         return int(value)
     if name in ("desktop_keys", "scratch", "scratch_shift_s", "scratch_swipe"):
         return not cfg[name] if value in ("next", "prev") else value in ("on", "1", "true", "yes")
-    choices = config.FIXED_DEFAULTS
+    choices = config.UNPLUG_CHOICES if name == "unplug_windows" else config.FIXED_DEFAULTS
     if value in ("next", "prev"):
-        value = choices[(choices.index(cfg["default_fixed"]) + (1 if value == "next" else -1)) % len(choices)]
+        value = choices[(choices.index(cfg[name]) + (1 if value == "next" else -1)) % len(choices)]
     if value not in choices:
-        raise ValueError(f"default_fixed must be one of {choices}")
+        raise ValueError(f"{name} must be one of {choices}")
     return value
 
 

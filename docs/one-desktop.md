@@ -1,8 +1,8 @@
-# One desktop on one screen
+# Own desktops for one screen
 
 With an external monitor connected:
 
-- **One screen is fixed:** it always shows the same desktop (workspace `99`, shown as `1` in the bar). This is good for chat, music or a dashboard.
+- **One screen has desktops of its own** (here: the fixed screen): it always shows the same desktop (workspace `99`, shown as `1` in the bar). This is good for chat, music or a dashboard.
 - **The other screen has desktops 1–10.** `SUPER + 1…0` only switch that one.
 
 This is for **one** external monitor. Without one, everything is normal Hyprland.
@@ -11,8 +11,8 @@ This is for **one** external monitor. Without one, everything is normal Hyprland
 
 Tuneup decides in this order:
 
-1. **Swap:** until you unplug the monitor. Swap from the tray menu (*Swap the fixed screen*), the **Swap** button on Home and on Screens, or `tuneup swap`.
-2. **For new monitors** (Screens page, below the picture): Off · External monitor · Laptop.
+1. **Swap:** until you unplug the monitor. Swap from the tray menu (*Swap the own desktops*), the **Swap** button on Home and on Screens, or `tuneup swap`.
+2. **Own desktops** (Screens page, below the picture): Off · External monitor · Laptop.
 
 A monitor that [mirrors the laptop](screens.md#mirror-the-laptop-screen) is no screen of its own, so nothing is fixed while it is plugged in.
 
@@ -20,7 +20,7 @@ The canvas on the Screens page marks the fixed screen with a pin.
 
 ## More than one desktop on the fixed screen
 
-**Desktops on the fixed screen** (Screens page, below the picture) gives it up to 10 desktops of its own
+**Number of own desktops** (Screens page, below the picture) gives it up to 10 desktops of its own
 (workspaces `99`, `100`, … shown as `1`, `2`, … in its bar). The two screens stay apart: desktops 1–10 never
 appear on the fixed screen, its own desktops never on the other one.
 
@@ -38,7 +38,22 @@ tuneup option fixed_desktops 5
 | plug in (laptop fixed) | the windows you had on the laptop stay on the laptop |
 | plug in (external fixed) | the external screen starts empty; move windows there with `SUPER + Y` |
 | swap | the screens trade places; windows and layouts stay as they are |
-| unplug | windows of the fixed screen go to the desktop the laptop shows |
+| unplug, or mirror the laptop | windows of the fixed screen go where **When the external monitor goes** says (below) |
+
+## When the external monitor goes
+
+When the external screen is the fixed one and is unplugged or set to mirror the laptop, its windows:
+
+- **Onto the laptop's current desktop** (the default): all together on the desktop the laptop shows.
+- **Spread over desktops 6–10:** its desktop 1 onto desktop 6, 2 onto 7 and so on; from its sixth desktop on all onto 10.
+  Windows already there stay. When the monitor is back (or stops mirroring), the windows still on those desktops go back.
+- **Close them:** as `SUPER + W` would, so an app may still ask to save.
+
+When the laptop is the fixed screen, its own windows always stay together on the desktop it shows.
+
+```bash
+tuneup option unplug_windows spread   # fold | spread | close
+```
 
 ## What it needs
 

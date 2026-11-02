@@ -8,7 +8,7 @@ Tuneup is the settings app Omarchy is missing: screens and desktops, window look
 | find my way around the app and search it | [settings-window.md](settings-window.md) |
 | know the keys and commands I use every day | [daily.md](daily.md) |
 | rotate, scale or place a monitor | [screens.md](screens.md) |
-| keep one desktop on one screen | [one-desktop.md](one-desktop.md) |
+| own desktops for one screen | [one-desktop.md](one-desktop.md) |
 | change the window look, put widgets on the desktop | [personalization.md](personalization.md) |
 | control sound per device and app, force mute | [sound.md](sound.md) |
 | turn the camera picture for every app | [camera.md](camera.md) |

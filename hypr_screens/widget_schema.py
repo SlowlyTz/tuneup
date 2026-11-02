@@ -137,7 +137,7 @@ def field(kind: str, key: str, group: str, cfg: dict, widget: dict) -> dict:
         out.update(type="choice", label="Screens", choices=screen_choices(cfg), dynamic=True, default="all")
     elif key == "desktops":
         out.update(type="multi", label="Desktops", default=["all"],
-                   choices=[{"value": v, "label": "Fixed screen" if v == "fixed" else v} for v in DESKTOP_VALUES],
+                   choices=[{"value": v, "label": "Screen with its own desktops" if v == "fixed" else v} for v in DESKTOP_VALUES],
                    hint="None picked: on every desktop.")
     elif key == "zone2":
         out.update(type="text", format="timezone", label="Second time zone", default="")

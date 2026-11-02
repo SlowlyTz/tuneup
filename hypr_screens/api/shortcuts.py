@@ -20,7 +20,7 @@ ACTION_HELP = {
     "pop_all": "Brings back all hidden windows of this desktop.",
     "undo": "Undoes the last hiding or bringing back.",
 }
-DEFAULT_FIXED_LABELS = {"off": "Off – both screens have desktops", "external": "The external monitor",
+DEFAULT_FIXED_LABELS = {"off": "Off – both screens share desktops 1–10", "external": "The external monitor",
                         "panel": "The laptop"}
 
 KEY_NAMES = {code: name for name, code in keybinds.KEYCODES.items()}
@@ -58,7 +58,8 @@ def action_view(cfg: dict, action: str) -> dict:
 
 def options_view(cfg: dict) -> dict:
     return {"desktop_keys": bool(cfg["desktop_keys"]), "default_fixed": cfg["default_fixed"],
-            "fixed_desktops": cfg["fixed_desktops"], "scratch": bool(cfg["scratch"]),
+            "fixed_desktops": cfg["fixed_desktops"], "unplug_windows": cfg["unplug_windows"],
+            "scratch": bool(cfg["scratch"]),
             "scratch_shift_s": bool(cfg["scratch_shift_s"]), "scratch_kept": cfg["scratch_kept"],
             "scratch_swipe": bool(cfg["scratch_swipe"])}
 
@@ -135,7 +136,7 @@ def release_key_capture() -> None:
 @endpoint
 def set_option(name: str, value: object) -> dict:
     """desktop_keys, scratch, scratch_shift_s, scratch_swipe: true/false; default_fixed: "off" |
-    "external" | "panel"; fixed_desktops, scratch_kept: 1-10."""
+    "external" | "panel"; fixed_desktops, scratch_kept: 1-10; unplug_windows: "fold" | "spread" | "close"."""
     if name in ("fixed_desktops", "scratch_kept"):
         need(isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 10, "bad_value",
              f"{name} must be 1-10")
@@ -143,6 +144,8 @@ def set_option(name: str, value: object) -> dict:
         need(isinstance(value, bool), "bad_value", f"{name} must be true or false")
     elif name == "default_fixed":
         need(value in config.FIXED_DEFAULTS, "bad_value", f"default_fixed must be one of {config.FIXED_DEFAULTS}")
+    elif name == "unplug_windows":
+        need(value in config.UNPLUG_CHOICES, "bad_value", f"unplug_windows must be one of {config.UNPLUG_CHOICES}")
     else:
         raise ApiError("bad_value", f"unknown option: {name!r}")
     before = []

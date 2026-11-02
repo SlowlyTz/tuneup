@@ -141,7 +141,7 @@ Swaps which screen is fixed until the monitor is unplugged. Error `no_external`.
               slots: ["SUPER + M", null] }, …],   // ids: minimizer_menu stash stash_others pop pop_all undo
   hyprBinds: { "SUPER + Q": "Close window", "SUPER + 1": "Switch to workspace 1", … },  // Hyprland's own, not ours
   options: { desktop_keys: false, default_fixed: "off" },   // "off" | "external" | "panel"
-  defaultFixedChoices: [{ value: "off", label: "Off – both screens have desktops" }, …]
+  defaultFixedChoices: [{ value: "off", label: "Off – both screens share desktops 1–10" }, …]
 }
 ```
 
@@ -159,7 +159,9 @@ Esc always drops back to the normal keymap.
 ### `setOption(name, value)` → `options`
 `desktop_keys` true/false (rewrites and reloads the keys, then syncs),
 `default_fixed` `"off" | "external" | "panel"` or `fixed_desktops` 1–10 (desktops
-on the fixed screen; above 1 the desktop keys act on the focused screen).
+on the fixed screen; above 1 the desktop keys act on the focused screen),
+`unplug_windows` `"fold" | "spread" | "close"` (the external fixed screen's windows when it
+is unplugged or mirrors the laptop: onto the laptop's desktop, over desktops 6–10, closed).
 Scratch desktops: `scratch` true/false (off gives Omarchy's scratchpad keys back
 by a reload and turns hidden scratch desktops into normal ones),
 `scratch_shift_s` true/false (SUPER + SHIFT + S also sends a window there; off

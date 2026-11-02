@@ -7,7 +7,13 @@ Which screen is fixed (the "role": "panel" = laptop, "external"):
   1. a temporary swap (`tuneup swap`), until the monitor is unplugged,
   2. the global default ("default_fixed": off, the external screen or the laptop).
 A monitor that mirrors the laptop is no screen of its own here. Without a
-role, desktops behave like stock Hyprland. The scratch desktops
+role, desktops behave like stock Hyprland.
+
+When an external fixed screen goes (unplugged, or set to mirror the laptop),
+its windows go where the "unplug_windows" option says: onto the desktop the
+laptop shows ("fold"), spread over desktops 6-10 (its desktop 1 onto 6, 2 onto
+7 ..., the sixth and up all onto 10) and back once it is a screen again
+("spread"), or closed ("close"). The scratch desktops
 (scratch.FIRST and up) may show on any screen, the fixed one too.
 """
 import json
@@ -49,6 +55,38 @@ def save_override(external_id: str, role: str) -> None:
 
 def clear_override() -> None:
     override_file().unlink(missing_ok=True)
+
+
+# Which screen was fixed: once it is unplugged, Hyprland no longer tells.
+def role_file():
+    return config.runtime_dir() / "fixed-role"
+
+
+def remember_role(role: str | None) -> None:
+    if role:
+        role_file().write_text(role + "\n")
+    else:
+        role_file().unlink(missing_ok=True)
+
+
+def last_role() -> str:
+    try:
+        return role_file().read_text().strip()
+    except OSError:
+        return ""
+
+
+# Windows spread over desktops 6-10: address -> [the fixed desktop they came from, where they went].
+def spread_file():
+    return config.runtime_dir() / "spread.json"
+
+
+def load_spread() -> dict:
+    try:
+        spread = json.loads(spread_file().read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return spread if isinstance(spread, dict) else {}
 
 
 @dataclass
@@ -225,6 +263,9 @@ def arrange(screens: Screens, docking: bool = False) -> None:
     for workspace in DESKTOPS:
         pin(workspace, screens.desk)
     mark_rules(True)
+    remember_role(screens.role)
+    if screens.role == "external":
+        bring_back(screens)
     hold_fixed(screens)
     if docking:
         hypr.dispatch(f"hl.dsp.focus({{ monitor = {hypr.lua_string(screens.desk)} }})")
@@ -250,9 +291,75 @@ def fold_fixed(screens: Screens) -> None:
     hypr.dispatch(f'hl.dsp.focus({{ workspace = "{target}" }})')
 
 
-def undock(screens: Screens) -> None:
+SPREAD_FROM = 6
+
+
+def spread_target(workspace: int) -> int:
+    """The fixed screen's desktop 1 onto desktop 6, 2 onto 7 ..., the sixth and up onto 10."""
+    return min(SPREAD_FROM + workspace - FIXED_WS, DESKTOPS[-1])
+
+
+def left_on_fixed() -> dict[int, list[str]]:
+    """The fixed desktops that still have windows: workspace -> window addresses."""
+    found: dict[int, list[str]] = {}
+    for client in hypr.query_list("clients"):
+        workspace = (client.get("workspace") or {}).get("id")
+        if workspace in fixed_workspaces(10):
+            found.setdefault(workspace, []).append(str(client["address"]))
+    return found
+
+
+def spread(screens: Screens) -> None:
+    """The external screen's windows onto desktops 6-10, joining what is there already."""
+    alive = {str(client.get("address")) for client in hypr.query_list("clients")}
+    moved = {address: entry for address, entry in load_spread().items() if address in alive}
+    for workspace, addresses in left_on_fixed().items():
+        target = spread_target(workspace)
+        for address in addresses:
+            hypr.dispatch(f'hl.dsp.window.move({{ workspace = "{target}", follow = false, window = "address:{address}" }})')
+            moved[address] = [workspace, target]
+    if moved:
+        spread_file().write_text(json.dumps(moved) + "\n")
+    showing = screens.workspace_on(screens.panel)
+    if showing in fixed_workspaces(10):
+        hypr.dispatch(f'hl.dsp.focus({{ workspace = "{spread_target(showing)}" }})')
+
+
+def close_left(screens: Screens) -> None:
+    """Close the external screen's windows (as SUPER + W would: an app may still ask to save)."""
+    for addresses in left_on_fixed().values():
+        for address in addresses:
+            hypr.dispatch(f'hl.dsp.window.close({{ window = "address:{address}" }})')
+    if screens.workspace_on(screens.panel) in fixed_workspaces(10):
+        hypr.dispatch('hl.dsp.focus({ workspace = "1" })')
+
+
+def bring_back(screens: Screens) -> None:
+    """Spread windows back onto the external screen's desktops -- those still where they were put
+    (onto its last desktop when it has fewer now)."""
+    moved = load_spread()
+    if not moved:
+        return
+    spread_file().unlink(missing_ok=True)
+    where = {str(c.get("address")): (c.get("workspace") or {}).get("id") for c in hypr.query_list("clients")}
+    for address, (workspace, target) in moved.items():
+        if where.get(address) == target:
+            workspace = min(workspace, screens.fixed_set[-1])
+            hypr.dispatch(f'hl.dsp.window.move({{ workspace = "{workspace}", follow = false, window = "address:{address}" }})')
+
+
+def undock(screens: Screens, windows: str = "fold") -> None:
+    """No external screen any more: the fixed desktops' windows go where `windows`
+    says ("fold", "spread", "close") -- if they were the external screen's."""
     clear_override()
-    fold_fixed(screens)
+    was_external = last_role() == "external"
+    remember_role(None)
+    if was_external and windows == "spread":
+        spread(screens)
+    elif was_external and windows == "close":
+        close_left(screens)
+    else:
+        fold_fixed(screens)
 
 
 def swap(cfg: dict, want: str | None = None) -> Screens:

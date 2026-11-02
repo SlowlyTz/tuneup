@@ -31,7 +31,7 @@ function screensTile() {
   const fixedName = fx.fixed && scr(fx.fixed) ? sname(scr(fx.fixed)) : null;
   return `<div class="card tile">${tileHead("monitor", t("Screens"), "#/screens")}
       <div class="minimap" aria-hidden="true">${minimap(cs, fx.fixed)}</div>
-      <div class="tile-foot"><span class="muted">${esc(fixedName && cs.length > 1 ? t("Fixed: {name}", { name: fixedName }) : t("{n} connected", { n: cs.length }))}</span>${fx.canSwap ? swapButton("hswap", t("Swap")) : ""}</div>
+      <div class="tile-foot"><span class="muted">${esc(fixedName && cs.length > 1 ? t("Own desktops: {name}", { name: fixedName }) : t("{n} connected", { n: cs.length }))}</span>${fx.canSwap ? swapButton("hswap", t("Swap")) : ""}</div>
     </div>`;
 }
 

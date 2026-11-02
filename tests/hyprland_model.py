@@ -395,6 +395,9 @@ class HyprlandModel:
                     client["workspace"] = {"id": ws, "name": str(ws)}
                     if ws not in self.workspaces:
                         self.workspaces[ws] = (self.focused() or {}).get("name")
+        elif expression.startswith("hl.dsp.window.close("):
+            address = str(fields.get("window", "")).removeprefix("address:")
+            self.clients = [client for client in self.clients if client["address"] != address]
         elif expression.startswith("hl.dsp.workspace.swap_monitors("):
             first, second = self.monitor(fields["monitor1"]), self.monitor(fields["monitor2"])
             a, b = first["activeWorkspace"]["id"], second["activeWorkspace"]["id"]
