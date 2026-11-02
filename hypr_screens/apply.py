@@ -95,7 +95,7 @@ def usable(key: str, value: object) -> bool:
     if value is None:
         return False
     if key == "rotation":
-        return value in TRANSFORMS and not isinstance(value, bool)
+        return isinstance(value, int) and not isinstance(value, bool) and value in TRANSFORMS
     if key == "scale":
         return value == "auto" or (isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0)
     if key == "position":

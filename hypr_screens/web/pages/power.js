@@ -25,7 +25,8 @@ const INTRO = "Samsung Galaxy Book";
 export const modeLabel = (s, v) => { const m = (s.modes || []).find((x) => x.value === v); return m ? t(m.label) : v || "–"; };
 
 export function setSam(field, value, msg) {
-  const old = S.samsung[field];
+  // The limit in force is 100 while "charge fully once" runs; undo goes back to the one set.
+  const old = field === "chargeLimit" && S.samsung.wantedLimit != null ? S.samsung.wantedLimit : S.samsung[field];
   return change(() => api.setSamsung(field, value), field === "active" ? null : () => api.setSamsung(field, old), { reload: ["samsung"], msg });
 }
 

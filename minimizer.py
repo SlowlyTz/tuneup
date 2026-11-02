@@ -707,12 +707,29 @@ def client_icon(client: dict) -> str:
     return window_class
 
 
+def adopt_orphans(state: dict[str, list[str]], clients: dict[str, dict]) -> dict[str, list[str]]:
+    """Windows hidden in special:minimized that no stack knows (the state file was
+    lost, a restore did not take): onto the focused workspace's stack, so the menu
+    can bring them back."""
+    known = {address for stack in state.values() for address in stack}
+    orphans = [address for address, client in clients.items() if is_minimized(client) and address not in known]
+    if not orphans:
+        return state
+    try:
+        workspace_id = get_active_workspace_id()
+    except RuntimeError:
+        workspace_id = "1"
+    adopted = {key: list(stack) for key, stack in state.items()}
+    adopted.setdefault(workspace_id, []).extend(orphans)
+    return adopted
+
+
 def minimized_entries(prune: bool = False) -> list[dict[str, object]]:
     state = load_state()
     clients = clients_by_address()
 
     if prune:
-        pruned_state = prune_stale(state, clients)
+        pruned_state = adopt_orphans(prune_stale(state, clients), clients)
         if pruned_state != state:
             save_state(pruned_state)
         state = pruned_state
@@ -1100,7 +1117,8 @@ def undo() -> None:
 
 def clear_missing() -> None:
     state = load_state()
-    pruned_state = prune_stale(state, clients_by_address())
+    clients = clients_by_address()
+    pruned_state = adopt_orphans(prune_stale(state, clients), clients)
     if pruned_state != state:
         save_state(pruned_state)
 
@@ -1251,7 +1269,12 @@ def menu_command() -> int:
         app_name for app_name, count in app_name_counts.items() if count > 1
     }
 
-    lines = [menu_label(entry, duplicate_app_names) for entry in entries]
+    lines = []
+    for entry in entries:
+        # One line each: a newline would split it, the menu trims the ends, and two
+        # windows with the same label would always restore the first.
+        line = menu_label(entry, duplicate_app_names).replace("\n", " ").strip()
+        lines.append(f"{line} ({entry['address']})" if line in lines else line)
     selections = [
         (line, str(entry["address"]))
         for line, entry in zip(lines, entries, strict=True)
@@ -1329,13 +1352,17 @@ def main() -> None:
     watch_parser.add_argument("address")
 
     args = parser.parse_args()
-    if args.command == "menu":
-        raise SystemExit(menu_command())
-    if args.command == "watch-peek":
-        watch_peek(args.address)
-        return
-    with state_lock():
-        run_command(args)
+    try:
+        if args.command == "menu":
+            raise SystemExit(menu_command())
+        if args.command == "watch-peek":
+            watch_peek(args.address)
+            return
+        with state_lock():
+            run_command(args)
+    except RuntimeError as error:  # Hyprland not answering, no focused monitor (a hotplug)
+        print(f"hypr-minimizer: {error}", file=sys.stderr)
+        raise SystemExit(1) from None
 
 
 def run_command(args: argparse.Namespace) -> None:

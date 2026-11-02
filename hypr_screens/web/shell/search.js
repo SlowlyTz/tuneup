@@ -77,7 +77,7 @@ function widgetEntries() {
   const list = [];
   const W = S.widgets || [];
   for (const w of W) {
-    list.push({ id: `widgets.${w.kind}`, r: `widgets/${w.kind}`, t: t(w.name), d: t(w.description || ""), syn: "widget", top: true });
+    list.push({ id: `widgets.${w.kind}.on`, r: `widgets/${w.kind}`, t: t(w.name), d: t(w.description || ""), syn: "widget", top: true });
     for (const f of w.schema.filter((x) => x.group === "content")) list.push({ id: `w.${w.kind}.${f.key}`, r: `widgets/${w.kind}`, t: `${t(w.name)}: ${t(f.label)}`, syn: f.section ? t(f.section) : "" });
   }
   const first = W.find((w) => w.enabled) || W[0];
@@ -110,10 +110,16 @@ function hits(query) {
 }
 
 const mark = (text, query) => {
-  const q = query.trim();
-  const i = norm(text).indexOf(norm(q));
-  if (i < 0 || !q) return esc(text);
-  return `${esc(text.slice(0, i))}<mark>${esc(text.slice(i, i + q.length))}</mark>${esc(text.slice(i + q.length))}`;
+  const q = norm(query.trim());
+  if (!q) return esc(text);
+  // Positions in `text` itself: norm() can change the length (ß -> ss).
+  for (let i = 0; i < text.length; i++) {
+    if (!norm(text.slice(i)).startsWith(q)) continue;
+    let j = i + 1;
+    while (j < text.length && norm(text.slice(i, j)).length < q.length) j++;
+    return `${esc(text.slice(0, i))}<mark>${esc(text.slice(i, j))}</mark>${esc(text.slice(j))}`;
+  }
+  return esc(text);
 };
 
 const state = { hits: [], active: 0 };
@@ -150,7 +156,7 @@ function jump(e) {
     if (control) control.focus({ preventScroll: true });
   };
   const target = `#/${e.r}`;
-  if (location.hash === target) { render(); finish(); }
+  if (location.hash === target) { UI.wtabNext = null; render(); finish(); }  // the route stays: nothing takes wtabNext
   else { pendingJump = finish; location.hash = target; }
 }
 

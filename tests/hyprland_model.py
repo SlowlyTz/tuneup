@@ -394,7 +394,8 @@ class HyprlandModel:
                     ws = int(fields["workspace"])
                     client["workspace"] = {"id": ws, "name": str(ws)}
                     if ws not in self.workspaces:
-                        self.workspaces[ws] = (self.focused() or {}).get("name")
+                        ruled = self.monitor(self.workspace_rules.get(ws, ""))
+                        self.workspaces[ws] = (ruled or self.focused() or {}).get("name")
         elif expression.startswith("hl.dsp.window.close("):
             address = str(fields.get("window", "")).removeprefix("address:")
             self.clients = [client for client in self.clients if client["address"] != address]

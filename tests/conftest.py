@@ -28,6 +28,16 @@ def tuneup_command(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def english_again():
+    """A test that switches the language (and fails before switching back) must not
+    leave it for the next ones."""
+    yield
+    from hypr_screens import i18n
+
+    i18n.set_language("en")
+
+
+@pytest.fixture(autouse=True)
 def no_real_hyprland(monkeypatch):
     """A test that forgets to fake Hyprland gets empty answers, never the real one."""
     from hypr_screens import hypr

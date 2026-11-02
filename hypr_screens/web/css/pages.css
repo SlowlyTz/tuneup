@@ -287,7 +287,7 @@
 .app-sl .slider { flex: 1; min-width: 0; gap: var(--s2); }
 .app-sl input[type="range"] { min-width: 60px; }
 .app-sl .slider .val { min-width: 38px; }
-@media (max-width: 899px) { .app-row { grid-template-columns: 22px 1fr 32px; } .app-sl { grid-column: 2 / 4; } }
+@media (max-width: 899px) { .app-row { grid-template-columns: 22px 1fr 32px; } .app-sl { grid-column: 2 / 4; } .app-row > button { grid-column: 3; grid-row: 1; } }
 /* widget previews */
 .wv-flip { display: flex; gap: 4px; }
 .wv-flip span { position: relative; font: 600 24px/1 var(--font); padding: 6px 7px; border-radius: 5px; background: rgb(255 255 255 / .1); letter-spacing: -.02em; }

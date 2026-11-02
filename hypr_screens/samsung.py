@@ -207,8 +207,9 @@ def status(cfg: dict | None = None) -> dict:
         "cpu_temperature": cpu_temperature(),
         "attributes": {name: read(attribute_file(name)) == "1" if attribute_file(name).exists() else None
                        for name in ATTRIBUTES},
-        "attributes_writable": all(os.access(attribute_file(name), os.W_OK)
-                                   for name in ATTRIBUTES if attribute_file(name).exists()),
+        "attributes_writable": any(attribute_file(name).exists() for name in ATTRIBUTES)
+                               and all(os.access(attribute_file(name), os.W_OK)
+                                       for name in ATTRIBUTES if attribute_file(name).exists()),
         "keyboard": keyboard(),
     }
 

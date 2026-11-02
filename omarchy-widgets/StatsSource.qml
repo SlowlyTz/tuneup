@@ -37,6 +37,10 @@ Item {
     return next
   }
 
+  // Back on after a while: the first sample must not average over the whole gap.
+  onSystemWantedChanged: if (!systemWanted) lastCpu = null
+  onNetworkWantedChanged: if (!networkWanted) lastNet = null
+
   // --- system ---
 
   FileView { id: procStat; path: stats.systemWanted ? "/proc/stat" : ""; blockLoading: true; printErrors: false }
@@ -60,7 +64,8 @@ Item {
     if (fields.length >= 4) {
       var idle = fields[3] + (fields[4] || 0)
       var total = 0
-      for (var i = 0; i < fields.length; i++) total += fields[i]
+      // user ... steal: guest and guest_nice are counted in user and nice already
+      for (var i = 0; i < Math.min(8, fields.length); i++) total += fields[i]
       if (stats.lastCpu) {
         var dt = total - stats.lastCpu.total
         stats.cpu = dt > 0 ? Math.max(0, Math.min(1, 1 - (idle - stats.lastCpu.idle) / dt)) : 0
@@ -95,7 +100,8 @@ Item {
     var rows = String(text).split("\n")
     for (var i = 2; i < rows.length; i++) {
       var match = rows[i].match(/^\s*([^:]+):\s*(.*)$/)
-      if (!match || match[1].trim() === "lo") continue
+      // Only real interfaces: a VPN tunnel or a container bridge would count the same traffic twice.
+      if (!match || /^(lo|veth|docker|br-|virbr|vnet|tun|tap|wg|tailscale|zt)/.test(match[1].trim())) continue
       var fields = match[2].trim().split(/\s+/).map(Number)
       rx += fields[0] || 0
       tx += fields[8] || 0
@@ -115,8 +121,9 @@ Item {
 
   Process {
     id: diskStats
-    command: ["df", "-B1", "--output=source,target,size,used", "-x", "tmpfs", "-x", "devtmpfs", "-x", "efivarfs",
-              "-x", "squashfs", "-x", "overlay"]
+    // timeout: a hung network mount must not keep df (and so the list) stuck for good
+    command: ["timeout", "10", "df", "-B1", "--output=source,size,used,avail,target", "-x", "tmpfs", "-x", "devtmpfs",
+              "-x", "efivarfs", "-x", "squashfs", "-x", "overlay"]
     stdout: StdioCollector { onStreamFinished: stats.takeDisks(text) }
   }
   Timer {
@@ -133,12 +140,13 @@ Item {
     var order = []
     var rows = String(text).split("\n")
     for (var i = 1; i < rows.length; i++) {
-      var f = rows[i].trim().split(/\s+/)
-      if (f.length < 4 || !(Number(f[2]) > 0)) continue
-      if (/^\/(boot|efi)/.test(f[1]) && Number(f[2]) < 4e9) continue
-      var known = bySource[f[0]]
-      if (!known) { order.push(f[0]); bySource[f[0]] = { mount: f[1], size: Number(f[2]), used: Number(f[3]) } }
-      else if (f[1].length < known.mount.length) known.mount = f[1]
+      // source size used avail target -- the mount point last, it may hold spaces
+      var m = rows[i].trim().match(/^(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(.+)$/)
+      if (!m || !(Number(m[2]) > 0)) continue
+      if (/^\/(boot|efi)/.test(m[5]) && Number(m[2]) < 4e9) continue
+      var known = bySource[m[1]]
+      if (!known) { order.push(m[1]); bySource[m[1]] = { mount: m[5], size: Number(m[2]), used: Number(m[3]), avail: Number(m[4]) } }
+      else if (m[5].length < known.mount.length) known.mount = m[5]
     }
     stats.disks = order.map(function(source) { return bySource[source] })
   }

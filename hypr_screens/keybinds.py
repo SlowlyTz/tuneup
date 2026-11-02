@@ -471,9 +471,9 @@ def set_key(cfg: dict, action: str, slot: int, combo: str) -> str:
     """Store a key; returns a note about what it replaces (or "")."""
     if action not in cfg["keybinds"] or slot not in (0, 1):
         raise ValueError("unknown action or slot")
-    combo = normalize(combo) if combo else ""
     if combo and parse(combo) is None:
         raise ValueError(f"not a key combination: {combo}")
+    combo = normalize(combo) if combo else ""
     notes = []
     if combo:
         mine = taken_by_us(cfg, combo, except_slot=(action, slot))
@@ -491,13 +491,13 @@ KEY_OPTIONS = ("desktop_keys", "fixed_desktops", "scratch", "scratch_shift_s", "
 
 def option_changed(before: dict, cfg: dict, name: str) -> None:
     """An option that shapes the keys took a new value: the Lua file anew and
-    live. Taking a scratch key (or the swipes) away needs a reload, which brings back what sat
-    there before (Omarchy's scratchpad, the user's own key) -- and with the
-    scratch desktops off, nothing may stay hidden."""
+    live. Taking a scratch key, the swipes or the desktop keys away needs a reload, which brings
+    back what sat there before (Omarchy's scratchpad and SUPER + 1…0 / TAB, the user's own key)
+    -- and with the scratch desktops off, nothing may stay hidden."""
     if name not in KEY_OPTIONS:
         return
     write(cfg)
-    if name in ("scratch", "scratch_shift_s", "scratch_swipe") and before[name] and not cfg[name]:
+    if name in ("scratch", "scratch_shift_s", "scratch_swipe", "desktop_keys") and before[name] and not cfg[name]:
         if name == "scratch":
             scratch.unpark_all()
         hypr.hyprctl("reload")

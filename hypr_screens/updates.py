@@ -156,6 +156,14 @@ def run(report: bool = False, runner=subprocess.run) -> int:
     before = current_version()
     if report:
         write_status(state="running", **{"from": before, "to": None}, log=[], error=None)
+    try:
+        return update(before, report, runner)
+    except (OSError, subprocess.TimeoutExpired, config.ConfigError) as error:
+        # Never left "running": the settings window would wait for it for good.
+        return failed(str(error) or type(error).__name__, report)
+
+
+def update(before: str, report: bool, runner) -> int:
     state = check()
     if not state["canUpdate"]:
         why = REASON_TEXTS.get(state["reason"]) or "Tuneup is up to date."

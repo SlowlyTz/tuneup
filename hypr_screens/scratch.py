@@ -39,9 +39,9 @@ OMARCHY_SHIFT_S = {"Google Maps"}
 # Omarchy's special workspace animation, the flight of the old scratchpad.
 FLY = {"enabled": True, "speed": 3, "bezier": "easeOutQuint", "style": "slidevert"}
 SLIDE = {**FLY, "style": "slide"}  # set inside the row by earlier versions
-SETTLE_MS = 400
+SETTLE_MS = 400  # a bit longer than the flight (speed 3 = 300 ms)
 BOUNCE_MS = 60  # after a swipe has set its workspace
-KEPT = 5  # scratch desktops that exist while the row is open, empty or not (config scratch_kept)  # a bit longer than the flight (speed 3 = 300 ms)
+KEPT = 5  # scratch desktops that exist while the row is open, empty or not (config scratch_kept)
 OMARCHY_SCRATCHPAD = "special:scratchpad"
 # Closed, a scratch desktop's windows wait here, so a swipe on a normal
 # desktop never reaches them (it walks the workspaces of its screen).

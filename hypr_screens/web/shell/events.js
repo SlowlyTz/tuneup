@@ -70,7 +70,7 @@ function tabKey(e, el) {
 
 function onKey(e) {
   if (dialog.open) return;
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); Pop.close(false); focusSearch(); return; }
+  if ((e.ctrlKey || e.metaKey) && (e.key || "").toLowerCase() === "f") { e.preventDefault(); Pop.close(false); focusSearch(); return; }
   if (Pop.isOpen) {
     if (e.key === "Escape") { e.preventDefault(); Pop.close(); return; }
     const inside = Pop.el.contains(e.target) || (Pop.anchor && Pop.anchor.contains(e.target));

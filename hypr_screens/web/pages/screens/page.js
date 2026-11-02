@@ -79,10 +79,10 @@ function arrangeCard(sel, cs) {
       !canDrag(s) ? (cs.length > 1 ? t("Drag one of the other screens: the laptop stays where it is") : "") : t("Drag to arrange · arrow keys put it next to the laptop"),
       s.hypr && s.hypr.scale !== 1 ? t("Desktop size {size}", { size: res(s.position.w, s.position.h) }) : "",
     ].filter(Boolean).join("\n");
-    return `<button type="button" class="scr${s.id === sel.id ? " sel" : ""}" data-scr="${esc(s.id)}" aria-pressed="${s.id === sel.id}" aria-label="${esc(sname(s))}${fixed ? `, ${esc(t("fixed"))}` : ""}"${tip ? ` title="${esc(tip)}"` : ""}>
+    return `<button type="button" class="scr${s.id === sel.id ? " sel" : ""}" data-scr="${esc(s.id)}" data-k="scr:${esc(s.id)}" aria-pressed="${s.id === sel.id}" aria-label="${esc(sname(s))}${fixed ? `, ${esc(t("own desktops"))}` : ""}"${tip ? ` title="${esc(tip)}"` : ""}>
         ${ic(s.laptop ? "laptop" : "monitor", "glyph-ic")}
         <span class="n">${esc(sname(s))}</span><span class="m">${tileSize(s)}</span>
-        ${fixed ? `<span class="pill fixed-badge">${ic("pin")}${esc(t("Fixed"))}</span>` : ""}
+        ${fixed ? `<span class="pill fixed-badge">${ic("pin")}${esc(t("Own desktops"))}</span>` : ""}
         ${s.laptop && mirrored.length ? `<span class="pill fixed-badge">${ic("mirror")}${esc(t("Mirrored"))}</span>` : ""}</button>`;
   }).join("");
   /* Screens without a place on the desk, as small buttons: mirrors, then the unplugged ones. */
@@ -146,7 +146,7 @@ function screenHead(sel, cs) {
     sel.description && !sel.laptop ? `<span class="desc" title="${esc(sel.description)}">${esc(sel.description)}</span>` : "",
   ].filter(Boolean).join('<span class="dotsep"></span>');
   const away = sel.connected ? "" : `<div style="margin-bottom:var(--s1)">${notice("info", esc(sel.lastSeen
-    ? t("Not connected (last seen {date}). The settings apply as soon as it is back.", { date: new Date(sel.lastSeen).toLocaleDateString(loc()) })
+    ? t("Not connected (last seen {date}). The settings apply as soon as it is back.", { date: new Date(`${sel.lastSeen}T00:00`).toLocaleDateString(loc()) })
     : t("Not connected. The settings apply as soon as it is back.")))}</div>`;
   return `<div class="scr-head">
       <span class="icon-tile">${ic(sel.laptop ? "laptop" : "monitor")}</span>

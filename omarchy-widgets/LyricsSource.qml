@@ -66,7 +66,7 @@ Item {
 
   function parseSynced(text) {
     var out = []
-    var rows = String(text || "").split("\n")
+    var rows = String(text || "").split(/\r?\n/)
     for (var i = 0; i < rows.length; i++) {
       var match = rows[i].match(/^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$/)
       if (!match) continue
@@ -155,7 +155,8 @@ Item {
       if (key !== lyrics.trackKey) return
       // No answer (offline, given up) or a server error: not a song without
       // lyrics, so it is not remembered as one and asked again soon.
-      if (xhr.status === 0 || xhr.status >= 500) { lyrics.failed(key); return }
+      // Rate limited or refused (429, 403 ...) counts as no answer too; only 404 says "none".
+      if (xhr.status === 0 || xhr.status >= 500 || (xhr.status >= 400 && xhr.status !== 404)) { lyrics.failed(key); return }
       var data = lyrics.requests.json(xhr)
       var lines = null
       try { lines = data === null ? null : parse(data) } catch (e) { lines = null }
@@ -178,6 +179,8 @@ Item {
 
   function store(key, lines) {
     var cache = Object.assign({}, lyrics.cache)
+    var keys = Object.keys(cache)
+    if (keys.length >= 200) delete cache[keys[0]]  // the oldest: the shell runs for days
     cache[key] = lines
     lyrics.cache = cache
     if (key !== lyrics.trackKey) return

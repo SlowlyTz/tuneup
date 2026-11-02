@@ -37,9 +37,11 @@ Keyboard only (the mouse does nothing inside it; clicking outside closes it).
 - `SUPER + M` slides it out again. Switching desktop hides it too.
 - It goes back to its old place in the list.
 
-## Scratchpad
+## Scratch desktops and the scratchpad
 
-While the scratchpad (`SUPER + S`) is open, it counts as the current desktop: `SUPER + M` there minimizes into its own list, `SUPER + I` puts the window back into the scratchpad, and `Enter` in the window menu brings any window into it. Opened from a desktop, `Enter` brings a scratchpad window to that desktop; `Shift+Enter` sends it back to the scratchpad. If minimizing empties the scratchpad, Hyprland closes it — open it again with `SUPER + S` and press `SUPER + I`. The menu shows these windows as `ws scratchpad`.
+On a [scratch desktop](scratch.md) (`SUPER + S`, the default) minimizing works as on any desktop; the menu shows these windows with the scratch desktop's number (`ws 201` and up).
+
+With the scratch desktops off (`tuneup option scratch off`), `SUPER + S` opens Omarchy's scratchpad. While it is open, it counts as the current desktop: `SUPER + M` there minimizes into its own list, `SUPER + I` puts the window back into the scratchpad, and `Enter` in the window menu brings any window into it. Opened from a desktop, `Enter` brings a scratchpad window to that desktop; `Shift+Enter` sends it back to the scratchpad. If minimizing empties the scratchpad, Hyprland closes it — open it again with `SUPER + S` and press `SUPER + I`. The menu shows these windows as `ws scratchpad`.
 
 ## Apps that ask to be shown
 

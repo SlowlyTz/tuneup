@@ -37,7 +37,7 @@ Item {
     if (!weatherSource.wanted) return
     var place = weatherSource.place
     if (isNaN(place.latitude) || isNaN(place.longitude)) {
-      if (!place.name) return
+      if (!place.name) { weatherSource.weather = null; return }  // not the old place's weather under "pick a place"
       // Only a name: find its coordinates first.
       weatherSource.requests.get("https://geocoding-api.open-meteo.com/v1/search?count=1&format=json&name=" + encodeURIComponent(place.name), function(xhr) {
         var data = weatherSource.requests.json(xhr)
@@ -53,6 +53,8 @@ Item {
       + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
       + "&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=4&timezone=auto"
     weatherSource.requests.get(url, function(xhr) {
+      // The place changed while this was asked: a later answer is coming.
+      if (weatherSource.place.latitude !== place.latitude || weatherSource.place.longitude !== place.longitude) return
       var data = weatherSource.requests.json(xhr)
       if (!data || !data.current) { retry.restart(); return }
       retry.stop()

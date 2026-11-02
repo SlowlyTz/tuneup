@@ -38,7 +38,8 @@ def look_from_js(values: object, base: dict) -> dict:
     colors = raw.get("border_colors")
     if colors is None:
         raw.pop("border_colors", None)
-        raw.pop("border_angle", None)
+        if "borderColors" in values or not base.get("border_colors"):
+            raw.pop("border_angle", None)  # an angle alone only turns colors of the own look
         if "borderColors" in values:  # null: back to the theme's border
             base = {k: v for k, v in base.items() if k not in ("border_colors", "border_angle")}
     else:

@@ -14,6 +14,7 @@ api worker, so the preview runs at the feeder's own frame rate.
 """
 import json
 import re
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -157,6 +158,8 @@ class WebWindow(Adw.ApplicationWindow):
         except (ValueError, KeyError, TypeError):
             self.answer(value, reply, {"error": {"code": "bad_call", "message": "Malformed call"}})
             return True
+        if self.closed:
+            return True  # the worker is shut down; nobody waits for the answer
         future = self.worker.submit(self.call, name, args)
         future.add_done_callback(lambda done: done.cancelled() or GLib.idle_add(self.answer, value, reply, done.result()))
         return True
@@ -164,6 +167,7 @@ class WebWindow(Adw.ApplicationWindow):
     def call(self, name: str, args: list) -> dict:
         from hypr_screens import api
 
+        self.last_call = time.monotonic()  # a slow call writes the settings long before it ends
         try:
             result = {"value": api.call(name, args)}
         except api.ApiError as error:
@@ -187,6 +191,8 @@ class WebWindow(Adw.ApplicationWindow):
 
     def reload_language(self) -> bool:
         """Texts come with the page: load it again in the new language."""
+        if self.closed or self.view is None:
+            return False
         self.add_boot_script()
         self.view.reload()
         application = self.get_application()
@@ -245,6 +251,9 @@ class WebWindow(Adw.ApplicationWindow):
             GLib.source_remove(self.refresh_source)
             self.refresh_source = 0
         self.worker.shutdown(wait=False, cancel_futures=True)
+        # The page's own "revert the preview" on leaving does not get through any
+        # more: a look shown but not kept must not stay (nor the audit stay off).
+        threading.Thread(target=revert_preview, daemon=True).start()
         GLib.idle_add(self.dispose_closed)
         return False
 
@@ -253,3 +262,13 @@ class WebWindow(Adw.ApplicationWindow):
         self.run_dispose()
         self.view = self.content = None  # what still holds this window must not hold the view
         return False
+
+
+def revert_preview() -> None:
+    from hypr_screens.api import appearance
+
+    if appearance._preview is not None:
+        try:
+            appearance.revert_look()
+        except Exception as error:  # the tray must stay up
+            print(f"tuneup: reverting the look preview failed: {error!r}", flush=True)

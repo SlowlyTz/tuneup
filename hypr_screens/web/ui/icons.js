@@ -104,7 +104,7 @@ export function appIcon(names, cls = "app-ic") {
   const hit = Object.keys(APP_IC).find((id) => list.some((n) => n === id || n.split(/[.\-_ ]/).includes(id)));
   const first = (list.find(Boolean) || "?").split(".").pop();
   const body = hit ? APP_IC[hit]
-    : `<rect x="2" y="2" width="20" height="20" rx="5" fill="var(--ctl-hover)"/><text x="12" y="16" text-anchor="middle" font-size="11" font-weight="700" fill="currentColor">${esc(first[0].toUpperCase())}</text>`;
+    : `<rect x="2" y="2" width="20" height="20" rx="5" fill="var(--ctl-hover)"/><text x="12" y="16" text-anchor="middle" font-size="11" font-weight="700" fill="currentColor">${esc((first[0] || "?").toUpperCase())}</text>`;
   return `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
 }
 

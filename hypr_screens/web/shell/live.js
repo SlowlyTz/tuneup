@@ -16,7 +16,7 @@ const POLLS = [
   { part: "enforcement", every: 5, pages: ["general"], when: () => S.enforcement },
 ];
 
-let tick = 0, polling = false;
+let tick = 0, polling = false, retry = 0;
 const quiet = () => document.hidden || dialog.open || Pop.isOpen || UI.pressed || UI.busy > 0 || polling;
 const typing = () => { const el = document.activeElement; return el && el.matches && el.matches("input[type=text], input[type=search]"); };
 
@@ -40,7 +40,10 @@ function bridgeHooks() {
     setTheme: (colors) => window.hyprTheme.colors(colors),
     setMode: (mode) => window.hyprTheme.mode(mode),
     async refresh() {
-      if (UI.busy || dialog.open) return;
+      // Not under a drag or an open menu either (the slider would be replaced under the
+      // pointer); a refresh put off is tried again, the poll does not load these parts.
+      clearTimeout(retry);
+      if (UI.busy || dialog.open || UI.pressed || Pop.isOpen || typing()) { retry = setTimeout(() => window.hyprScreens.refresh(), 500); return; }
       await reload(...PARTS);
       render();
     },
