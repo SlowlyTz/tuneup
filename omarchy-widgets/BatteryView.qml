@@ -25,9 +25,14 @@ Item {
   readonly property bool present: !!(device && device.ready && device.isLaptopBattery)
   // Quickshell gives 0-1; older versions 0-100.
   readonly property real charge: present ? (device.percentage > 1 ? device.percentage / 100 : device.percentage) : 0.7
-  readonly property bool charging: present && (device.state === UPowerDeviceState.Charging
-                                               || device.state === UPowerDeviceState.PendingCharge)
-  readonly property bool low: !charging && charge * 100 <= (settings ? settings.low : 20)
+  // Plugged in and held at the charge limit (80 % ...): not charging, not low either. The
+  // kernel may still say "charging" there, at no power (as omarchy-power/Model.js tells).
+  readonly property bool holding: present && charge < 0.99
+    && (device.state === UPowerDeviceState.PendingCharge || device.state === UPowerDeviceState.FullyCharged
+        || (device.state === UPowerDeviceState.Charging
+            && (Number(device.changeRate || 0) <= 0.2 || Number(device.timeToFull || 0) >= 8 * 60 * 60)))
+  readonly property bool charging: present && device.state === UPowerDeviceState.Charging && !holding
+  readonly property bool low: !charging && !holding && charge * 100 <= (settings ? settings.low : 20)
   readonly property color ring: charging ? paint("charging", "#a6e3a1") : low ? paint("low_ring", Color.urgent) : paint("ring", tint)
   readonly property color track: paint("ring_track", Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.15))
   readonly property real size: Math.round(130 * scale)
@@ -41,6 +46,7 @@ Item {
   readonly property string timeText: {
     if (!present) return view.texts.noBattery || "No battery"
     if (charging && device.timeToFull > 0) return (view.texts.fullIn || "Full in {time}").replace("{time}", duration(device.timeToFull))
+    if (holding) return view.texts.limitReached || "Charge limit reached"
     if (!charging && device.timeToEmpty > 0) return (view.texts.timeLeft || "{time} left").replace("{time}", duration(device.timeToEmpty))
     return charging ? (view.texts.charging || "Charging") : ""
   }

@@ -477,6 +477,7 @@ def export(cfg: dict) -> None:
             "fullIn": t("Full in {time}", time="{time}"),
             "timeLeft": t("{time} left", time="{time}"),
             "charging": t("Charging"),
+            "limitReached": t("Charge limit reached"),
             "download": t("Download"),
             "upload": t("Upload"),
             "systemDisk": t("System"),

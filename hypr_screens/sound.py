@@ -77,13 +77,18 @@ def is_monitor(source: dict) -> bool:
     return props.get("device.class") == "monitor" or str(source.get("name", "")).endswith(".monitor")
 
 
-def friendly_label(description: str, card_description: str, port: dict) -> str:
-    """"Laptop speakers" rather than "Core Ultra 200V ... HD Audio Speaker"."""
+def friendly_label(description: str, card_description: str, port: dict, built_in: bool = True) -> str:
+    """"Laptop speakers" rather than "Core Ultra 200V ... HD Audio Speaker". A card
+    that is not built in (a dock, a USB headset) keeps its port's own name
+    ("Speaker", "Digital Output (S/PDIF)"; the card is the detail below it):
+    its speaker output is no laptop's."""
     props = port.get("properties") or {}
     port_type = str(props.get("port.type") or port.get("type") or "").lower()
-    if port_type in PORT_LABELS:
+    if not built_in and port.get("description"):
+        return str(port["description"])
+    if built_in and port_type in PORT_LABELS:
         return t(PORT_LABELS[port_type])
-    if port_type == "mic":
+    if built_in and port_type == "mic":
         # A jack has an availability group (plugged or not); the built-in mic has none.
         return t("Microphone (jack)") if props.get("port.availability-group") else t("Laptop microphone")
     if port_type == "hdmi" and props.get("device.product.name"):
@@ -107,6 +112,12 @@ def device_icon(kind: str, port_type: str, bluetooth: bool) -> str:
 # --- devices -------------------------------------------------------------------------
 
 
+def built_in(props: dict, card: dict) -> bool:
+    """The laptop's own sound (on the PCI bus), not a dock's or a USB headset's."""
+    bus = props.get("device.bus") or (card.get("properties") or {}).get("device.bus")
+    return bus in (None, "", "pci")
+
+
 def card_index(cards: list[dict]) -> dict[str, dict]:
     return {str(card.get("name")): card for card in cards if card.get("name")}
 
@@ -128,7 +139,8 @@ def node_device(kind: str, node: dict, cards: dict[str, dict], default: str) -> 
         "kind": kind,
         "key": device_key(card_name, port_name, name),
         "name": name,
-        "label": description if bluetooth else friendly_label(description, card_description, port),
+        "label": description if bluetooth else friendly_label(description, card_description, port,
+                                                              built_in(props, card)),
         "detail": "Bluetooth" if bluetooth else card_description,
         "icon": device_icon(kind, port_type, bluetooth),
         "volume": percent(node.get("volume")),
@@ -170,7 +182,8 @@ def idle_ports(kind: str, cards: dict[str, dict], taken: set[str]) -> list[dict]
                 "kind": kind,
                 "key": key,
                 "name": "",
-                "label": friendly_label(str(port.get("description") or port_name), card_description, port),
+                "label": friendly_label(str(port.get("description") or port_name), card_description, port,
+                                        built_in({}, card)),
                 "detail": card_description,
                 "icon": device_icon(kind, port_type, False),
                 "volume": 0,

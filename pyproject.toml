@@ -23,7 +23,7 @@ readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 authors = [
-    { name = "GhostTz" },
+    { name = "SlowlyTz" },
 ]
 keywords = ["hyprland", "minimizer", "window-manager", "workspace", "tiling"]
 classifiers = [

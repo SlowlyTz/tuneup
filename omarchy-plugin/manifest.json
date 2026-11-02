@@ -3,7 +3,7 @@
   "id": "hypr-minimizer.picker",
   "name": "hypr-minimizer picker",
   "version": "1.0.0",
-  "author": "GhostTz",
+  "author": "SlowlyTz",
   "description": "Pick a minimized window to restore, with app icons",
   "kinds": [
     "overlay"

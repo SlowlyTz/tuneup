@@ -186,3 +186,10 @@ def test_pactl_list_survives_garbage(monkeypatch):
     assert sound.pactl_list("sinks") == []
     monkeypatch.setattr(sound, "pactl", lambda *args: json.dumps([{"name": "a"}, 3]))
     assert sound.pactl_list("sinks") == [{"name": "a"}]
+
+
+def test_a_docks_speaker_is_no_laptop_speaker():
+    speaker = {"description": "Speakers", "properties": {"port.type": "speaker"}}
+    assert sound.friendly_label("Core HD Audio Speaker", "Core HD Audio", speaker) == "Laptop speakers"
+    assert sound.friendly_label("PR09 Dock Analog Stereo", "PR09 Dock", speaker, built_in=False) == "Speakers"
+    assert sound.built_in({"device.bus": "usb"}, {}) is False and sound.built_in({"device.bus": "pci"}, {}) is True
