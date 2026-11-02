@@ -514,6 +514,19 @@ def test_minimized_entries_include_window_metadata_and_prune_missing(
     assert read_state(state_file) == {"1": ["0xaaa"]}
 
 
+def test_a_hidden_window_no_stack_knows_is_adopted(state_file, monkeypatch):
+    state_file.parent.mkdir(parents=True)
+    state_file.write_text(json.dumps({"1": ["0xaaa"]}))
+    hyprctl = HyprctlMock(
+        clients=[[client("0xaaa"), client("0xlost"), client("0xshown", minimized=False)]],
+        monitors=[[{"focused": True, "activeWorkspace": {"id": 3, "name": "3"}, "specialWorkspace": {"id": 0, "name": ""}}]],
+    )
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    assert [e["address"] for e in minimizer.minimized_entries(prune=True)] == ["0xaaa", "0xlost"]
+    assert read_state(state_file) == {"1": ["0xaaa"], "3": ["0xlost"]}
+
+
 def test_brave_web_app_uses_desktop_file_name_and_icon(
     state_file, tmp_path, monkeypatch
 ):
@@ -1210,6 +1223,7 @@ def test_watch_peek_rechecks_on_workspace_events(tmp_path, monkeypatch):
     server = minimizer.socket.socket(minimizer.socket.AF_UNIX, minimizer.socket.SOCK_STREAM)
     server.bind(str(socket_path))
     server.listen(1)
+    server.settimeout(5)  # fail, not hang, if watch_peek never connects
     monkeypatch.setattr(minimizer, "hyprland_event_socket", lambda: socket_path)
     checks = iter([True, False])
     calls = []
@@ -1224,10 +1238,10 @@ def test_watch_peek_rechecks_on_workspace_events(tmp_path, monkeypatch):
             connection.sendall(b"activelayout>>kb,German\nworkspa")
             connection.sendall(b"cev2>>6,6\n")
 
-    sender = threading.Thread(target=send_events)
+    sender = threading.Thread(target=send_events, daemon=True)
     sender.start()
     minimizer.watch_peek("0xbbb")
-    sender.join()
+    sender.join(timeout=5)
     server.close()
 
     assert calls == ["0xbbb", "0xbbb"]

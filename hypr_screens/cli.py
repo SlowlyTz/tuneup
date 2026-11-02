@@ -126,7 +126,8 @@ def camera_command(args: argparse.Namespace) -> int:
 def samsung_command(args: argparse.Namespace) -> int:
     from hypr_screens import config, samsung
 
-    if not samsung.present():
+    # Teardown removes leftover files, also once the driver is gone.
+    if not samsung.present() and args.action != "teardown":
         print("tuneup: not a Samsung Galaxy Book (or the samsung-galaxybook driver is not loaded)",
               file=sys.stderr)
         return 1
@@ -434,7 +435,11 @@ def option_value(cfg: dict, name: str, value: str) -> object:
             raise ValueError(f"{name} must be 1-10")
         return int(value)
     if name in ("desktop_keys", "scratch", "scratch_shift_s", "scratch_swipe"):
-        return not cfg[name] if value in ("next", "prev") else value in ("on", "1", "true", "yes")
+        if value in ("next", "prev"):
+            return not cfg[name]
+        if value.lower() not in ("on", "1", "true", "yes", "off", "0", "false", "no"):
+            raise ValueError(f"{name} must be on or off")
+        return value.lower() in ("on", "1", "true", "yes")
     choices = config.UNPLUG_CHOICES if name == "unplug_windows" else config.FIXED_DEFAULTS
     if value in ("next", "prev"):
         value = choices[(choices.index(cfg[name]) + (1 if value == "next" else -1)) % len(choices)]

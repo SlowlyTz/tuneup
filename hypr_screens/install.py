@@ -3,6 +3,7 @@ entry and icon, Omarchy shell plugins and the bar widgets, and Tuneup's own
 background processes (the watcher and the tray)."""
 import json
 import os
+import shlex
 import shutil
 import signal
 import subprocess
@@ -96,13 +97,20 @@ OUR_TARGETS = {brand.COMMAND, *brand.ALIASES, "minimizer.py", *(path.name for pa
                *RETIRED_PLUGINS, "omarchy-menu"}
 
 
+def desktop_quote(path: str) -> str:
+    """A desktop entry's Exec= argument: quoted only when it has to be."""
+    if not any(c in path for c in ' \t"\'\\><~|&;$*?#()`'):
+        return path
+    return '"' + "".join("\\" + c if c in '"`$\\' else c for c in path) + '"'
+
+
 def ours(link_path: Path) -> bool:
     """A symlink into this checkout, or to one of our files elsewhere (another
     checkout, a clone that is gone)."""
     if not link_path.is_symlink():
         return False
     target = Path(os.readlink(link_path))
-    return str(link_path.resolve()).startswith(str(REPO.resolve())) or target.name in OUR_TARGETS
+    return link_path.resolve().is_relative_to(REPO.resolve()) or target.name in OUR_TARGETS
 
 
 def unlink(link_path: Path) -> str:
@@ -136,7 +144,7 @@ def desktop_entry() -> str:
         f"Name={brand.NAME}",
         f"Comment={brand.TAGLINE}",
         "Comment[de]=Die Einstellungs-App, die Omarchy fehlt",
-        f"Exec={bin_dir() / brand.COMMAND} settings",
+        f"Exec={desktop_quote(str(bin_dir() / brand.COMMAND))} settings",
         f"Icon={brand.COMMAND}",
         "Terminal=false",
         "Categories=Settings;DesktopSettings;",
@@ -171,14 +179,13 @@ def remove_desktop_entry() -> list[str]:
 
 def install_plugins(ids: list[str]) -> dict[str, str]:
     results = {plugin: link(PLUGINS[plugin], plugins_dir() / plugin) for plugin in ids}
-    subprocess.run(["omarchy-shell", "shell", "rescanPlugins"], capture_output=True, text=True)
+    run_quietly(["omarchy-shell", "shell", "rescanPlugins"])
     for plugin in ids:
         if plugin in BAR_WIDGETS:
             continue
         # A fresh rescan takes a moment before the plugin is known.
         for _ in range(10):
-            done = subprocess.run(["omarchy", "plugin", "enable", plugin], capture_output=True, text=True)
-            if done.returncode == 0:
+            if run_quietly(["omarchy", "plugin", "enable", plugin]) == 0:
                 break
             time.sleep(0.5)
         else:
@@ -191,7 +198,7 @@ def remove_retired_plugins() -> list[str]:
     for plugin in RETIRED_PLUGINS:
         link_path = plugins_dir() / plugin
         if link_path.is_symlink():
-            subprocess.run(["omarchy", "plugin", "disable", plugin], capture_output=True, text=True)
+            run_quietly(["omarchy", "plugin", "disable", plugin])
             link_path.unlink()
             removed.append(plugin)
     return removed
@@ -233,7 +240,7 @@ def use_bar_widget(ours: str = WORKSPACES_WIDGET) -> str:
     backup = path.with_name("shell.json" + BACKUP_SUFFIXES[0])
     if not backup.exists():
         backup.write_text(path.read_text())
-    path.write_text(json.dumps(cfg, indent=2) + "\n")
+    write_json(path, cfg)
     return f"replaced {replaced}"
 
 
@@ -252,7 +259,7 @@ def restore_bar_widget(ours_id: str) -> str:
                 restored = True
     if not restored:
         return "ok"
-    path.write_text(json.dumps(cfg, indent=2) + "\n")
+    write_json(path, cfg)
     return f"restored {OMARCHY_WIDGETS[ours_id]}"
 
 
@@ -279,7 +286,7 @@ def remove_from_shell() -> list[str]:
         if plugins != cfg.get("plugins", []) or any(sections[n] != layout[n] for n in sections):
             cfg["plugins"] = plugins
             layout.update(sections)
-            path.write_text(json.dumps(cfg, indent=2) + "\n")
+            write_json(path, cfg)
             done.append("shell.json")
     for plugin in [*PLUGINS, *RETIRED_PLUGINS]:
         link_path = plugins_dir() / plugin
@@ -291,11 +298,20 @@ def remove_from_shell() -> list[str]:
     return done
 
 
-def run_quietly(command: list[str]) -> None:
+def run_quietly(command: list[str]) -> int:
+    """Its exit code (1 when it could not run or hung: the shell must not stall a setup)."""
     try:
-        subprocess.run(command, capture_output=True, text=True, timeout=10)
+        return subprocess.run(command, capture_output=True, text=True, timeout=10).returncode
     except (OSError, subprocess.TimeoutExpired):
-        pass
+        return 1
+
+
+def write_json(path: Path, data: object) -> None:
+    """In one step: the shell reloads shell.json as soon as it changes, and must
+    not read it half written."""
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(json.dumps(data, indent=2) + "\n")
+    temporary.replace(path)
 
 
 def sync_power_panel(active: bool) -> str:
@@ -328,9 +344,10 @@ def session_of(pid: int) -> tuple[str, str] | None:
 
 def kind_of(argv: list[str]) -> str | None:
     """"watch" for `tuneup watch` (or `python3 /…/hypr-screens watch`), ..."""
-    for index, arg in enumerate(argv[:3]):
-        if Path(arg).name in (brand.COMMAND, *brand.ALIASES) and index + 1 < len(argv):
-            return argv[index + 1] if argv[index + 1] in PROCESS_KINDS else None
+    # The script itself, or run by Python: not `less tuneup watch` or an editor on a file named so.
+    index = 1 if argv and Path(argv[0]).name.startswith("python") else 0
+    if len(argv) > index + 1 and Path(argv[index]).name in (brand.COMMAND, *brand.ALIASES):
+        return argv[index + 1] if argv[index + 1] in PROCESS_KINDS else None
     return None
 
 
@@ -376,11 +393,12 @@ def signal_quietly(pid: int, number: int) -> None:
 def start(*args: str) -> str:
     """`tuneup <args>` started by Hyprland, so it gets the session's environment
     and outlives the terminal; detached by ourselves if Hyprland does not answer."""
-    command = " ".join([str(bin_dir() / brand.COMMAND) if (bin_dir() / brand.COMMAND).exists()
-                        else str(LAUNCHERS[brand.COMMAND]), *args])
+    argv = [str(bin_dir() / brand.COMMAND) if (bin_dir() / brand.COMMAND).exists()
+            else str(LAUNCHERS[brand.COMMAND]), *args]
+    command = shlex.join(argv)  # a home folder with a space in it
     reply = hypr.dispatch(f"hl.dsp.exec_cmd({hypr.lua_string(command)})")
     if hypr.rejected(reply) or not os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
-        subprocess.Popen(command.split(" "), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL, start_new_session=True)
     return command
 

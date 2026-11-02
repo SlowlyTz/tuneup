@@ -12,7 +12,7 @@ import json
 import re
 from pathlib import Path
 
-from hypr_screens import hypr
+from hypr_screens import config, hypr
 
 # key: (Hyprland option, Lua path, kind, minimum, maximum, step)
 OPTIONS = {
@@ -30,7 +30,7 @@ ANIM_RANGE = (0.25, 3.0)
 HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$")
 # Where Omarchy's animations are defined; the user's file wins per animation.
 ANIMATION_FILES = [Path("/usr/share/omarchy/default/hypr/looknfeel.lua"),
-                   Path.home() / ".config" / "hypr" / "looknfeel.lua"]
+                   config.config_home() / "hypr" / "looknfeel.lua"]
 PRESETS = {
     "Clean": {"gaps_in": 0, "gaps_out": 0, "rounding": 0, "border_size": 1, "blur": False,
               "blur_size": 8, "blur_passes": 1, "active_opacity": 1.0, "inactive_opacity": 1.0},

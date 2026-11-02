@@ -33,7 +33,7 @@ TEXT_COLORS = ["accent", "foreground", "white"]
 # change); "accent" alone is the widget's own accent color (above).
 THEME_COLORS = ["accent", "foreground", "muted", "background", "red", "orange", "yellow", "green", "cyan",
                 "blue", "magenta"]
-COLOR_VALUE = re.compile(r"^(accent|theme:(" + "|".join(THEME_COLORS) + r")|#[0-9a-f]{6}([0-9a-f]{2})?)$")
+COLOR_VALUE = re.compile(r"^(accent|theme:(" + "|".join(THEME_COLORS) + r")|#[0-9a-f]{6}([0-9a-f]{2})?)\Z")
 # Every widget's font, effect and background card. font_family "": the
 # Omarchy font. The effect: an outline on the text, a shadow or a glow
 # around everything, or none.
@@ -510,12 +510,15 @@ def wire_shell(widgets: dict) -> list[str]:
     link = install.plugins_dir() / PLUGIN
     if not (link.is_symlink() and link.resolve() == install.PLUGINS[PLUGIN].resolve()):
         done.append(f"plugin {install.link(install.PLUGINS[PLUGIN], link)}")
-        subprocess.run(["omarchy-shell", "shell", "rescanPlugins"], capture_output=True, text=True)
+        install.run_quietly(["omarchy-shell", "shell", "rescanPlugins"])
     path = install.shell_json()
     try:
         shell = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):
         return done + ["no shell.json"]
+    if not isinstance(shell, dict) or not isinstance(shell.get("bar", {}), dict) \
+            or not isinstance(shell.get("bar", {}).get("layout", {}), dict):
+        return done + ["shell.json not as expected, left alone"]
     before = json.dumps(shell, sort_keys=True)
     wanted = any(widget["enabled"] for widget in widgets.values())
     plugins = [p for p in (shell.get("plugins") if isinstance(shell.get("plugins"), list) else [])
@@ -542,7 +545,7 @@ def wire_shell(widgets: dict) -> list[str]:
         if not placed:
             layout.setdefault("left", []).append({"id": PLUGIN})
     if json.dumps(shell, sort_keys=True) != before:
-        path.write_text(json.dumps(shell, indent=2) + "\n")
+        install.write_json(path, shell)
         done.append("shell.json")
     return done
 
@@ -636,6 +639,8 @@ def set_layout_screens(cfg: dict, name: str, screens: list[str]) -> dict:
     """Load this layout by itself with exactly these screens ([]: only by hand).
     Another layout with the same screens gives them up."""
     screens = sorted(set(screens))
+    if not any(layout["name"] == name for layout in cfg["widget_layouts"]):
+        return cfg
     for layout in cfg["widget_layouts"]:
         if layout["name"] == name:
             layout["screens"] = screens
@@ -658,14 +663,20 @@ def connected_screens() -> list[str]:
 def auto_layout() -> str:
     """Load the layout made for the screens connected now (the watcher calls
     this after a monitor change)."""
-    cfg = config.load()
-    layout = matching_layout(cfg, connected_screens())
-    if layout is None or normalize(layout["widgets"]) == cfg["widgets"]:
+    screens = connected_screens()
+    loaded = []
+
+    def mutate(cfg):
+        layout = matching_layout(cfg, screens)
+        if layout is None or normalize(layout["widgets"]) == cfg["widgets"]:
+            return False
+        load_layout(cfg, layout["name"])
+        loaded.append(layout["name"])
+    cfg = config.update(mutate)
+    if not loaded:
         return ""
-    cfg = load_layout(cfg, layout["name"])
-    config.save(cfg)
     apply(cfg)
-    return f"widget layout {layout['name']}"
+    return f"widget layout {loaded[0]}"
 
 
 def save_placements(cfg: dict, placements: dict) -> dict:

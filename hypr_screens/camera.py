@@ -105,6 +105,7 @@ def write_status(state: str, users: int = 0) -> None:
     text = json.dumps({"state": state, "users": users})
     try:
         if status_file().read_text() == text:
+            os.utime(status_file())  # still alive: status() ignores a file an hour old
             return
     except OSError:
         pass
@@ -256,7 +257,12 @@ class Feeder:
         if not ready:
             return None
         chunks, missing = [], FRAME_BYTES
+        # The rest of the frame in time too: a reader stuck halfway must not hold up
+        # the checks between frames (the device would stay open for good).
+        deadline = time.monotonic() + timeout + 2
         while missing:
+            if chunks and not select.select([stdout], [], [], max(0.0, deadline - time.monotonic()))[0]:
+                return None
             chunk = stdout.read(missing)
             if not chunk:
                 return b""  # the camera went away

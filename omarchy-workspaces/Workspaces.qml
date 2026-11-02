@@ -22,7 +22,8 @@ BarWidget {
   id: root
   moduleName: "hypr-screens.workspaces"
 
-  readonly property string panelName: "eDP-1"
+  // The laptop's own panel (hypr_screens/config.py INTERNAL_PREFIXES).
+  function isPanel(name) { return /^(eDP|LVDS|DSI)/.test(name) }
   readonly property int fixedWorkspace: 99
   // ids of the fixed screen's desktops: 99 up to 108 (Tuneup's fixed_desktops option)
   readonly property int fixedLast: 108
@@ -42,7 +43,7 @@ BarWidget {
   readonly property bool docked: {
     var monitors = Hyprland.monitors.values
     for (var i = 0; i < monitors.length; i++) {
-      if (monitors[i] && String(monitors[i].name || "") !== root.panelName) return true
+      if (monitors[i] && !root.isPanel(String(monitors[i].name || ""))) return true
     }
     return false
   }

@@ -52,7 +52,7 @@ Item {
             id: value
             anchors.right: parent.right
             look: view.look; factor: view.scale; points: 14; strong: true
-            text: view.service ? (view.free ? view.service.bytes(modelData.size - modelData.used) + " " + (view.texts.free || "free")
+            text: view.service ? (view.free ? view.service.bytes(modelData.avail !== undefined ? modelData.avail : modelData.size - modelData.used) + " " + (view.texts.free || "free")
                                             : view.service.bytes(modelData.used) + " / " + view.service.bytes(modelData.size)) : ""
             color: view.paint("value", view.tint)
           }

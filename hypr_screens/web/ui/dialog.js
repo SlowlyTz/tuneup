@@ -58,7 +58,7 @@ export function keepDialog(undo, title) {
     if (ring) ring.style.strokeDashoffset = String(RING * (1 - left / KEEP_SECONDS));
     for (const id of ["#keep-n", "#keep-s"]) { const n = $(id, dialog); if (n) n.textContent = left; }
   };
-  const back = async () => { closeDialog(); if (undo) await undo(); toast(t("Reverted")); };
+  const back = async () => { closeDialog(); if (!undo || (await undo()) !== false) toast(t("Reverted")); };
   openDialog(`
       <div class="dlg-body">
         <h2>${esc(title || t("Keep this display setting?"))}</h2>

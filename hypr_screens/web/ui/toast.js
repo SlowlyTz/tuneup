@@ -4,9 +4,11 @@ import { t } from "../core/i18n.js";
 import { ic } from "./icons.js";
 
 const el = $("#toast");
+el.inert = true;
 let timer = 0;
 
-export const hideToast = () => el.classList.remove("show");
+/* Hidden, its button must not be reachable with Tab either (a stale Undo). */
+export const hideToast = () => { el.classList.remove("show"); el.inert = true; };
 
 /* undo: async function run by "Undo"; action: {label, run}. */
 export function toast(message, undo = null, { error = false, action = null } = {}) {
@@ -15,11 +17,12 @@ export function toast(message, undo = null, { error = false, action = null } = {
   el.classList.toggle("error", error);
   el.setAttribute("role", error ? "alert" : "status");
   el.classList.add("show");
+  el.inert = false;
   clearTimeout(timer);
   timer = setTimeout(hideToast, act ? 6000 : error ? 5000 : 3000);
   const b = $("#toast-act");
   if (b) b.onclick = async () => {
     hideToast();
-    if (undo) { await undo(); toast(t("Undone")); } else action.run();
+    if (undo) { if ((await undo()) !== false) toast(t("Undone")); } else action.run();
   };
 }

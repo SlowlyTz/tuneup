@@ -169,7 +169,8 @@ Panel {
 
   function setProfile(profile) {
     if (!profile || actionProc.running) return
-    actionProc.command = ["hypr-screens", "power", "set", profile]
+    // `tuneup`, or `hypr-screens` before the rename (as Service.qml of the widgets)
+    actionProc.command = ["sh", "-c", 'if command -v tuneup >/dev/null; then exec tuneup power "$@"; else exec hypr-screens power "$@"; fi', "sh", "set", profile]
     actionProc.running = true
   }
 
@@ -217,7 +218,7 @@ Panel {
 
   Process {
     id: profilesProc
-    command: ["hypr-screens", "power", "list"]
+    command: ["sh", "-c", 'if command -v tuneup >/dev/null; then exec tuneup power "$@"; else exec hypr-screens power "$@"; fi', "sh", "list"]
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateProfiles(text) }
   }
 

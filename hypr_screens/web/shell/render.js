@@ -60,7 +60,17 @@ export function render(enter = false) {
   beginRender(GLOBAL_HANDLERS);
   const p = pageOf(r.page);
   const ready = (p.core || p.needs).every(loaded);
-  page.innerHTML = ready ? PAGE_HTML[r.page](r) : pageMissing(p);
+  let html;
+  try {
+    html = ready ? PAGE_HTML[r.page](r) : pageMissing(p);
+  } catch (err) {
+    // Odd data must not leave the old page up without its handlers (dead until navigating).
+    console.error(err);
+    beginRender(GLOBAL_HANDLERS);
+    on("retry", { click: () => render() });
+    html = `${ph(esc(p.label()))}${emptyState("alert", esc(t("This page could not be loaded")), `<span class="small" style="max-width:520px">${esc(String((err && err.message) || err))}</span><button type="button" class="btn" ${k("retry")}>${ic("cycle", "sm")}${esc(t("Try again"))}</button>`)}`;
+  }
+  page.innerHTML = html;
   renderNav(r);
   renderApplyBar(r.page === "look");
   document.title = `${p.label()} – Tuneup`;

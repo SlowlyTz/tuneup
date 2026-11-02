@@ -31,12 +31,15 @@ export async function change(apply, revert, { reload: names = [], confirm = fals
   }
   await busy(() => reload(...names));
   render();
+  /* true when it went back; on failure the error toast stays up */
   const undo = revert ? async () => {
+    let ok = true;
     await busy(async () => {
-      try { await revert(result); } catch (err) { showError(err); }
+      try { await revert(result); } catch (err) { ok = false; showError(err); }
       await reload(...names);
     });
     render();
+    return ok;
   } : null;
   if (typeof confirm === "function" ? confirm(result) : confirm) { keepDialog(undo, keepTitle); return result; }
   const text = typeof msg === "function" ? msg(result) : msg;

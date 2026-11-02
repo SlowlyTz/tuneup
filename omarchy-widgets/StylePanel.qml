@@ -170,7 +170,7 @@ Rectangle {
     height: 36
     opacity: 0
     enabled: false
-    readonly property string source: picker.service ? "file://" + picker.service.wallpaper : ""
+    readonly property string source: picker.service ? Util.fileUrl(picker.service.wallpaper) : ""
     function sample() {
       if (!source) return
       unloadImage(source)

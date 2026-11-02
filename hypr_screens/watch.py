@@ -86,7 +86,7 @@ def safe_list(work) -> list[str]:
 
 
 def safe_sync(kind: str) -> str:
-    return safe(lambda: engine.sync(kind), "sync") or "nothing to change"
+    return safe(lambda: ", ".join(engine.sync(kind)), "sync") or "nothing to change"
 
 
 class Watcher:

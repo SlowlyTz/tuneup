@@ -101,8 +101,8 @@ Item {
   function moveResize(point) {
     if (!resize) return
     var d = toLocal(point.x - resize.pointer.x, point.y - resize.pointer.y)
-    var wider = (resize.width + resize.sx * d.x) / resize.width
-    var taller = (resize.height + resize.sy * d.y) / resize.height
+    var wider = (resize.width + resize.sx * d.x) / Math.max(1, resize.width)
+    var taller = (resize.height + resize.sy * d.y) / Math.max(1, resize.height)
     var scalesOnly = !service.hasWidth(kind)
     var size = resize.size
     var wide = resize.wide

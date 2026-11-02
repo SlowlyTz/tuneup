@@ -90,10 +90,13 @@ function layoutsDialog() {
     dialog.innerHTML = draw();
     ((focus && $(focus, dialog)) || $('[data-d="close"]', dialog)).focus();
   };
+  /* true when the call went through (the error toast is up otherwise) */
   const run = async (call, focus) => {
-    await busy(async () => { try { S.layouts = await call(); } catch (err) { showError(err); } });
+    let ok = true;
+    await busy(async () => { try { S.layouts = await call(); } catch (err) { ok = false; showError(err); } });
     render();
     if (dialog.open) redraw(focus);
+    return ok;
   };
   const at = (b) => S.layouts.layouts[+b.dataset.i];
   const rename = (b) => {
@@ -119,7 +122,7 @@ function layoutsDialog() {
   openDialog(draw(), {
     close: () => closeDialog(),
     auto: (b) => { const l = at(b); run(() => api.setLayoutAuto(l.name, !l.auto), `[data-d="auto"][data-i="${b.dataset.i}"]`); },
-    delete: (b) => { const name = at(b).name; run(() => api.deleteLayout(name)).then(() => toast(t("Layout “{name}” deleted", { name }))); },
+    delete: (b) => { const name = at(b).name; run(() => api.deleteLayout(name)).then((ok) => ok && toast(t("Layout “{name}” deleted", { name }))); },
     rename,
   }, { label: t("Widget layouts") });
 }

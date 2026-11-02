@@ -58,7 +58,7 @@ PanelWindow {
     Image {
       anchors.fill: parent
       visible: panel.editLayer
-      source: panel.editLayer ? "file://" + panel.service.wallpaper : ""
+      source: panel.editLayer ? Util.fileUrl(panel.service.wallpaper) : ""
       fillMode: Image.PreserveAspectCrop
       asynchronous: true
       cache: false

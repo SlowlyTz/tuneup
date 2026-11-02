@@ -13,7 +13,9 @@ Item {
   property bool editing: false
   // Its place and size on this screen (set by Placed).
   property var spot: null
-  readonly property Item controls: buttons.visible ? buttons : null
+  // Clickable only while there is something to click: hidden (nothing playing), the
+  // buttons would take clicks meant for the windows below.
+  readonly property Item controls: buttons.visible && (view.editing || (view.opacity > 0 && !!view.player)) ? buttons : null
 
   readonly property var settings: service ? service.widget("nowplaying") : null
   readonly property real scale: spot ? spot.size / 100 : 1

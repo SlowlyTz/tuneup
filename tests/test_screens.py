@@ -453,7 +453,7 @@ def test_swapping_back_forgets_the_swap(fake):
     cfg = recorded(laptop(), hp())
     cfg["default_fixed"] = "panel"
     desktops.swap(cfg)
-    assert desktops.status(cfg)["swapped"] is False or desktops.load_override()
+    assert desktops.status(cfg)["swapped"] is True
     desktops.swap(cfg, "panel")
     assert desktops.load_override() == {}
     assert desktops.status(cfg)["swapped"] is False

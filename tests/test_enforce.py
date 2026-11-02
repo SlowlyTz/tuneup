@@ -24,7 +24,8 @@ def isolated(tmp_path, monkeypatch):
 def docked(monkeypatch):
     """Laptop and HP (above, one desktop), the look and desktop keys set, all applied."""
     model = HyprlandModel(laptop_output())
-    model.static_options = model.options = {"general:gaps_in": 5}
+    model.static_options = {"general:gaps_in": 5}
+    model.options = dict(model.static_options)  # the file's value stays when the live one changes
     monkeypatch.setattr(hypr, "hyprctl", model)
 
     def settings(cfg):

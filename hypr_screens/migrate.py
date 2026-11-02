@@ -68,7 +68,11 @@ def move_lua() -> list[str]:
         text = text.replace(keybinds.OLD_REQUIRE_COMMENT, keybinds.REQUIRE_COMMENT)
         keybinds.replace_text(path, text.replace(keybinds.OLD_REQUIRE_LINE, keybinds.REQUIRE_LINE))
         done.append(f"{path}: {keybinds.REQUIRE_LINE}")
-    if old.exists() and not old.is_symlink() and new.exists():
+    try:
+        still_required = keybinds.OLD_REQUIRE_LINE in path.read_text()
+    except OSError:
+        still_required = True
+    if old.exists() and not old.is_symlink() and new.exists() and not still_required:
         old.unlink()
     return done
 

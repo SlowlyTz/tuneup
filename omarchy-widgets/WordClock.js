@@ -67,7 +67,8 @@ function french(t) {
   var name = hour24 === 0 ? "minuit" : (hour24 === 12 ? "midi" : FR[twelve(hour24)])
   var unit = hour24 === 0 || hour24 === 12 ? "" : (twelve(hour24) === 1 ? " heure" : " heures")
   var out = [seg("Il est ", "words"), seg(name, "hours"), seg(unit, "words")]
-  var after = { 5: "cinq", 10: "dix", 15: "et quart", 20: "vingt", 25: "vingt-cinq", 30: "et demie" }
+  // midi and minuit are masculine: "midi et demi"
+  var after = { 5: "cinq", 10: "dix", 15: "et quart", 20: "vingt", 25: "vingt-cinq", 30: unit ? "et demie" : "et demi" }
   var before = { 35: "moins vingt-cinq", 40: "moins vingt", 45: "moins le quart", 50: "moins dix", 55: "moins cinq" }
   if (t.minute === 0) return out
   return out.concat([seg(" ", "words"), seg(t.minute <= 30 ? after[t.minute] : before[t.minute], "minutes")])

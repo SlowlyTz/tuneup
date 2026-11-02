@@ -356,20 +356,23 @@ def guard() -> None:
         try:
             with subprocess.Popen(["pactl", "subscribe"], stdout=subprocess.PIPE,
                                   stderr=subprocess.DEVNULL) as events:
-                fd = events.stdout.fileno()
-                enforce(report=report_silenced)
-                last = time.monotonic()
-                while True:
-                    ready, _, _ = select.select([fd], [], [], GUARD_SECONDS)
-                    due = time.monotonic() - last >= GUARD_SECONDS
-                    if ready:
-                        chunk = os.read(fd, 65536)
-                        if not chunk:
-                            break
-                        due = due or any(relevant(line) for line in chunk.splitlines())
-                    if due:
-                        enforce(report=report_silenced)
-                        last = time.monotonic()
+                try:
+                    fd = events.stdout.fileno()
+                    enforce(report=report_silenced)
+                    last = time.monotonic()
+                    while True:
+                        ready, _, _ = select.select([fd], [], [], GUARD_SECONDS)
+                        due = time.monotonic() - last >= GUARD_SECONDS
+                        if ready:
+                            chunk = os.read(fd, 65536)
+                            if not chunk:
+                                break
+                            due = due or any(relevant(line) for line in chunk.splitlines())
+                        if due:
+                            enforce(report=report_silenced)
+                            last = time.monotonic()
+                finally:
+                    events.terminate()  # else leaving the block waits for pactl's next event
         except Exception as error:  # never take the watcher down
             print(f"tuneup sound guard: {error}", file=sys.stderr, flush=True)
         time.sleep(GUARD_SECONDS)

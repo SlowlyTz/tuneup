@@ -29,6 +29,7 @@ function loadFrame(src) {
     const next = new Image();
     next.onload = () => done(src);
     next.onerror = () => done("");
+    setTimeout(() => done(""), NO_PICTURE_MS);  // a request that never ends must not stop the preview
     next.src = src;
   });
 }

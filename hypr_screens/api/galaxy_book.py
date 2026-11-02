@@ -72,6 +72,7 @@ def samsung() -> dict:
 @endpoint
 def set_samsung(field: str, value: object) -> dict:
     """field: active | chargeLimit | fullOnce | mode | usbCharging | lidPower | kbdLight."""
+    need(isinstance(field, str), "bad_value", "field must be text")
     need(samsung_mod.present(), "unavailable", "not a Samsung Galaxy Book (or the samsung-galaxybook driver is not loaded)")
     if field == "active":
         need(isinstance(value, bool), "bad_value", "active must be true or false")

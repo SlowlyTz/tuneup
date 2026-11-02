@@ -60,6 +60,8 @@ def call(method: str, args: list | None = None) -> object:
     function = METHODS.get(snake_case(str(method)))
     if function is None:
         raise ApiError("unknown_method", f"no such method: {method}")
+    if args is not None and not isinstance(args, list):
+        raise ApiError("bad_call", "args must be a list")
     return function(*(args or []))
 
 

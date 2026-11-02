@@ -241,6 +241,7 @@ def forget_screen(sid: str) -> dict:
     cfg, monitors = recorded()
     sid = known_screen(cfg, sid)
     need(not cfg["screens"][sid].get("internal"), "internal_screen", "the laptop screen cannot be forgotten")
+    need(bool(monitors), "unavailable", "Hyprland did not answer; try again")  # else every screen looks unplugged
     need(sid not in config.connected(monitors), "connected_screen", "unplug it first, then forget it")
 
     def mutate(fresh):
@@ -251,6 +252,9 @@ def forget_screen(sid: str) -> dict:
             for setting in screen.get("settings", {}).values():
                 if setting.get("when") == sid:
                     setting["when"] = None
+        for layout in fresh.get("widget_layouts", []):
+            if sid in layout.get("screens", []):
+                layout["screens"] = []  # loaded by hand now: those screens never come together again
     config.update(mutate)
     run_sync()
     return {"ok": True}
@@ -277,5 +281,7 @@ def swap_fixed() -> dict:
     try:
         desktops.swap(settings())
     except RuntimeError as error:
+        if str(error) != "no external monitor":
+            raise
         raise ApiError("no_external", "no external monitor connected") from error
     return fixed_view(settings())

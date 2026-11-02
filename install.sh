@@ -23,7 +23,10 @@ for arg in "$@"; do
     --no-deps) NO_DEPS=1 ;;
     --update) UPDATE=1 YES=1 ;;
     --dry-run) DRY=1 ;;
-    -h|--help) sed -n '2,14p' "${BASH_SOURCE[0]:-/dev/null}" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)
+      if [ -f "${BASH_SOURCE[0]:-}" ]; then sed -n '2,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      else echo "Options: --yes --no-deps --update --dry-run (see https://github.com/SlowlyTz/tuneup#install)"; fi
+      exit 0 ;;
     *) printf 'Unknown option: %s (see --help)\n' "$arg" >&2; exit 2 ;;
   esac
 done
@@ -38,6 +41,7 @@ step() { printf '\n%s==>%s %s%s%s\n' "$BLUE" "$RESET" "$BOLD" "$*" "$RESET"; }
 ok() { printf '  %s✓%s %s\n' "$GREEN" "$RESET" "$*"; }
 note() { printf '  %s!%s %s\n' "$YELLOW" "$RESET" "$*"; }
 fail() { printf '\n%s✗ %s%s\n' "$RED" "$*" "$RESET" >&2; exit 1; }
+[ "$(id -u)" -ne 0 ] || fail "Run the installer as your normal user, not with sudo: it asks for your password itself."
 # Every change goes through run: --dry-run only prints it.
 run() {
   if [ "$DRY" = 1 ]; then printf '  %s[dry-run]%s %s\n' "$DIM" "$RESET" "$*"; else "$@"; fi
@@ -170,10 +174,10 @@ if [ "${#MISSING[@]}" -gt 0 ] || [ "${#ROOT_SETUPS[@]}" -gt 0 ]; then
   if [ "$DRY" = 1 ]; then sed 's/^/    | /' "$ROOT_SCRIPT"; fi
   if [ "$UPDATE" = 1 ]; then
     printf '  A password dialog asks for your password once.\n'
-    run pkexec /bin/sh "$ROOT_SCRIPT" || fail "The system setup did not run (password dialog cancelled?)."
+    run pkexec /bin/sh -c "$(cat "$ROOT_SCRIPT")" || fail "The system setup did not run (password dialog cancelled?)."
   else
     printf '  sudo asks for your password once.\n'
-    run sudo /bin/sh "$ROOT_SCRIPT" || fail "The system setup failed; nothing else was changed. Run the installer again."
+    run sudo /bin/sh -c "$(cat "$ROOT_SCRIPT")" || fail "The system setup did not finish. Run the installer again (if pacman could not download a package: sudo pacman -Syu first)."
   fi
   ok "done"
 elif [ "$NO_DEPS" = 1 ]; then

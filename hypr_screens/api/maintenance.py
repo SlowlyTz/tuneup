@@ -40,14 +40,12 @@ def check_update() -> dict:
 
 
 def detached(*args: str, log_name: str) -> None:
-    log = open(config.runtime_home() / log_name, "w")
     try:
-        subprocess.Popen([sys.executable, str(brand.ROOT / brand.COMMAND), *args], stdin=subprocess.DEVNULL,
-                         stdout=log, stderr=subprocess.STDOUT, start_new_session=True, cwd=str(brand.ROOT))
+        with open(config.runtime_home() / log_name, "w") as log:
+            subprocess.Popen([sys.executable, str(brand.ROOT / brand.COMMAND), *args], stdin=subprocess.DEVNULL,
+                             stdout=log, stderr=subprocess.STDOUT, start_new_session=True, cwd=str(brand.ROOT))
     except OSError as error:
         raise ApiError("unavailable", f"cannot start {brand.COMMAND} {args[0]}: {error}") from error
-    finally:
-        log.close()
 
 
 @endpoint
@@ -56,7 +54,11 @@ def run_update() -> dict:
     while the tray restarts and opens again at the end."""
     need(updates.read_status()["state"] != "running", "busy", "an update is running already")
     updates.write_status(state="running", **{"from": updates.current_version(), "to": None}, log=[], error=None)
-    detached("update", "--report", log_name=f"{brand.DIR}-update.log")
+    try:
+        detached("update", "--report", log_name=f"{brand.DIR}-update.log")
+    except ApiError as error:
+        updates.write_status(state="failed", error=error.message)  # not "running" for good
+        raise
     return {"started": True}
 
 

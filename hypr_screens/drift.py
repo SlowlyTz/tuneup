@@ -126,8 +126,15 @@ def run(cfg: dict | None = None) -> list[str]:
     synced = False
     fixed = []
     for area, item, details, fix in due:
-        if not (synced and area == "desktops"):
-            fix(cfg)
+        try:
+            if not (synced and area == "desktops"):
+                fix(cfg)
+        except Exception as error:
+            # Recorded all the same, so a fix that keeps failing backs off too;
+            # the other areas still get theirs.
+            enforce.record(area, item, summary(details))
+            fixed.append(f"{area}: putting back failed: {error!r}")
+            continue
         synced = synced or area == "screens"
         enforce.record(area, item, summary(details))
         fixed.append(f"{area}: {summary(details)}")
