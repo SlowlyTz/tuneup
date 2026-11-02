@@ -57,3 +57,11 @@ def test_main_colors_of_an_image():
     colors = run(f"mainColors({json.dumps(pixels)}, 4)")
     assert colors[:2] == ["#e61e1e", "#28c83c"]
     assert len(colors) <= 4
+
+
+def test_schemes_keep_the_warning_colors():
+    battery = {"ring": "accent", "charging": "theme:green", "low_ring": "theme:red", "percent": "theme:foreground"}
+    for scheme in ("mono", "pastel", "colorful"):
+        colors = run(f'scheme("{scheme}", "", {json.dumps(BLUE)}, {json.dumps(battery)})')
+        assert "charging" not in colors and "low_ring" not in colors and "ring" in colors
+

@@ -40,6 +40,11 @@ TYPES = {".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascrip
 OWN_CHANGE_SECONDS = 1.5
 
 
+# Slow calls that only read (git fetch): on their own worker, so the page's
+# clicks are not queued behind them.
+SIDE_CALLS = {"check_update"}
+
+
 def method_name(name: str) -> str:
     """someMethod -> some_method."""
     return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
@@ -109,6 +114,7 @@ class WebWindow(Adw.ApplicationWindow):
         super().__init__(application=app, title=brand.NAME,
                          default_width=placement.WIDTH, default_height=placement.HEIGHT)
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="api")
+        self.side_worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="api-side")
         self.last_call = 0.0
         self.refresh_source = 0
         self.closed = False
@@ -160,7 +166,7 @@ class WebWindow(Adw.ApplicationWindow):
             return True
         if self.closed:
             return True  # the worker is shut down; nobody waits for the answer
-        future = self.worker.submit(self.call, name, args)
+        future = (self.side_worker if name in SIDE_CALLS else self.worker).submit(self.call, name, args)
         future.add_done_callback(lambda done: done.cancelled() or GLib.idle_add(self.answer, value, reply, done.result()))
         return True
 
@@ -251,6 +257,7 @@ class WebWindow(Adw.ApplicationWindow):
             GLib.source_remove(self.refresh_source)
             self.refresh_source = 0
         self.worker.shutdown(wait=False, cancel_futures=True)
+        self.side_worker.shutdown(wait=False, cancel_futures=True)
         # The page's own "revert the preview" on leaving does not get through any
         # more: a look shown but not kept must not stay (nor the audit stay off).
         threading.Thread(target=revert_preview, daemon=True).start()

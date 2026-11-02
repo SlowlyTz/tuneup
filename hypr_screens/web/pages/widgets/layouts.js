@@ -122,7 +122,24 @@ function layoutsDialog() {
   openDialog(draw(), {
     close: () => closeDialog(),
     auto: (b) => { const l = at(b); run(() => api.setLayoutAuto(l.name, !l.auto), `[data-d="auto"][data-i="${b.dataset.i}"]`); },
-    delete: (b) => { const name = at(b).name; run(() => api.deleteLayout(name)).then((ok) => ok && toast(t("Layout “{name}” deleted", { name }))); },
+    // Asked once more right in the row: the first click turns the bin into "Delete", the second deletes.
+    delete: (b) => {
+      const name = at(b).name;
+      if (b.dataset.sure !== "1") {
+        b.dataset.sure = "1";
+        b.className = "btn danger solid";
+        b.textContent = t("Delete");
+        b.focus();
+        setTimeout(() => {  // not confirmed: the bin again
+          if (!b.isConnected || b.dataset.sure !== "1") return;
+          b.dataset.sure = "";
+          b.className = "btn ghost icon danger";
+          b.innerHTML = ic("trash", "sm");
+        }, 4000);
+        return;
+      }
+      run(() => api.deleteLayout(name)).then((ok) => ok && toast(t("Layout “{name}” deleted", { name })));
+    },
     rename,
   }, { label: t("Widget layouts") });
 }

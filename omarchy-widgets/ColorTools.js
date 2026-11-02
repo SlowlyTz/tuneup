@@ -6,11 +6,13 @@
 
 // What a part does, from its default color: the widget's main color, text,
 // something quieter, the card behind it, or worked out by the widget itself.
+// Red and green say something (low battery, charging, upload): no scheme
+// takes them, they keep their default.
 function role(fallback) {
   if (fallback === "accent") return "main"
   if (fallback === "theme:foreground") return "text"
   if (fallback === "theme:background") return "background"
-  if (fallback === "auto") return ""
+  if (fallback === "auto" || fallback === "theme:red" || fallback === "theme:green") return ""
   return "quiet"
 }
 
