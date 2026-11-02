@@ -405,6 +405,83 @@ def test_windows_on_the_fixed_desktops_come_back_when_unplugged(five):
     assert model.clients[-1]["workspace"]["id"] in desktops.DESKTOPS
 
 
+def window(model, address, workspace):
+    model.clients.append({"address": address, "workspace": {"id": workspace, "name": str(workspace)},
+                          "mapped": True, "at": [0, 0], "size": [100, 100], "monitor": 1})
+    model.workspaces.setdefault(workspace, "DP-3" if workspace >= desktops.FIXED_WS else "eDP-1")
+
+
+def on(model, address):
+    return next((c["workspace"]["id"] for c in model.clients if c["address"] == address), None)
+
+
+def unplug_windows(value):
+    config.update(lambda cfg: cfg.__setitem__("unplug_windows", value))
+
+
+def test_unplugging_spreads_the_external_desktops_over_6_to_10_and_back(five):
+    model = five
+    unplug_windows("spread")
+    window(model, "0x1", desktops.FIXED_WS)
+    window(model, "0x3", desktops.FIXED_WS + 2)
+    window(model, "0x6", 6)                                          # the laptop's own
+    unplug(model, "DP-3")
+    assert (on(model, "0x1"), on(model, "0x3"), on(model, "0x6")) == (6, 8, 6)
+    assert_settled(model)
+
+    plug(model, hp_output("DP-3"))
+    assert (on(model, "0x1"), on(model, "0x3"), on(model, "0x6")) == (desktops.FIXED_WS, desktops.FIXED_WS + 2, 6)
+
+
+def test_a_spread_window_moved_on_stays_where_it_was_put(five):
+    model = five
+    unplug_windows("spread")
+    window(model, "0x1", desktops.FIXED_WS)
+    unplug(model, "DP-3")
+    desktops.move_windows(6, 2)
+    plug(model, hp_output("DP-3"))
+    assert on(model, "0x1") == 2
+
+
+def test_the_sixth_external_desktop_and_up_go_onto_10(world):
+    model = world
+    config.update(lambda cfg: cfg.update(fixed_desktops=8, unplug_windows="spread"))
+    plug(model, hp_output("DP-3"))
+    window(model, "0x5", desktops.FIXED_WS + 4)
+    window(model, "0x8", desktops.FIXED_WS + 7)
+    unplug(model, "DP-3")
+    assert (on(model, "0x5"), on(model, "0x8")) == (10, 10)
+
+
+def test_one_external_desktop_goes_onto_6(world):
+    model = world
+    unplug_windows("spread")
+    plug(model, hp_output("DP-3"))
+    window(model, "0x1", desktops.FIXED_WS)
+    unplug(model, "DP-3")
+    assert on(model, "0x1") == 6
+
+
+def test_unplugging_can_close_the_external_screens_windows(five):
+    model = five
+    unplug_windows("close")
+    window(model, "0x1", desktops.FIXED_WS + 1)
+    window(model, "0x2", 2)
+    unplug(model, "DP-3")
+    assert on(model, "0x1") is None and on(model, "0x2") == 2
+
+
+def test_the_laptops_own_desktops_are_never_closed(world):
+    model = world
+    unplug_windows("close")
+    config.update(lambda cfg: cfg.__setitem__("default_fixed", "panel"))
+    plug(model, hp_output("DP-3"))
+    model.clients.append({"address": "0x1", "workspace": {"id": desktops.FIXED_WS, "name": "99"},
+                          "mapped": True, "at": [0, 0], "size": [100, 100], "monitor": 0})
+    unplug(model, "DP-3")
+    assert on(model, "0x1") in desktops.DESKTOPS
+
+
 # --- mirroring the laptop -----------------------------------------------------------------
 
 
@@ -461,3 +538,13 @@ def test_nothing_to_mirror_with_the_lid_closed(world):
     assert model.monitor("DP-3")["mirrorOf"] != "none"
     assert model.reloads == reloads                                # a reload would open the lid again
     assert_settled(model)
+
+
+def test_mirroring_spreads_the_external_windows_like_unplugging(five):
+    model = five
+    unplug_windows("spread")
+    window(model, "0x2", desktops.FIXED_WS + 1)
+    mirror(model, HP_ID, True)
+    assert on(model, "0x2") == 7
+    mirror(model, HP_ID, None)
+    assert on(model, "0x2") == desktops.FIXED_WS + 1

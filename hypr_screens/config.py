@@ -24,6 +24,8 @@ ROTATIONS = [0, 90, 180, 270]
 SCALES = ["auto", 1, 1.25, 1.5, 2]
 POSITIONS = ["left", "right", "above", "below"]
 FIXED_DEFAULTS = ["off", "external", "panel"]
+# What happens to an external fixed screen's windows when it goes: see desktops.py.
+UNPLUG_CHOICES = ["fold", "spread", "close"]
 SETTING_KEYS = ["rotation", "scale", "mode", "position", "mirror"]
 LANGUAGE_CODES = ["en", "de", "es", "fr", "it"]
 INSTALL_CHOICES = ["camera", "cava", "galaxy_book"]
@@ -88,6 +90,7 @@ def default_config() -> dict:
         "default_fixed": "off",
         # desktops on the fixed screen (1: the classic single fixed desktop)
         "fixed_desktops": 1,
+        "unplug_windows": "fold",
         "enforce": True,
         # Scratch desktops (workspaces 201 and up) in place of Omarchy's scratchpad.
         "scratch": True,
@@ -183,6 +186,8 @@ def normalize(raw: object) -> dict:
     count = raw.get("fixed_desktops")
     if isinstance(count, int) and not isinstance(count, bool) and 1 <= count <= 10:
         cfg["fixed_desktops"] = count
+    if raw.get("unplug_windows") in UNPLUG_CHOICES:
+        cfg["unplug_windows"] = raw["unplug_windows"]
     if isinstance(raw.get("enforce"), bool):
         cfg["enforce"] = raw["enforce"]
     if isinstance(raw.get("scratch"), bool):

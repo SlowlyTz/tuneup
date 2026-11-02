@@ -43,7 +43,7 @@ def test_english_is_the_default_and_the_fallback():
     assert i18n.t("Screens") == "Screens"
     i18n.set_language("de")
     assert i18n.t("Screens") == "Bildschirme"
-    assert i18n.t("Fixed: {name}", name="HP 32f") == "Fest: HP 32f"
+    assert i18n.t("Own desktops: {name}", name="HP 32f") == "Eigene Desktops: HP 32f"
     assert i18n.t("A text nobody translated") == "A text nobody translated"
 
 

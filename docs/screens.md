@@ -11,7 +11,7 @@ At the top the connected screens stand as they do on your desk.
 - **Drag a screen** to another edge of the laptop, and the mouse crosses there. Arrow keys work too: select a screen, then press an arrow.
 - **Click a screen** to see its settings below the picture.
 - **Known screens:** monitors you used before but that are not connected now are in the row below the picture. Their settings apply as soon as they come back.
-- **Swap the fixed screen** at the top right: see [one-desktop.md](one-desktop.md).
+- **Swap the own desktops** at the top right: see [one-desktop.md](one-desktop.md).
 - **For new monitors**, below the picture: which screen gets the fixed desktop when an unknown monitor is plugged in (for all screens).
 
 The settings of the screen you clicked:

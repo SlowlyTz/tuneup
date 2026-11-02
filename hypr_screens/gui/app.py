@@ -59,7 +59,7 @@ class App(Adw.Application):
 
     def tray_entries(self) -> list:
         return [(t("Open settings"), self.show_settings),
-                (t("Swap the fixed screen"), self.swap, external_connected),
+                (t("Swap the own desktops"), self.swap, external_connected),
                 (t("Arrange widgets"), self.arrange),
                 None,
                 (t("Quit"), self.quit)]

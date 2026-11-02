@@ -6,7 +6,7 @@ import { hz, nf, pct, res } from "../../core/format.js";
 import { loc, t } from "../../core/i18n.js";
 import { S, UI } from "../../core/state.js";
 import { afterRender, k, on, reg, render } from "../../core/view.js";
-import { button, group, radios, seg, stepper, toggle } from "../../ui/controls.js";
+import { button, group, radios, seg, select, stepper, toggle } from "../../ui/controls.js";
 import { confirmDialog } from "../../ui/dialog.js";
 import { ic, monGlyph } from "../../ui/icons.js";
 import { block, expander, notice, ph, row } from "../../ui/layout.js";
@@ -94,35 +94,50 @@ function arrangeCard(sel, cs) {
   const strip = chips(t("Mirrors the laptop"), mirrored, (s) => (s.hypr ? res(parseMode(s.hypr.mode).w, parseMode(s.hypr.mode).h) : ""))
     + chips(t("Known screens"), S.screens.filter((s) => !s.connected), (s, m) => (m.w ? res(m.w, m.h) : ""));
   return `<div class="card arr-card" data-sid="screens.arrange">
-      <div class="arr-bar"><span class="hint">${ic("drag", "sm")}${esc(cs.length > 1 ? t("Drag to arrange · click to select") : mirrored.length ? t("The other screen shows the laptop's picture") : t("Only one screen is connected"))}</span>${fx.swapped ? `<span class="pill">${esc(t("Swapped"))}</span>` : ""}${fx.canSwap ? swapButton("swap", t("Swap the fixed screen")) : ""}</div>
+      <div class="arr-bar"><span class="hint">${ic("drag", "sm")}${esc(cs.length > 1 ? t("Drag to arrange · click to select") : mirrored.length ? t("The other screen shows the laptop's picture") : t("Only one screen is connected"))}</span>${fx.swapped ? `<span class="pill">${esc(t("Swapped"))}</span>` : ""}${fx.canSwap ? swapButton("swap", t("Swap the own desktops")) : ""}</div>
       <div class="arrange" id="arrange">${tiles}</div>${strip}</div>`;
 }
 
-/* "For new monitors": global, so on the page (not in a screen's settings). */
+/* "Own desktops": global, so on the page (not in a screen's settings). */
 function newMonitorsRow() {
   const value = S.keys.options.default_fixed;
   return row({
-    sid: "screens.newmon", icon: "monitor", title: esc(t("For new monitors")), desc: esc(t("Which screen becomes fixed when an unknown monitor arrives")),
+    sid: "screens.newmon", icon: "monitor", title: esc(t("Own desktops")), desc: esc(t("Which screen gets desktops of its own when a new monitor arrives")),
     end: seg("newmon", [{ v: "off", label: t("Off") }, { v: "external", label: t("External monitor") }, { v: "panel", label: t("Laptop") }], value,
       (v) => change(() => api.setOption("default_fixed", v), () => api.setOption("default_fixed", value), { reload: ["keys", "screens"] }),
-      { label: t("For new monitors") }),
+      { label: t("Own desktops") }),
   });
 }
 
-/* Desktops on the fixed screen: global too (whichever screen is fixed). */
+/* How many own desktops: global too (whichever screen is fixed). */
 function fixedDesktopsRow() {
   const value = S.keys.options.fixed_desktops || 1;
   return row({
-    sid: "screens.fixeddesks", icon: "monitor", title: esc(t("Desktops on the fixed screen")),
+    sid: "screens.fixeddesks", icon: "monitor", title: esc(t("Number of own desktops")),
     desc: esc(t("With more than one, the desktop keys switch the desktops of the screen you are on")),
-    end: stepper("fixeddesks", { min: 1, max: 10, value, label: t("Desktops on the fixed screen"),
+    end: stepper("fixeddesks", { min: 1, max: 10, value, label: t("Number of own desktops"),
       onChange: (v) => change(() => api.setOption("fixed_desktops", v), () => api.setOption("fixed_desktops", value), { reload: ["keys", "screens"] }) }),
+  });
+}
+
+/* Where the external screen's windows go when it is unplugged or set to mirror: global too. */
+function unplugRow() {
+  const value = S.keys.options.unplug_windows || "fold";
+  return row({
+    sid: "screens.unplug", icon: "monitor", title: esc(t("When the external monitor goes")),
+    desc: esc(t("Its windows when it is unplugged or mirrors the laptop. Desktops 6–10: they come back when it returns.")),
+    end: select("unplug", { options: [
+      { v: "fold", label: t("Onto the laptop's current desktop") },
+      { v: "spread", label: t("Spread over desktops 6–10") },
+      { v: "close", label: t("Close them") },
+    ], value, label: t("When the external monitor goes"), width: 240,
+    onChange: (v) => change(() => api.setOption("unplug_windows", v), () => api.setOption("unplug_windows", value), { reload: ["keys"] }) }),
   });
 }
 
 function screenHead(sel, cs) {
   const pref = sel.modes.find((m) => m.preferred) || sel.modes[0];
-  const fixedNow = (S.fixed || {}).fixed === sel.id && cs.length > 1 ? `<span class="pill">${ic("pin")}${esc(t("Fixed now"))}</span>`
+  const fixedNow = (S.fixed || {}).fixed === sel.id && cs.length > 1 ? `<span class="pill">${ic("pin")}${esc(t("Own desktops"))}</span>`
     : sel.hypr && sel.hypr.mirror ? `<span class="pill">${ic("mirror")}${esc(t("Mirrors the laptop"))}</span>` : "";
   const meta = [
     `<span class="state-dot${sel.connected ? "" : " off"}"></span>${esc(sel.connected ? t("Connected") : t("Not connected"))}`,
@@ -255,7 +270,7 @@ export function pageScreens() {
   }));
   return `${ph(esc(t("Screens")), esc(t("Drag the screens to where they stand on your desk.")))}
       ${arrangeCard(sel, cs)}
-      <div class="stack" style="margin-bottom:var(--s5)">${newMonitorsRow()}${fixedDesktopsRow()}</div>
+      <div class="stack" style="margin-bottom:var(--s5)">${newMonitorsRow()}${fixedDesktopsRow()}${unplugRow()}</div>
       ${screenHead(sel, cs)}
       <div class="stack">${mirrorRow(sel)}${sel.hypr && sel.hypr.mirror
         ? `${notice("info", esc(t("While it mirrors the laptop, it has no place, rotation or scale of its own.")))}${modeBlock(sel)}`

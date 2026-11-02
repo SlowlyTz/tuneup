@@ -66,7 +66,7 @@ All keys can be changed in the app under **Keyboard**.
 | [settings-window.md](docs/settings-window.md) | the app: pages, search, keys |
 | [daily.md](docs/daily.md) | cheat sheet: the keys and commands you use every day |
 | [screens.md](docs/screens.md) | rotation, scaling, resolution and place of each monitor, and settings tied to a monitor |
-| [one-desktop.md](docs/one-desktop.md) | one fixed desktop on one screen, desktops 1–10 on the other |
+| [one-desktop.md](docs/one-desktop.md) | own desktops for one screen, desktops 1–10 on the other, where its windows go when it is unplugged |
 | [personalization.md](docs/personalization.md) | window look and desktop widgets |
 | [sound.md](docs/sound.md) | volume per device and app, Force Mute |
 | [camera.md](docs/camera.md) | the turned camera for every app |
