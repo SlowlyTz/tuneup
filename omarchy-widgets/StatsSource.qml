@@ -134,7 +134,9 @@ Item {
     onTriggered: if (!diskStats.running) diskStats.running = true
   }
   // One row per device (btrfs mounts the same one many times: the shortest
-  // mount point stands for it); small boot partitions are left out.
+  // mount point stands for it); small boot partitions and the temporary mounts
+  // of running programs (an AppImage under /tmp, portals under /run) are left out,
+  // USB drives under /run/media stay.
   function takeDisks(text) {
     var bySource = {}
     var order = []
@@ -144,6 +146,7 @@ Item {
       var m = rows[i].trim().match(/^(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(.+)$/)
       if (!m || !(Number(m[2]) > 0)) continue
       if (/^\/(boot|efi)/.test(m[5]) && Number(m[2]) < 4e9) continue
+      if (/^\/(tmp|run)\//.test(m[5]) && !/^\/run\/media\//.test(m[5])) continue
       var known = bySource[m[1]]
       if (!known) { order.push(m[1]); bySource[m[1]] = { mount: m[5], size: Number(m[2]), used: Number(m[3]), avail: Number(m[4]) } }
       else if (m[5].length < known.mount.length) known.mount = m[5]
