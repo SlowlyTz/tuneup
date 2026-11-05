@@ -268,3 +268,15 @@ def test_battery_panel_follows_samsung_control(bar):
     assert install.sync_power_panel(False) == "restored omarchy.power"
     assert power_widget(bar) == "omarchy.power"
     assert install.sync_power_panel(False) == "ok"
+
+
+def test_bar_logo_becomes_the_dock_and_back(tmp_path, monkeypatch):
+    shell = tmp_path / "shell.json"
+    shell.write_text(json.dumps({"bar": {"layout": {"left": [{"id": "omarchy.menu"}, {"id": "omarchy.workspaces"}]}}}))
+    monkeypatch.setattr(install, "shell_json", lambda: shell)
+    assert install.use_bar_widget(install.DOCK_WIDGET) == "replaced omarchy.menu"
+    assert [w["id"] for w in json.loads(shell.read_text())["bar"]["layout"]["left"]] == \
+        ["hypr-screens.dock", "omarchy.workspaces"]
+    assert install.use_bar_widget(install.DOCK_WIDGET) == "ok"
+    assert install.restore_bar_widget(install.DOCK_WIDGET) == "restored omarchy.menu"
+    assert json.loads(shell.read_text())["bar"]["layout"]["left"][0]["id"] == "omarchy.menu"

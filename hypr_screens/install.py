@@ -20,15 +20,19 @@ PLUGINS = {
     "hypr-screens.workspaces": REPO / "omarchy-workspaces",
     "hypr-screens.power": REPO / "omarchy-power",
     "hypr-screens.widgets": REPO / "omarchy-widgets",
+    "hypr-screens.dock": REPO / "omarchy-dock",
 }
 # Replaced by the settings window; removed on setup.
 RETIRED_PLUGINS = ["hypr-screens.menu"]
 WORKSPACES_WIDGET = "hypr-screens.workspaces"
 POWER_WIDGET = "hypr-screens.power"
-OMARCHY_WIDGETS = {WORKSPACES_WIDGET: "omarchy.workspaces", POWER_WIDGET: "omarchy.power"}
+# The Omarchy logo, with the dock of all open windows behind it.
+DOCK_WIDGET = "hypr-screens.dock"
+OMARCHY_WIDGETS = {WORKSPACES_WIDGET: "omarchy.workspaces", POWER_WIDGET: "omarchy.power",
+                   DOCK_WIDGET: "omarchy.menu"}
 OMARCHY_POWER_WIDGET = OMARCHY_WIDGETS[POWER_WIDGET]
 # Bar widgets live in shell.json's bar layout; they are not enabled as plugins.
-BAR_WIDGETS = {WORKSPACES_WIDGET, POWER_WIDGET}
+BAR_WIDGETS = {WORKSPACES_WIDGET, POWER_WIDGET, DOCK_WIDGET}
 BACKUP_SUFFIXES = (".bak-tuneup", ".bak-hypr-screens")
 ICON_SOURCE = REPO / "assets" / "tuneup.svg"
 # From the official Arch repositories (the installer installs them; uninstalling keeps them).
@@ -219,8 +223,9 @@ def gui_available() -> str:
 
 
 def use_bar_widget(ours: str = WORKSPACES_WIDGET) -> str:
-    """Swap the bar's workspaces (or power) widget for ours; shell.json reloads itself."""
+    """Swap the bar's workspaces (power, logo) widget for ours; shell.json reloads itself."""
     kind = ours.rsplit(".", 1)[-1]
+    theirs = OMARCHY_WIDGETS[ours]
     path = shell_json()
     try:
         cfg = json.loads(path.read_text())
@@ -230,7 +235,7 @@ def use_bar_widget(ours: str = WORKSPACES_WIDGET) -> str:
     replaced = None
     for section in layout.values():
         for widget in section if isinstance(section, list) else []:
-            if isinstance(widget, dict) and str(widget.get("id", "")).endswith(f".{kind}"):
+            if isinstance(widget, dict) and (widget.get("id") == theirs or str(widget.get("id", "")).endswith(f".{kind}")):
                 replaced = widget["id"]
                 widget["id"] = ours
     if replaced is None:

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "hypr-screens.dock",
+  "name": "Tuneup dock",
+  "version": "1.0.0",
+  "author": "SlowlyTz",
+  "description": "The Omarchy logo; resting on it shows every open window in a dock on the left",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Logo.qml"
+  },
+  "barWidget": {
+    "displayName": "Tuneup dock",
+    "description": "The Omarchy logo; resting on it shows every open window in a dock on the left",
+    "category": "System",
+    "allowMultiple": false
+  }
+}
