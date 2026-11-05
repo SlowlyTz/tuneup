@@ -1268,3 +1268,48 @@ def test_state_lock_lets_one_command_at_a_time_change_the_stacks(state_file):
         order.append("first")
     thread.join()
     assert order == ["first", "second"]
+
+
+def test_fetch_moves_a_window_from_another_desktop_here(state_file, monkeypatch):
+    hyprctl = HyprctlMock(clients=[[client("0xaaa", workspace_id=4, minimized=False)]])
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    assert minimizer.fetch_address("0xaaa", "2")
+
+    assert hyprctl.commands[-2:] == [
+        ["hyprctl", "dispatch", "movetoworkspacesilent", "2,address:0xaaa"],
+        ["hyprctl", "dispatch", "focuswindow", "address:0xaaa"],
+    ]
+
+
+def test_fetch_only_focuses_a_window_already_here(state_file, monkeypatch):
+    hyprctl = HyprctlMock(clients=[[client("0xaaa", workspace_id=2, minimized=False)]])
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    assert minimizer.fetch_address("0xaaa", "2")
+
+    assert hyprctl.commands[-1] == ["hyprctl", "dispatch", "focuswindow", "address:0xaaa"]
+    assert not any("movetoworkspace" in " ".join(c) for c in hyprctl.commands)
+
+
+def test_fetch_restores_a_minimized_window_through_its_stack(state_file, monkeypatch):
+    state_file.parent.mkdir(parents=True)
+    state_file.write_text(json.dumps({"1": ["0xaaa"]}))
+    hyprctl = HyprctlMock(clients=[[client("0xaaa")], [client("0xaaa")]])
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    assert minimizer.fetch_address("0xaaa", "3")
+
+    assert read_state(state_file) == {}
+    assert hyprctl.commands[-2:] == [
+        ["hyprctl", "dispatch", "movetoworkspace", "3,address:0xaaa"],
+        ["hyprctl", "dispatch", "focuswindow", "address:0xaaa"],
+    ]
+
+
+def test_fetch_of_a_closed_window_does_nothing(state_file, monkeypatch):
+    hyprctl = HyprctlMock(clients=[[]])
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    assert not minimizer.fetch_address("0xaaa", "2")
+    assert hyprctl.commands == [["hyprctl", "-j", "clients"]]

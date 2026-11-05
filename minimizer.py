@@ -834,6 +834,21 @@ def restore_address(address: str, workspace_id: str | None = None) -> bool:
     return True
 
 
+def fetch_address(address: str, workspace_id: str) -> bool:
+    """The dock's click: the window onto workspace_id and focused, a minimized one
+    restored there (through its stack, so undo knows it)."""
+    client = clients_by_address().get(address)
+    if client is None:
+        return False
+    if is_minimized(client) and restore_address(address, workspace_id):
+        return True
+    # Not minimized, or hidden without a stack: moved like any other window.
+    if client_workspace_id(client) != workspace_id:
+        move_window(address, workspace_id, silent=True)
+    focus_window(address)
+    return True
+
+
 def peek_address(address: str) -> bool:
     """Show a minimized window over the current workspace, sized like a lone tiled window."""
     end_peek()
@@ -1345,6 +1360,10 @@ def main() -> None:
         help="restore onto the current workspace instead of the original one",
     )
 
+    fetch_parser = subparsers.add_parser("fetch")
+    fetch_parser.add_argument("address")
+    fetch_parser.add_argument("workspace", help="the workspace to bring it onto")
+
     peek_parser = subparsers.add_parser("peek")
     peek_parser.add_argument("address")
 
@@ -1383,6 +1402,8 @@ def run_command(args: argparse.Namespace) -> None:
     elif args.command == "restore":
         workspace_id = get_active_workspace_id() if args.here else None
         raise SystemExit(0 if restore_address(args.address, workspace_id) else 1)
+    elif args.command == "fetch":
+        raise SystemExit(0 if fetch_address(args.address, args.workspace) else 1)
     elif args.command == "peek":
         raise SystemExit(0 if peek_address(args.address) else 1)
 

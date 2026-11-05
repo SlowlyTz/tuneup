@@ -16,6 +16,7 @@ hypr-minimizer menu           # window menu
 hypr-minimizer list           # print minimized windows (--json)
 hypr-minimizer restore 0xabc  # restore by address (--here: onto this desktop)
 hypr-minimizer peek 0xabc     # peek by address
+hypr-minimizer fetch 0xabc 3  # bring a window onto desktop 3 (restores a minimized one)
 ```
 
 ## Window menu
@@ -36,6 +37,15 @@ Keyboard only (the mouse does nothing inside it; clicking outside closes it).
 - Your tiled windows underneath don't move.
 - `SUPER + M` slides it out again. Switching desktop hides it too.
 - It goes back to its old place in the list.
+
+## Dock
+
+Rest the pointer on the Omarchy logo in the bar for a moment and a dock fades in on the left: one icon per app with open windows, in the order of their desktops (the small number shows where), minimized ones paler below a line. A dot marks an app with a window on this desktop.
+
+- Click an icon to bring the window to this desktop. An app with several windows shows how many; a click lists them, and a click on one brings it.
+- The dock stays while the pointer is on the logo or the dock, and goes a moment after it left.
+- Left click on the logo still opens the Omarchy menu, right click a terminal.
+- A full-screen window hides the bar, and with it the dock.
 
 ## Scratch desktops and the scratchpad
 
@@ -88,5 +98,6 @@ WidgetButton {
 |---|---|
 | minimized windows + undo | `$XDG_RUNTIME_DIR/hypr-minimizer/state.json` |
 | menu plugin | `~/.config/omarchy/plugins/hypr-minimizer.picker` |
+| dock (the bar's logo) | `~/.config/omarchy/plugins/hypr-screens.dock` |
 
 Without Omarchy the menu falls back to `walker`, `wofi` or `rofi` (only `Enter`: brings it here).
