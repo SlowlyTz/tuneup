@@ -1335,3 +1335,51 @@ def test_minimize_leaves_a_minimized_or_closed_window_alone(state_file, monkeypa
     assert not minimizer.minimize_address("0xaaa")
     assert not minimizer.minimize_address("0xbbb")
     assert not any("movetoworkspace" in " ".join(c) for c in hyprctl.commands)
+
+
+def evals(hyprctl):
+    return [command[2] for command in hyprctl.commands if command[1:2] == ["eval"]]
+
+
+def test_hide_window_fades_a_tiled_window_where_it_is(monkeypatch):
+    monkeypatch.setattr(minimizer, "_LUA_DISPATCH", True)
+    hyprctl = HyprctlMock(monitors=[[{"id": 1, "name": "DP-4"}]])
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    minimizer.hide_window("0xaaa", {"address": "0xaaa", "monitor": 1, "at": [10, 20], "size": [1000, 800], "floating": False})
+
+    park, shrink = evals(hyprctl)
+    assert "workspace = 'special:minimized', monitor = 'DP-4'" in park
+    assert "float({ action = 'enable'" in park and "resize({ x = 1000, y = 800" in park
+    assert "tag = '+tuneup-tiled'" in shrink
+    assert "resize({ x = 850, y = 680" in shrink and "move({ x = 85, y = 80" in shrink
+    assert "workspace = 'special:minimized', follow = false" in hyprctl.commands[-1][2]
+
+
+def test_show_window_tiles_a_tiled_one_again_on_its_screen(monkeypatch):
+    monkeypatch.setattr(minimizer, "_LUA_DISPATCH", True)
+    hidden = {"address": "0xaaa", "workspace": {"id": -98, "name": "special:minimized"},
+              "tags": ["tuneup-tiled"], "at": [85, 80], "size": [850, 680], "floating": True}
+    hyprctl = HyprctlMock(clients=[[hidden], [hidden]], monitors=[[{"name": "eDP-1", "focused": True}]])
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    minimizer.show_window("0xaaa", "3")
+
+    park, bring = evals(hyprctl)
+    assert "monitor = 'eDP-1'" in park
+    assert "workspace = '3', follow = true" in bring
+    assert "float({ action = 'disable'" in bring and "tag = '-tuneup-tiled'" in bring
+
+
+def test_show_window_grows_a_floating_one_back(monkeypatch):
+    monkeypatch.setattr(minimizer, "_LUA_DISPATCH", True)
+    hidden = {"address": "0xaaa", "workspace": {"id": -98, "name": "special:minimized"},
+              "tags": ["tuneup-shrunk"], "at": [85, 80], "size": [850, 680], "floating": True}
+    hyprctl = HyprctlMock(clients=[[hidden], [hidden]], monitors=[[{"name": "eDP-1", "focused": True}]])
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    minimizer.show_window("0xaaa", "3", silent=True)
+
+    bring = evals(hyprctl)[-1]
+    assert "follow = false" in bring and "float(" not in bring
+    assert "resize({ x = 1000, y = 800" in bring and "move({ x = 10, y = 20" in bring
