@@ -56,11 +56,12 @@ def shell(cfg: dict) -> list[str]:
     if not install.has_omarchy_shell():
         return ["no omarchy-shell: no window list and no bar widgets; everything else works"]
     done = [f"removed old {plugin}" for plugin in install.remove_retired_plugins()]
-    plugins = ["hypr-minimizer.picker", install.WORKSPACES_WIDGET, install.DOCK_WIDGET]
+    plugins = ["hypr-minimizer.picker", install.WORKSPACES_WIDGET, install.DOCK_WIDGET, install.TASKBAR_WIDGET]
     done += [f"{plugin}: {result}" for plugin, result in install.install_plugins(plugins).items()]
     if cfg["desktop_keys"]:
         done.append(f"bar: {install.use_bar_widget()}")
     done.append(f"dock: {install.use_bar_widget(install.DOCK_WIDGET)}")
+    done.append(f"taskbar: {install.use_taskbar()}")
     done += [f"widgets: {result}" for result in widgets.wire_shell(cfg["widgets"])]
     done.append(f"battery panel: {install.sync_power_panel(samsung.active())}")
     return done

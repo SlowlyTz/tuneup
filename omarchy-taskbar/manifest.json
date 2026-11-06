@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "hypr-screens.taskbar",
+  "name": "Tuneup taskbar",
+  "version": "1.0.0",
+  "author": "SlowlyTz",
+  "description": "The windows of the desktop on this screen, minimized ones included",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Taskbar.qml"
+  },
+  "barWidget": {
+    "displayName": "Tuneup taskbar",
+    "description": "The windows of the desktop on this screen, minimized ones included",
+    "category": "Compositor",
+    "allowMultiple": false
+  }
+}

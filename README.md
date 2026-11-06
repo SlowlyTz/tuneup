@@ -12,7 +12,7 @@
 | **Sound** | Volume for every device and every app, the default device, and which output each app uses. Force Mute keeps a device silent for good. |
 | **Camera** | Turns the camera picture for every app (Discord, Zoom, the browser), like a monitor. |
 | **Scratch desktops** | `SUPER + S` flies in a row of scratch desktops instead of Omarchy's single scratchpad: several of them, shared by all screens, swipe between them, move windows there. |
-| **Minimize windows** | `SUPER + M` hides a window and `SUPER + I` brings it back. A window menu lets you **peek** at a hidden window without touching your layout. Resting on the Omarchy logo opens a **dock** of every open window; a click brings one to your desktop. |
+| **Minimize windows** | `SUPER + M` hides a window and `SUPER + I` brings it back. A window menu lets you **peek** at a hidden window without touching your layout. Resting on the Omarchy logo opens a **dock** of every open window; a click brings one to your desktop. A **taskbar** beside the desktops shows this desktop's windows, minimized ones in grey. |
 | **Keeps your settings in force** | When another app or a reload changes something you set, Tuneup puts it back. |
 | **Galaxy Book support** | Samsung Settings on Linux: charge limit, the four performance modes, keyboard light and the firmware switches. Every other laptop works fully too. |
 
@@ -45,6 +45,7 @@ The installer checks your system and installs what is missing from the official 
 | `SUPER + .` | window menu (`-` = peek) |
 | `SUPER + S` | scratch desktops in / out |
 | rest on the Omarchy logo | dock of all open windows |
+| click / middle click in the taskbar | minimize or bring back / close a window |
 | tray icon | Tuneup settings |
 
 All keys can be changed in the app under **Keyboard**.
