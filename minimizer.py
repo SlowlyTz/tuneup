@@ -24,6 +24,13 @@ PICKER_PLUGIN_ID = "hypr-minimizer.picker"
 PICKER_TIMEOUT_SECONDS = 600
 # A few frames for Hyprland to settle a window parked below the screen edge.
 SLIDE_SETTLE_SECONDS = 0.05
+# A window being minimized shrinks to this share of its size around its center
+# while it fades; coming back it grows from there.
+MINIMIZE_SHRINK = 0.85
+# Tags on a minimized window: it was tiled (tiled again when it comes back), or
+# it floats and was shrunk (grown back).
+TILED_TAG = "tuneup-tiled"
+SHRUNK_TAG = "tuneup-shrunk"
 # Hyprland events after which a peeked window may have gone out of sight.
 PEEK_WATCH_EVENTS = {
     "workspace",
@@ -128,13 +135,15 @@ def place_window(address: str, geometry: list[int]) -> None:
         run_hyprctl("dispatch", "movewindowpixel", f"exact {x} {y},address:{address}")
 
 
+def batch(*steps: str) -> None:
+    """Lua dispatchers in one eval: it runs within a single frame, so nothing
+    is drawn in between."""
+    run_hyprctl("eval", "; ".join(f"hl.dispatch({step})" for step in steps))
+
+
 def slide_in(address: str, workspace_id: str, x: int, y: int, below: int) -> None:
     """Bring a window onto a workspace from below the screen edge (Lua dispatch only)."""
     window = f"window = 'address:{address}'"
-
-    def batch(*steps: str) -> None:
-        # One eval runs within a single frame, so nothing is drawn in between.
-        run_hyprctl("eval", "; ".join(f"hl.dispatch({step})" for step in steps))
 
     # Moving onto a workspace pulls a window back on screen, so it is parked
     # below the edge right afterwards, unanimated and unseen.
@@ -150,6 +159,99 @@ def slide_in(address: str, workspace_id: str, x: int, y: int, below: int) -> Non
         f"hl.dsp.window.set_prop({{ prop = 'no_anim', value = 'unset', {window} }})",
         f"hl.dsp.window.move({{ x = {x}, y = {y}, {window} }})",
     )
+
+
+def monitor_name(monitor_id: object) -> str:
+    return next((str(m.get("name")) for m in get_monitors() if m.get("id") == monitor_id), "")
+
+
+def workspace_monitor(workspace_id: str) -> str:
+    """The screen a workspace is on; the focused one for a workspace not there yet."""
+    try:
+        workspaces = json.loads(run_hyprctl("-j", "workspaces").stdout)
+    except (json.JSONDecodeError, subprocess.CalledProcessError):
+        workspaces = []
+    for workspace in workspaces if isinstance(workspaces, list) else []:
+        if isinstance(workspace, dict) and workspace_key(workspace) == workspace_id:
+            return str(workspace.get("monitor") or "")
+    return next((str(m.get("name")) for m in get_monitors() if m.get("focused")), "")
+
+
+def hidden_here(monitor: str) -> str:
+    """The minimized windows' workspace moved onto `monitor` (unseen): a window
+    going there or coming from there then stays on its screen instead of
+    flying over to the one that held it."""
+    return f"hl.dsp.workspace.move({{ workspace = '{MINIMIZED_WORKSPACE}', monitor = '{monitor}' }})"
+
+
+def hide_window(address: str, client: dict | None = None) -> None:
+    """Minimize: the window shrinks to its center and fades where it is."""
+    if not _lua_dispatch_supported():
+        move_window(address, MINIMIZED_WORKSPACE, silent=True)
+        return
+    client = client or clients_by_address().get(address)
+    monitor = monitor_name(client.get("monitor")) if client else ""
+    at, size = (client or {}).get("at"), (client or {}).get("size")
+    if not (monitor and isinstance(at, list) and isinstance(size, list) and len(at) == len(size) == 2):
+        move_window(address, MINIMIZED_WORKSPACE, silent=True)
+        return
+    (x, y), (width, height) = at, size
+    tiled = not client.get("floating")
+    window = f"window = 'address:{address}'"
+    steps = [hidden_here(monitor)]
+    if tiled:
+        # Floating where it is, unanimated: it fades in place instead of going
+        # to the hidden workspace's tiled spot.
+        steps += [
+            f"hl.dsp.window.set_prop({{ prop = 'no_anim', value = '1', {window} }})",
+            f"hl.dsp.window.float({{ action = 'enable', {window} }})",
+            f"hl.dsp.window.resize({{ x = {width}, y = {height}, {window} }})",
+            f"hl.dsp.window.move({{ x = {x}, y = {y}, {window} }})",
+        ]
+    batch(*steps)
+    if tiled:
+        time.sleep(SLIDE_SETTLE_SECONDS)
+    small_width, small_height = round(width * MINIMIZE_SHRINK), round(height * MINIMIZE_SHRINK)
+    batch(
+        *([f"hl.dsp.window.set_prop({{ prop = 'no_anim', value = 'unset', {window} }})"] if tiled else []),
+        f"hl.dsp.window.tag({{ tag = '+{TILED_TAG if tiled else SHRUNK_TAG}', {window} }})",
+        f"hl.dsp.window.resize({{ x = {small_width}, y = {small_height}, {window} }})",
+        f"hl.dsp.window.move({{ x = {x + (width - small_width) // 2}, y = {y + (height - small_height) // 2}, {window} }})",
+    )
+    move_window(address, MINIMIZED_WORKSPACE, silent=True)
+
+
+def show_window(address: str, workspace_id: str, silent: bool = False) -> None:
+    """Back from minimized: it fades in at its center and grows to its place."""
+    if not _lua_dispatch_supported():
+        move_window(address, workspace_id, silent=silent)
+        return
+    client = clients_by_address().get(address)
+    tags = set(client.get("tags") or []) if client else set()
+    if not tags & {TILED_TAG, SHRUNK_TAG}:  # minimized some other way
+        move_window(address, workspace_id, silent=silent)
+        return
+    monitor = workspace_monitor(workspace_id)
+    if monitor:
+        batch(hidden_here(monitor))
+        client = clients_by_address().get(address) or client  # moved along with it
+    window = f"window = 'address:{address}'"
+    follow = "false" if silent else "true"
+    steps = [f"hl.dsp.window.move({{ workspace = '{workspace_id}', follow = {follow}, {window} }})"]
+    if TILED_TAG in tags:
+        steps += [
+            f"hl.dsp.window.float({{ action = 'disable', {window} }})",
+            f"hl.dsp.window.tag({{ tag = '-{TILED_TAG}', {window} }})",
+        ]
+    else:
+        (x, y), (small_width, small_height) = client.get("at", [0, 0]), client.get("size", [0, 0])
+        width, height = round(small_width / MINIMIZE_SHRINK), round(small_height / MINIMIZE_SHRINK)
+        steps += [
+            f"hl.dsp.window.resize({{ x = {width}, y = {height}, {window} }})",
+            f"hl.dsp.window.move({{ x = {x - (width - small_width) // 2}, y = {y - (height - small_height) // 2}, {window} }})",
+            f"hl.dsp.window.tag({{ tag = '-{SHRUNK_TAG}', {window} }})",
+        ]
+    batch(*steps)
 
 
 def move_animation_seconds() -> float:
@@ -766,11 +868,11 @@ def stash() -> None:
     minimize_from(address, workspace_id)
 
 
-def minimize_from(address: str, workspace_id: str) -> None:
+def minimize_from(address: str, workspace_id: str, client: dict | None = None) -> None:
     state = load_state()
     history = push_undo_snapshot(load_history(), state, workspace_id)
 
-    move_window(address, MINIMIZED_WORKSPACE, silent=True)
+    hide_window(address, client)
 
     append_to_stack(state, workspace_id, address)
     save_state(state, history=history)
@@ -784,7 +886,7 @@ def minimize_address(address: str) -> bool:
     client = clients_by_address().get(address)
     if client is None or is_minimized(client):
         return False
-    minimize_from(address, client_workspace_id(client))
+    minimize_from(address, client_workspace_id(client), client)
     return True
 
 
@@ -795,12 +897,14 @@ def stash_others() -> None:
         return
 
     addresses: list[str] = []
+    others: dict[str, dict] = {}
     for client in get_clients():
         address = client.get("address")
         if not isinstance(address, str):
             continue
         if address != active_address and client_workspace_id(client) == workspace_id:
             addresses.append(address)
+            others[address] = client
 
     if not addresses:
         return
@@ -810,7 +914,7 @@ def stash_others() -> None:
 
     moved_addresses: list[str] = []
     for address in addresses:
-        move_window(address, MINIMIZED_WORKSPACE, silent=True)
+        hide_window(address, others[address])
         moved_addresses.append(address)
 
     extend_stack(state, workspace_id, moved_addresses)
@@ -843,7 +947,7 @@ def restore_address(address: str, workspace_id: str | None = None) -> bool:
     history = push_undo_snapshot(history, snapshot, target_workspace)
     remove_address(pruned_state, address)
 
-    move_window(address, str(target_workspace))
+    show_window(address, str(target_workspace))
     focus_window(address)
     save_state(pruned_state, history=history)
     return True
@@ -1058,7 +1162,7 @@ def pop() -> None:
         else:
             state.pop(workspace_id, None)
 
-        move_window(address, str(workspace_id))
+        show_window(address, str(workspace_id))
         focus_window(address)
         save_state(state, history=history)
         return
@@ -1085,7 +1189,7 @@ def pop_all() -> None:
         return
 
     for address in reversed(workspace_stack):
-        move_window(address, str(workspace_id))
+        show_window(address, str(workspace_id))
 
     state.pop(workspace_id, None)
     save_state(state, history=history)
@@ -1132,10 +1236,10 @@ def undo() -> None:
     ]
 
     for address in minimized_addresses:
-        move_window(address, MINIMIZED_WORKSPACE, silent=True)
+        hide_window(address)
 
     for address in restored_addresses:
-        move_window(address, str(workspace_id))
+        show_window(address, str(workspace_id))
 
     if restored_addresses:
         focus_window(restored_addresses[-1])
