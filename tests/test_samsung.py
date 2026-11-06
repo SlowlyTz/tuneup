@@ -280,3 +280,18 @@ def test_bar_logo_becomes_the_dock_and_back(tmp_path, monkeypatch):
     assert install.use_bar_widget(install.DOCK_WIDGET) == "ok"
     assert install.restore_bar_widget(install.DOCK_WIDGET) == "restored omarchy.menu"
     assert json.loads(shell.read_text())["bar"]["layout"]["left"][0]["id"] == "omarchy.menu"
+
+
+def test_taskbar_goes_right_after_the_desktops(tmp_path, monkeypatch):
+    shell = tmp_path / "shell.json"
+    shell.write_text(json.dumps({"bar": {"centerAnchor": "omarchy.clock", "layout": {
+        "left": [{"id": "hypr-screens.dock"}, {"id": "hypr-screens.workspaces"}, {"id": "omarchy.spacer"}],
+        "center": [{"id": "omarchy.clock"}]}}}))
+    monkeypatch.setattr(install, "shell_json", lambda: shell)
+
+    assert install.use_taskbar() == "added"
+    bar = json.loads(shell.read_text())["bar"]
+    assert [w["id"] for w in bar["layout"]["left"]] == \
+        ["hypr-screens.dock", "hypr-screens.workspaces", "hypr-screens.taskbar", "omarchy.spacer"]
+    assert bar["centerAnchor"] == "omarchy.clock"
+    assert install.use_taskbar() == "ok"

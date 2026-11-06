@@ -21,6 +21,7 @@ PLUGINS = {
     "hypr-screens.power": REPO / "omarchy-power",
     "hypr-screens.widgets": REPO / "omarchy-widgets",
     "hypr-screens.dock": REPO / "omarchy-dock",
+    "hypr-screens.taskbar": REPO / "omarchy-taskbar",
 }
 # Replaced by the settings window; removed on setup.
 RETIRED_PLUGINS = ["hypr-screens.menu"]
@@ -31,8 +32,11 @@ DOCK_WIDGET = "hypr-screens.dock"
 OMARCHY_WIDGETS = {WORKSPACES_WIDGET: "omarchy.workspaces", POWER_WIDGET: "omarchy.power",
                    DOCK_WIDGET: "omarchy.menu"}
 OMARCHY_POWER_WIDGET = OMARCHY_WIDGETS[POWER_WIDGET]
+# The windows of this desktop, beside the desktops in the bar.
+TASKBAR_WIDGET = "hypr-screens.taskbar"
 # Bar widgets live in shell.json's bar layout; they are not enabled as plugins.
 BAR_WIDGETS = {WORKSPACES_WIDGET, POWER_WIDGET, DOCK_WIDGET}
+LAYOUT_WIDGETS = BAR_WIDGETS | {TASKBAR_WIDGET}
 BACKUP_SUFFIXES = (".bak-tuneup", ".bak-hypr-screens")
 ICON_SOURCE = REPO / "assets" / "tuneup.svg"
 # From the official Arch repositories (the installer installs them; uninstalling keeps them).
@@ -185,7 +189,7 @@ def install_plugins(ids: list[str]) -> dict[str, str]:
     results = {plugin: link(PLUGINS[plugin], plugins_dir() / plugin) for plugin in ids}
     run_quietly(["omarchy-shell", "shell", "rescanPlugins"])
     for plugin in ids:
-        if plugin in BAR_WIDGETS:
+        if plugin in LAYOUT_WIDGETS:
             continue
         # A fresh rescan takes a moment before the plugin is known.
         for _ in range(10):
@@ -266,6 +270,32 @@ def restore_bar_widget(ours_id: str) -> str:
         return "ok"
     write_json(path, cfg)
     return f"restored {OMARCHY_WIDGETS[ours_id]}"
+
+
+def widget_id(widget: object) -> str:
+    return str(widget.get("id", "")) if isinstance(widget, dict) else str(widget)
+
+
+def use_taskbar() -> str:
+    """The taskbar in the bar, right after the desktops (or at the end of the left)."""
+    path = shell_json()
+    try:
+        cfg = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return "no shell.json"
+    layout = cfg.setdefault("bar", {}).setdefault("layout", {})
+    sections = [section for section in layout.values() if isinstance(section, list)]
+    if any(widget_id(w) == TASKBAR_WIDGET for section in sections for w in section):
+        return "ok"
+    for section in sections:
+        at = next((i for i, w in enumerate(section) if widget_id(w).endswith(".workspaces")), None)
+        if at is not None:
+            section.insert(at + 1, {"id": TASKBAR_WIDGET})
+            break
+    else:
+        layout.setdefault("left", []).append({"id": TASKBAR_WIDGET})
+    write_json(path, cfg)
+    return "added"
 
 
 def restore_power_widget() -> str:

@@ -8,6 +8,7 @@ The keys (`SUPER + M` hide, `SUPER + I` bring back, `SUPER + .` window menu, …
 
 ```bash
 hypr-minimizer stash          # minimize the active window
+hypr-minimizer minimize 0xabc # minimize a window by address
 hypr-minimizer stash_others   # minimize everything else on this desktop
 hypr-minimizer pop            # bring back the last one (this desktop)
 hypr-minimizer pop_all        # bring back all (this desktop)
@@ -46,6 +47,14 @@ Rest the pointer on the Omarchy logo in the bar for a moment and a dock fades in
 - The dock stays while the pointer is on the logo or the dock, and goes a moment after it left.
 - Left click on the logo still opens the Omarchy menu, right click a terminal.
 - A full-screen window hides the bar, and with it the dock.
+
+## Taskbar
+
+Right of the desktops in the bar sit the windows of the desktop on that screen, in the order they lie on it from left to right. A short line marks the focused one. A window minimized from this desktop keeps its place and turns grey.
+
+- Click a window to minimize it, click a grey one to bring it back.
+- Middle click closes a window. Resting on an icon shows its title.
+- Windows come and go with a slide; another desktop fades the row over.
 
 ## Scratch desktops and the scratchpad
 
@@ -99,5 +108,6 @@ WidgetButton {
 | minimized windows + undo | `$XDG_RUNTIME_DIR/hypr-minimizer/state.json` |
 | menu plugin | `~/.config/omarchy/plugins/hypr-minimizer.picker` |
 | dock (the bar's logo) | `~/.config/omarchy/plugins/hypr-screens.dock` |
+| taskbar (beside the desktops) | `~/.config/omarchy/plugins/hypr-screens.taskbar` |
 
 Without Omarchy the menu falls back to `walker`, `wofi` or `rofi` (only `Enter`: brings it here).

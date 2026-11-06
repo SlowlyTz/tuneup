@@ -763,7 +763,10 @@ def stash() -> None:
         return
     if not address or not workspace_id:
         return
+    minimize_from(address, workspace_id)
 
+
+def minimize_from(address: str, workspace_id: str) -> None:
     state = load_state()
     history = push_undo_snapshot(load_history(), state, workspace_id)
 
@@ -771,6 +774,18 @@ def stash() -> None:
 
     append_to_stack(state, workspace_id, address)
     save_state(state, history=history)
+
+
+def minimize_address(address: str) -> bool:
+    """The taskbar's click on the focused window: minimized like SUPER + M, onto
+    the stack of the desktop it is on."""
+    if end_peek() == address:
+        return True
+    client = clients_by_address().get(address)
+    if client is None or is_minimized(client):
+        return False
+    minimize_from(address, client_workspace_id(client))
+    return True
 
 
 def stash_others() -> None:
@@ -1360,6 +1375,9 @@ def main() -> None:
         help="restore onto the current workspace instead of the original one",
     )
 
+    minimize_parser = subparsers.add_parser("minimize")
+    minimize_parser.add_argument("address")
+
     fetch_parser = subparsers.add_parser("fetch")
     fetch_parser.add_argument("address")
     fetch_parser.add_argument("workspace", help="the workspace to bring it onto")
@@ -1402,6 +1420,8 @@ def run_command(args: argparse.Namespace) -> None:
     elif args.command == "restore":
         workspace_id = get_active_workspace_id() if args.here else None
         raise SystemExit(0 if restore_address(args.address, workspace_id) else 1)
+    elif args.command == "minimize":
+        raise SystemExit(0 if minimize_address(args.address) else 1)
     elif args.command == "fetch":
         raise SystemExit(0 if fetch_address(args.address, args.workspace) else 1)
     elif args.command == "peek":

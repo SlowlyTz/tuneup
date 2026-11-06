@@ -1313,3 +1313,25 @@ def test_fetch_of_a_closed_window_does_nothing(state_file, monkeypatch):
 
     assert not minimizer.fetch_address("0xaaa", "2")
     assert hyprctl.commands == [["hyprctl", "-j", "clients"]]
+
+
+def test_minimize_puts_a_window_on_the_stack_of_its_desktop(state_file, monkeypatch):
+    hyprctl = HyprctlMock(clients=[[client("0xaaa", workspace_id=3, minimized=False)]])
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    assert minimizer.minimize_address("0xaaa")
+
+    assert hyprctl.commands[-1] == [
+        "hyprctl", "dispatch", "movetoworkspacesilent", "special:minimized,address:0xaaa",
+    ]
+    assert read_state(state_file) == {"3": ["0xaaa"]}
+    assert history_workspace_ids(state_file) == ["3"]
+
+
+def test_minimize_leaves_a_minimized_or_closed_window_alone(state_file, monkeypatch):
+    hyprctl = HyprctlMock(clients=[[client("0xaaa")], []])
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    assert not minimizer.minimize_address("0xaaa")
+    assert not minimizer.minimize_address("0xbbb")
+    assert not any("movetoworkspace" in " ".join(c) for c in hyprctl.commands)
