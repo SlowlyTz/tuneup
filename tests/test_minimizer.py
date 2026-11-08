@@ -682,7 +682,7 @@ def test_lua_dispatch_moves_and_focuses_window(monkeypatch):
             "dispatch",
             "hl.dsp.window.move({ workspace = 'special:minimized', follow = false, window = 'address:0xaaa' })",
         ],
-        ["hyprctl", "dispatch", "hl.dsp.focus({ window = 'address:0xaaa' })"],
+        ["hyprctl", "eval", "hl.dispatch(hl.dsp.focus({ window = 'address:0xaaa' })); hl.dispatch(hl.dsp.window.bring_to_top())"],
     ]
 
 
@@ -1077,7 +1077,7 @@ def test_lua_peek_slides_in_from_below(state_file, monkeypatch):
             f"hl.dispatch(hl.dsp.window.set_prop({{ prop = 'no_anim', value = 'unset', {window} }})); "
             f"hl.dispatch(hl.dsp.window.move({{ x = 1932, y = 38, {window} }}))",
         ],
-        ["hyprctl", "dispatch", f"hl.dsp.focus({{ {window} }})"],
+        ["hyprctl", "eval", f"hl.dispatch(hl.dsp.focus({{ {window} }})); hl.dispatch(hl.dsp.window.bring_to_top())"],
     ]
 
 
