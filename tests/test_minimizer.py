@@ -1307,6 +1307,54 @@ def test_fetch_restores_a_minimized_window_through_its_stack(state_file, monkeyp
     ]
 
 
+SCREEN = {"id": 0, "x": 0, "y": 0, "width": 1920, "height": 1080, "scale": 1, "reserved": [0, 30, 0, 0]}
+
+
+def test_fetch_floats_a_tiled_window_over_the_floating_ones_there(state_file, monkeypatch):
+    floating = {**client("0xbbb", workspace_id=2, minimized=False), "floating": True, "monitor": 0}
+    hyprctl = HyprctlMock(
+        clients=[[client("0xaaa", workspace_id=4, minimized=False), floating]],
+        monitors=[[SCREEN]],
+    )
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    assert minimizer.fetch_address("0xaaa", "2")
+
+    assert hyprctl.commands[-5:] == [
+        ["hyprctl", "dispatch", "movetoworkspacesilent", "2,address:0xaaa"],
+        ["hyprctl", "dispatch", "setfloating", "address:0xaaa"],
+        ["hyprctl", "dispatch", "resizewindowpixel", "exact 1152 788,address:0xaaa"],
+        ["hyprctl", "dispatch", "movewindowpixel", "exact 384 161,address:0xaaa"],
+        ["hyprctl", "dispatch", "focuswindow", "address:0xaaa"],
+    ]
+
+
+def test_fetch_restores_a_tiled_window_floating_over_the_floating_ones(state_file, monkeypatch):
+    state_file.parent.mkdir(parents=True)
+    state_file.write_text(json.dumps({"2": ["0xaaa"]}))
+    minimized = {**client("0xaaa"), "floating": True, "tags": [minimizer.TILED_TAG]}
+    floating = {**client("0xbbb", workspace_id=2, minimized=False), "floating": True, "monitor": 0}
+    hyprctl = HyprctlMock(clients=[[minimized, floating], [minimized, floating]], monitors=[[SCREEN]])
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    assert minimizer.fetch_address("0xaaa", "2")
+
+    assert read_state(state_file) == {}
+    assert ["hyprctl", "dispatch", "setfloating", "address:0xaaa"] in hyprctl.commands
+    assert hyprctl.commands[-1] == ["hyprctl", "dispatch", "focuswindow", "address:0xaaa"]
+
+
+def test_fetch_leaves_a_floating_window_as_it_is(state_file, monkeypatch):
+    mine = {**client("0xaaa", workspace_id=4, minimized=False), "floating": True}
+    floating = {**client("0xbbb", workspace_id=2, minimized=False), "floating": True, "monitor": 0}
+    hyprctl = HyprctlMock(clients=[[mine, floating]])
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    assert minimizer.fetch_address("0xaaa", "2")
+
+    assert not any("setfloating" in " ".join(c) for c in hyprctl.commands)
+
+
 def test_fetch_of_a_closed_window_does_nothing(state_file, monkeypatch):
     hyprctl = HyprctlMock(clients=[[]])
     monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
