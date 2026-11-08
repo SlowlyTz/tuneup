@@ -29,6 +29,8 @@ UNPLUG_CHOICES = ["fold", "spread", "close"]
 SETTING_KEYS = ["rotation", "scale", "mode", "position", "mirror"]
 LANGUAGE_CODES = ["en", "de", "es", "fr", "it"]
 INSTALL_CHOICES = ["camera", "cava", "galaxy_book"]
+# On/off options beyond the keys (see default_config); `tuneup option` and the app set them.
+SWITCHES = ["dock", "taskbar", "minimize_animation", "float_in_front", "resize_swipe", "no_warps"]
 
 # (key, label, command) -- two keys each, see DEFAULT_KEYBINDS.
 ACTIONS = [
@@ -41,7 +43,7 @@ ACTIONS = [
 ]
 DEFAULT_KEYBINDS = {
     "minimizer_menu": ["SUPER + PERIOD", ""],
-    "stash": ["SUPER + M", ""],
+    "stash": ["SUPER + R", ""],
     "stash_others": ["", ""],
     "pop": ["SUPER + I", ""],
     "pop_all": ["SUPER + SHIFT + I", ""],
@@ -101,6 +103,18 @@ def default_config() -> dict:
         "scratch_kept": 5,
         # Three fingers up on the touchpad open the scratch desktops, down close them.
         "scratch_swipe": True,
+        # In the bar: the Omarchy logo with the dock of all open windows, and the
+        # taskbar of this desktop's windows beside the desktops.
+        "dock": True,
+        "taskbar": True,
+        # Minimizing shrinks a window into its center as it fades; off: it just goes.
+        "minimize_animation": True,
+        # A tiled window fetched onto a desktop where others float floats too, in front.
+        "float_in_front": True,
+        # SUPER + three fingers on the touchpad resize the window under the pointer.
+        "resize_swipe": True,
+        # The pointer stays where it is when a window opens, gets focus or comes back.
+        "no_warps": False,
         "screens": {},
         "sound": {"force_mute": {}},
         "samsung": {"limit": None, "mode": None, "full_once": False},
@@ -196,6 +210,7 @@ def normalize(raw: object) -> dict:
         cfg["scratch_shift_s"] = raw["scratch_shift_s"]
     if isinstance(raw.get("scratch_swipe"), bool):
         cfg["scratch_swipe"] = raw["scratch_swipe"]
+    cfg.update({name: raw[name] for name in SWITCHES if isinstance(raw.get(name), bool)})
     kept = raw.get("scratch_kept")
     if isinstance(kept, int) and not isinstance(kept, bool) and 1 <= kept <= 10:
         cfg["scratch_kept"] = kept

@@ -96,7 +96,7 @@ hyprctl dispatch 'hl.dsp.submap("reset")'
 ## A peeked window does not go away
 
 ```bash
-hypr-minimizer stash   # or SUPER + M on it
+hypr-minimizer stash   # or SUPER + R on it
 ```
 
 ## Start over

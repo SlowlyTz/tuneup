@@ -37,14 +37,14 @@
     "keys": {
       "actions": [
         {"id": "minimizer_menu", "title": "Open window list", "desc": "Opens the list of minimized windows (there: Enter, Shift+Enter, “-” to peek).", "slots": ["SUPER + PERIOD", "SUPER + SHIFT + F23"]},
-        {"id": "stash", "title": "Hide window", "desc": "Hides the active window.", "slots": ["SUPER + M", null]},
+        {"id": "stash", "title": "Hide window", "desc": "Hides the active window.", "slots": ["SUPER + R", null]},
         {"id": "stash_others", "title": "Hide all others", "desc": "Hides all other windows on this desktop.", "slots": [null, null]},
         {"id": "pop", "title": "Bring back last", "desc": "Brings back the window hidden last.", "slots": ["SUPER + I", null]},
         {"id": "pop_all", "title": "Bring back all", "desc": "Brings back all hidden windows of this desktop.", "slots": ["SUPER + SHIFT + I", null]},
         {"id": "undo", "title": "Undo", "desc": "Undoes the last hiding or bringing back.", "slots": ["SUPER + U", null]}
       ],
       "hyprBinds": {"SUPER + Q": "Close window", "SUPER + W": "Close window", "SUPER + RETURN": "Terminal", "SUPER + SPACE": "Launch apps", "SUPER + F": "Full screen", "SUPER + B": "Browser", "SUPER + T": "Toggle floating", "SUPER + L": "Lock screen", "SUPER + K": "Show key bindings", "SUPER + E": "File manager", "SUPER + ESCAPE": "System menu"},
-      "options": {"desktop_keys": false, "default_fixed": "external", "fixed_desktops": 1, "unplug_windows": "fold", "scratch": true, "scratch_shift_s": false, "scratch_kept": 5, "scratch_swipe": true},
+      "options": {"desktop_keys": false, "default_fixed": "external", "fixed_desktops": 1, "unplug_windows": "fold", "scratch": true, "scratch_shift_s": false, "scratch_kept": 5, "scratch_swipe": true, "dock": true, "taskbar": true, "minimize_animation": true, "float_in_front": true, "resize_swipe": true, "no_warps": false},
       "defaultFixedChoices": [
         {"value": "off", "label": "Off – both screens share desktops 1–10"},
         {"value": "external", "label": "The external monitor"},
@@ -108,7 +108,7 @@
       ],
       "connected": ["HP Inc.|HP 32f|3CM1230QVW", "Samsung Display Corp.|0x4159|"]
     },
-    "enforcement": {"enabled": true, "running": true, "fixes": [{"time": 1792310363.0, "area": "look", "what": "Window look", "detail": "gaps_in 0 instead of 5"}, {"time": 1792310280.0, "area": "sound", "what": "Force mute", "detail": "Laptop speakers"}, {"time": 1792309500.0, "area": "keys", "what": "Shortcuts", "detail": "SUPER + M also runs Emoji picker"}, {"time": 1792306800.0, "area": "screens", "what": "Screen arrangement", "detail": "DP-3 moved or changed"}], "backedOff": [{"area": "look", "what": "Window look", "until": 1792310393.0}]},
+    "enforcement": {"enabled": true, "running": true, "fixes": [{"time": 1792310363.0, "area": "look", "what": "Window look", "detail": "gaps_in 0 instead of 5"}, {"time": 1792310280.0, "area": "sound", "what": "Force mute", "detail": "Laptop speakers"}, {"time": 1792309500.0, "area": "keys", "what": "Shortcuts", "detail": "SUPER + R also runs Emoji picker"}, {"time": 1792306800.0, "area": "screens", "what": "Screen arrangement", "detail": "DP-3 moved or changed"}], "backedOff": [{"area": "look", "what": "Window look", "until": 1792310393.0}]},
     "language": {"code": "de", "items": [{"code": "en", "name": "English"}, {"code": "de", "name": "Deutsch"}, {"code": "es", "name": "Español"}, {"code": "fr", "name": "Français"}, {"code": "it", "name": "Italiano"}]},
     "about": {"version": "1.0.0", "configDir": "~/.config/tuneup", "configPath": "/home/you/.config/tuneup", "configFile": "/home/you/.config/tuneup/config.json", "guideUrl": "https://github.com/SlowlyTz/tuneup/tree/master/docs", "repoUrl": "https://github.com/SlowlyTz/tuneup", "releasesUrl": "https://github.com/SlowlyTz/tuneup/releases"},
     "welcome": {"show": true, "kind": "installed", "from": null, "to": "1.0.0", "releasesUrl": "https://github.com/SlowlyTz/tuneup/releases"},
@@ -399,7 +399,7 @@
       return reply({ ...a, conflicts: c && db.keys.hyprBinds[c] ? [db.keys.hyprBinds[c]] : [] });
     },
     async setOption(name, value) {
-      if (["desktop_keys", "scratch", "scratch_shift_s", "scratch_swipe"].includes(name)) need(typeof value === "boolean", "bad_value", `${name} must be true or false`);
+      if (["desktop_keys", "scratch", "scratch_shift_s", "scratch_swipe", "dock", "taskbar", "minimize_animation", "float_in_front", "resize_swipe", "no_warps"].includes(name)) need(typeof value === "boolean", "bad_value", `${name} must be true or false`);
       else if (name === "default_fixed") need(["off", "external", "panel"].includes(value), "bad_value", "default_fixed must be one of off, external, panel");
       else if (name === "unplug_windows") need(["fold", "spread", "close"].includes(value), "bad_value", "unplug_windows must be one of fold, spread, close");
       else if (["fixed_desktops", "scratch_kept"].includes(name)) need(Number.isInteger(value) && value >= 1 && value <= 10, "bad_value", `${name} must be 1-10`);

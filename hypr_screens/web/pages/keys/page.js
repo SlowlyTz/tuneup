@@ -34,9 +34,16 @@ export function pageKeys() {
     desc: esc(t("Super + 1…0 and Super + Tab only switch the desktops 1–10 on the other screen")),
     end: toggle("dk", on, (v) => change(() => api.setOption("desktop_keys", v), () => api.setOption("desktop_keys", !v), { reload: ["keys"] }), { label: t("Desktop keys") }),
   });
+  const resize = S.keys.options.resize_swipe;
+  const touchpad = row({
+    sid: "keys.resize", icon: "drag", title: esc(t("Resize with the touchpad")),
+    desc: esc(t("Super + three fingers resize the window under the pointer, like Super + right-drag")),
+    end: toggle("rsw", resize, (v) => change(() => api.setOption("resize_swipe", v), () => api.setOption("resize_swipe", !v), { reload: ["keys"] }), { label: t("Resize with the touchpad") }),
+  });
   return `${ph(esc(t("Keyboard")), esc(t("Click a key to change it. Every action has two places.")))}
       ${sec(esc(t("Minimize windows")), `<div class="stack">${actions}</div>`)}
-      ${sec(esc(t("Desktops")), `<div class="stack">${desktops}${scratchCard(S.keys.options)}</div>`)}`;
+      ${sec(esc(t("Desktops")), `<div class="stack">${desktops}${scratchCard(S.keys.options)}</div>`)}
+      ${sec(esc(t("Touchpad")), `<div class="stack">${touchpad}</div>`)}`;
 }
 
 /* Scratch desktops: on/off in the header, the details folded inside. */

@@ -60,8 +60,7 @@ def shell(cfg: dict) -> list[str]:
     done += [f"{plugin}: {result}" for plugin, result in install.install_plugins(plugins).items()]
     if cfg["desktop_keys"]:
         done.append(f"bar: {install.use_bar_widget()}")
-    done.append(f"dock: {install.use_bar_widget(install.DOCK_WIDGET)}")
-    done.append(f"taskbar: {install.use_taskbar()}")
+    done += install.sync_bar(cfg)
     done += [f"widgets: {result}" for result in widgets.wire_shell(cfg["widgets"])]
     done.append(f"battery panel: {install.sync_power_panel(samsung.active())}")
     return done

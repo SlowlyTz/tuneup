@@ -66,6 +66,19 @@ def default_state_file() -> Path:
 STATE_FILE = default_state_file()
 
 
+def tuneup_option(name: str, default: bool) -> bool:
+    """An on/off setting from Tuneup (the app, `tuneup option`); the default
+    without Tuneup or before it was set."""
+    base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    for folder in ("tuneup", "hypr-screens"):
+        try:
+            value = json.loads((base / folder / "config.json").read_text()).get(name)
+        except (OSError, ValueError, AttributeError):
+            continue
+        return value if isinstance(value, bool) else default
+    return default
+
+
 def run_hyprctl(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["hyprctl", *args],
@@ -191,7 +204,7 @@ def hidden_here(monitor: str) -> str:
 
 def hide_window(address: str, client: dict | None = None) -> None:
     """Minimize: the window shrinks to its center and fades where it is."""
-    if not _lua_dispatch_supported():
+    if not _lua_dispatch_supported() or not tuneup_option("minimize_animation", True):
         move_window(address, MINIMIZED_WORKSPACE, silent=True)
         return
     client = client or clients_by_address().get(address)
@@ -886,7 +899,7 @@ def minimize_from(address: str, workspace_id: str, client: dict | None = None) -
 
 
 def minimize_address(address: str) -> bool:
-    """The taskbar's click on the focused window: minimized like SUPER + M, onto
+    """The taskbar's click on the focused window: minimized like SUPER + R, onto
     the stack of the desktop it is on."""
     if end_peek() == address:
         return True
@@ -998,7 +1011,8 @@ def fetch_address(address: str, workspace_id: str) -> bool:
     ]
     tags = set(client.get("tags") or [])
     would_tile = TILED_TAG in tags or not client.get("floating")
-    to_front = front_geometry(floating_here[0].get("monitor")) if floating_here and would_tile else None
+    in_front = floating_here and would_tile and tuneup_option("float_in_front", True)
+    to_front = front_geometry(floating_here[0].get("monitor")) if in_front else None
 
     if is_minimized(client) and restore_address(address, workspace_id, stay_floating=bool(to_front)):
         if to_front:

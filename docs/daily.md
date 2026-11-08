@@ -6,7 +6,7 @@ Default keys. Yours may differ: see them in Tuneup under **Keyboard**, or with `
 
 | Key | Does |
 |---|---|
-| `SUPER + M` | minimize this window |
+| `SUPER + R` | minimize this window |
 | `SUPER + I` | bring back the last minimized one |
 | `SUPER + SHIFT + I` | bring back all |
 | `SUPER + U` | undo |

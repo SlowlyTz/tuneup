@@ -10,7 +10,7 @@ import { S, UI } from "../../core/state.js";
 import { k, on, render } from "../../core/view.js";
 import { button, toggle } from "../../ui/controls.js";
 import { ic } from "../../ui/icons.js";
-import { notice, ph, row, spinner } from "../../ui/layout.js";
+import { notice, ph, row, sec, spinner } from "../../ui/layout.js";
 import { renderFields } from "./fields.js";
 import { layoutBar } from "./layouts.js";
 import { arrange, setEnabled, W_ICON, wid } from "./model.js";
@@ -34,11 +34,26 @@ function card(w) {
         <div class="wcard-foot">${ic(W_ICON[w.kind] || "widgets", "sm")}<b>${esc(t(w.name))}</b>${toggle(`wt-${w.kind}`, w.enabled, (v) => setEnabled(w, v), { label: t(w.name), text: false })}</div></div>`;
 }
 
+/* In the bar: the dock behind the Omarchy logo and the taskbar. */
+function barWidgets() {
+  const o = (S.keys && S.keys.options) || {};
+  if (o.dock === undefined) return "";
+  const sw = (name, icon, title, desc) => row({
+    sid: `widgets.${name}`, icon, title: esc(title), desc: esc(desc),
+    end: toggle(`bw-${name}`, o[name], (v) => change(() => api.setOption(name, v), () => api.setOption(name, !v), { reload: ["keys"] }), { label: title }),
+  });
+  return sec(esc(t("In the bar")), `<div class="stack">
+        ${sw("dock", "list", t("Dock"), t("Resting on the Omarchy logo shows every open window; a click brings one here, in front"))}
+        ${sw("taskbar", "window", t("Taskbar"), t("This desktop's windows beside the desktops, minimized ones in grey; a click brings one to the front, a click on the one in front minimizes it"))}
+      </div>`);
+}
+
 function overview() {
   const shown = S.widgets.filter((w) => w.enabled).length;
   return `${ph(esc(t("Widgets")), esc(t("{on} of {all} are on. Click a widget to set it up.", { on: shown, all: S.widgets.length })), arrangeButton())}
       <div class="layouts-row">${layoutBar()}</div>
-      <div class="wgrid">${S.widgets.map(card).join("")}</div>`;
+      <div class="wgrid">${S.widgets.map(card).join("")}</div>
+      ${barWidgets()}`;
 }
 
 function cavaMissing(w) {

@@ -138,7 +138,7 @@ Swaps which screen is fixed until the monitor is unplugged. Error `no_external`.
 ```js
 {
   actions: [{ id: "stash", title: "Hide window", desc: "Hides the active window.",
-              slots: ["SUPER + M", null] }, …],   // ids: minimizer_menu stash stash_others pop pop_all undo
+              slots: ["SUPER + R", null] }, …],   // ids: minimizer_menu stash stash_others pop pop_all undo
   hyprBinds: { "SUPER + Q": "Close window", "SUPER + 1": "Switch to workspace 1", … },  // Hyprland's own, not ours
   options: { desktop_keys: false, default_fixed: "off" },   // "off" | "external" | "panel"
   defaultFixedChoices: [{ value: "off", label: "Off – both screens share desktops 1–10" }, …]
@@ -168,7 +168,14 @@ by a reload and turns hidden scratch desktops into normal ones),
 reloads so the key's earlier use comes back), `scratch_kept` 1–10 (scratch
 desktops that are always there while the row is open), `scratch_swipe`
 true/false (three fingers up on the touchpad open the row, down close it; off
-reloads, as Hyprland cannot take a gesture back). `options` holds them as well.
+reloads, as Hyprland cannot take a gesture back).
+More switches, true/false: `dock` (the Omarchy logo with the dock of all open
+windows; off gives Omarchy's logo back), `taskbar` (this desktop's windows beside
+the desktops), `minimize_animation` (a minimized window shrinks into its center),
+`float_in_front` (a tiled window fetched where others float floats too, in front),
+`resize_swipe` (SUPER + three fingers resize the window under the pointer; off
+reloads) and `no_warps` (the pointer does not jump to windows; off reloads).
+`options` holds them as well.
 
 ## Window look
 
@@ -490,7 +497,7 @@ Screens
 Keys
 10. `options.default_fixed` is `"off" | "external" | "panel"` – the UI sends `"laptop"`.
 11. Titles/descriptions are English source texts (translate via `translations()`);
-    `desc` is always a string; default keys differ from the mock (`stash` = `SUPER + M` …).
+    `desc` is always a string; default keys differ from the mock (`stash` = `SUPER + R` …).
 12. Call `beginKeyCapture()`/`endKeyCapture()` around the capture dialog.
 
 Window look

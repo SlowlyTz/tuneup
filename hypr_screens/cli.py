@@ -169,6 +169,8 @@ def enforce_command(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    from hypr_screens import config
+
     parser = argparse.ArgumentParser(
         prog="tuneup",
         description="Tuneup – the settings app Omarchy is missing.",
@@ -212,15 +214,16 @@ def build_parser() -> argparse.ArgumentParser:
     swap = sub.add_parser("swap", help="swap the fixed screen until unplugged")
     swap.add_argument("role", nargs="?", choices=["panel", "external"])
 
-    bind = sub.add_parser("bind", help="set a key: `bind stash 1 \"SUPER + M\"`")
+    bind = sub.add_parser("bind", help="set a key: `bind stash 1 \"SUPER + R\"`")
     bind.add_argument("action")
     bind.add_argument("slot", type=int, choices=[1, 2])
     bind.add_argument("combo", nargs="?", default="", help="empty to clear")
 
     option = sub.add_parser("option", help="desktop_keys on|off, default_fixed off|external|panel, fixed_desktops 1-10, "
-                                          "unplug_windows fold|spread|close, scratch on|off, scratch_shift_s on|off, scratch_swipe on|off")
+                                          "unplug_windows fold|spread|close, scratch on|off, scratch_shift_s on|off, scratch_swipe on|off, "
+                                          "dock, taskbar, minimize_animation, float_in_front, resize_swipe, no_warps on|off")
     option.add_argument("name", choices=["desktop_keys", "default_fixed", "fixed_desktops", "unplug_windows", "scratch",
-                                         "scratch_shift_s", "scratch_kept", "scratch_swipe"])
+                                         "scratch_shift_s", "scratch_kept", "scratch_swipe", *config.SWITCHES])
     option.add_argument("value", nargs="?", default="next")
 
     for name, text in (
@@ -434,7 +437,7 @@ def option_value(cfg: dict, name: str, value: str) -> object:
         if not value.isdigit() or not 1 <= int(value) <= 10:
             raise ValueError(f"{name} must be 1-10")
         return int(value)
-    if name in ("desktop_keys", "scratch", "scratch_shift_s", "scratch_swipe"):
+    if name in ("desktop_keys", "scratch", "scratch_shift_s", "scratch_swipe", *config.SWITCHES):
         if value in ("next", "prev"):
             return not cfg[name]
         if value.lower() not in ("on", "1", "true", "yes", "off", "0", "false", "no"):

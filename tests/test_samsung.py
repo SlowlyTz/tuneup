@@ -295,3 +295,17 @@ def test_taskbar_goes_right_after_the_desktops(tmp_path, monkeypatch):
         ["hypr-screens.dock", "hypr-screens.workspaces", "hypr-screens.taskbar", "omarchy.spacer"]
     assert bar["centerAnchor"] == "omarchy.clock"
     assert install.use_taskbar() == "ok"
+
+
+def test_dock_and_taskbar_follow_their_settings(tmp_path, monkeypatch):
+    shell = tmp_path / "shell.json"
+    shell.write_text(json.dumps({"bar": {"layout": {
+        "left": [{"id": "omarchy.menu"}, {"id": "hypr-screens.workspaces"}, {"id": "omarchy.spacer"}]}}}))
+    monkeypatch.setattr(install, "shell_json", lambda: shell)
+    left = lambda: [w["id"] for w in json.loads(shell.read_text())["bar"]["layout"]["left"]]  # noqa: E731
+
+    assert install.sync_bar({"dock": True, "taskbar": True}) == ["dock: replaced omarchy.menu", "taskbar: added"]
+    assert left() == ["hypr-screens.dock", "hypr-screens.workspaces", "hypr-screens.taskbar", "omarchy.spacer"]
+    assert install.sync_bar({"dock": False, "taskbar": False}) == ["dock: restored omarchy.menu", "taskbar: removed"]
+    assert left() == ["omarchy.menu", "hypr-screens.workspaces", "omarchy.spacer"]
+    assert install.sync_bar({"dock": False, "taskbar": False}) == ["dock: ok", "taskbar: ok"]

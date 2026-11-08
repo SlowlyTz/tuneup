@@ -2,7 +2,7 @@
 
 Part of Tuneup, as the command `hypr-minimizer` that the minimize keys call. It hides windows in a hidden workspace (`special:minimized`) and brings them back, last in first out, **per desktop**.
 
-The keys (`SUPER + M` hide, `SUPER + I` bring back, `SUPER + .` window menu, …) are set in Tuneup under **Keyboard**: see [keys.md](keys.md).
+The keys (`SUPER + R` hide, `SUPER + I` bring back, `SUPER + .` window menu, …) are set in Tuneup under **Keyboard**: see [keys.md](keys.md).
 
 ## Commands
 
@@ -36,7 +36,7 @@ Keyboard only (the mouse does nothing inside it; clicking outside closes it).
 
 - The window slides in from the bottom, over everything, in the space a single tiled window would take (bar and gaps stay free).
 - Your tiled windows underneath don't move.
-- `SUPER + M` slides it out again. Switching desktop hides it too.
+- `SUPER + R` slides it out again. Switching desktop hides it too.
 - It goes back to its old place in the list.
 
 ## Dock
@@ -48,6 +48,7 @@ Rest the pointer on the Omarchy logo in the bar for a moment and a dock fades in
 - The dock stays while the pointer is on the logo or the dock, and goes a moment after it left.
 - Left click on the logo still opens the Omarchy menu, right click a terminal.
 - A full-screen window hides the bar, and with it the dock.
+- Off in Tuneup under **Widgets → In the bar**, or `tuneup option dock off`: the Omarchy logo button is back.
 
 ## Taskbar
 
@@ -56,12 +57,13 @@ Right of the desktops in the bar sit the windows of the desktop on that screen, 
 - Click a window to bring it to the front, grey ones included; click the one already in front to minimize it.
 - Middle click closes a window. Resting on an icon shows its title.
 - Windows come and go with a slide; another desktop fades the row over.
+- Off in Tuneup under **Widgets → In the bar**, or `tuneup option taskbar off`.
 
 ## Scratch desktops and the scratchpad
 
 On a [scratch desktop](scratch.md) (`SUPER + S`, the default) minimizing works as on any desktop; the menu shows these windows with the scratch desktop's number (`ws 201` and up).
 
-With the scratch desktops off (`tuneup option scratch off`), `SUPER + S` opens Omarchy's scratchpad. While it is open, it counts as the current desktop: `SUPER + M` there minimizes into its own list, `SUPER + I` puts the window back into the scratchpad, and `Enter` in the window menu brings any window into it. Opened from a desktop, `Enter` brings a scratchpad window to that desktop; `Shift+Enter` sends it back to the scratchpad. If minimizing empties the scratchpad, Hyprland closes it — open it again with `SUPER + S` and press `SUPER + I`. The menu shows these windows as `ws scratchpad`.
+With the scratch desktops off (`tuneup option scratch off`), `SUPER + S` opens Omarchy's scratchpad. While it is open, it counts as the current desktop: `SUPER + R` there minimizes into its own list, `SUPER + I` puts the window back into the scratchpad, and `Enter` in the window menu brings any window into it. Opened from a desktop, `Enter` brings a scratchpad window to that desktop; `Shift+Enter` sends it back to the scratchpad. If minimizing empties the scratchpad, Hyprland closes it — open it again with `SUPER + S` and press `SUPER + I`. The menu shows these windows as `ws scratchpad`.
 
 ## Apps that ask to be shown
 
