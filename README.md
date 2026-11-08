@@ -45,7 +45,7 @@ The installer checks your system and installs what is missing from the official 
 | `SUPER + .` | window menu (`-` = peek) |
 | `SUPER + S` | scratch desktops in / out |
 | rest on the Omarchy logo | dock of all open windows |
-| click / middle click in the taskbar | minimize or bring back / close a window |
+| click / middle click in the taskbar | bring a window to the front, or minimize the one in front / close a window |
 | tray icon | Tuneup settings |
 
 All keys can be changed in the app under **Keyboard**.
