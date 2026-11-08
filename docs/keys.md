@@ -5,7 +5,7 @@ Only **window keys** live on the keyboard: minimize, bring back, the window menu
 | Action | Default |
 |---|---|
 | Open window list (the window menu) | `SUPER + .` |
-| Hide window | `SUPER + M` |
+| Hide window | `SUPER + R` |
 | Hide all others | – |
 | Bring back last | `SUPER + I` |
 | Bring back all | `SUPER + SHIFT + I` |
@@ -19,6 +19,8 @@ Only **window keys** live on the keyboard: minimize, bring back, the window menu
 4. If the key is already used by something else, Tuneup tells you what it does now and asks before replacing it.
 
 While you press the new keys, Hyprland's own shortcuts are paused, so even taken combinations get recorded.
+
+**Resize with the touchpad** (same page, **Touchpad**): `SUPER` + three fingers resize the window under the pointer, like `SUPER` + right-drag with the mouse. Without `SUPER` the three-finger swipes stay as they are. On by default; `tuneup option resize_swipe off` turns it off.
 
 **Desktop keys** (same page): `SUPER + 1…0` and `SUPER + TAB` go through Tuneup, so the desktops 1–10 land on the right screen. Needed for [one desktop](one-desktop.md).
 

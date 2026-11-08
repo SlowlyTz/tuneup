@@ -298,6 +298,32 @@ def use_taskbar() -> str:
     return "added"
 
 
+def remove_taskbar() -> str:
+    path = shell_json()
+    try:
+        cfg = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return "no shell.json"
+    layout = (cfg.get("bar") or {}).get("layout") or {}
+    removed = False
+    for section in layout.values():
+        if isinstance(section, list) and any(widget_id(w) == TASKBAR_WIDGET for w in section):
+            section[:] = [w for w in section if widget_id(w) != TASKBAR_WIDGET]
+            removed = True
+    if not removed:
+        return "ok"
+    write_json(path, cfg)
+    return "removed"
+
+
+def sync_bar(cfg: dict) -> list[str]:
+    """Dock and taskbar in the bar or out of it, as the settings say; shell.json
+    reloads itself. Off, the dock gives the Omarchy logo back."""
+    dock = use_bar_widget(DOCK_WIDGET) if cfg.get("dock", True) else restore_bar_widget(DOCK_WIDGET)
+    taskbar = use_taskbar() if cfg.get("taskbar", True) else remove_taskbar()
+    return [f"dock: {dock}", f"taskbar: {taskbar}"]
+
+
 def restore_power_widget() -> str:
     """Put Omarchy's own battery panel back where ours is."""
     return restore_bar_widget(POWER_WIDGET)

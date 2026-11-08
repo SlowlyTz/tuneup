@@ -1,5 +1,7 @@
 /* Windows: presets, gaps and borders, opacity, and the advanced look (blur,
  * animations, border colors, see-through apps). */
+import { api } from "../../core/api.js";
+import { change } from "../../core/change.js";
 import { esc, NB } from "../../core/dom.js";
 import { nf, pct } from "../../core/format.js";
 import { t } from "../../core/i18n.js";
@@ -108,6 +110,21 @@ function resetButton() {
   }, { attrs: 'data-sid="look.reset"' });
 }
 
+/* Switches that act at once (not part of the preview's "Apply"). */
+function behaviour() {
+  const o = (S.keys && S.keys.options) || {};
+  if (o.minimize_animation === undefined) return "";
+  const sw = (name, icon, title, desc) => row({
+    sid: `look.${name}`, icon, title: esc(title), desc: esc(desc),
+    end: toggle(`lb-${name}`, o[name], (v) => change(() => api.setOption(name, v), () => api.setOption(name, !v), { reload: ["keys"] }), { label: title }),
+  });
+  return sec(esc(t("Behavior")), `<div class="stack">
+        ${sw("minimize_animation", "minimize", t("Minimize animation"), t("A minimized window shrinks into its center as it fades"))}
+        ${sw("float_in_front", "restore", t("Brought back in front"), t("A window brought back where others float floats too, in the middle, so it is never behind them"))}
+        ${sw("no_warps", "pin", t("Pointer stays put"), t("The pointer does not jump to a window that opens, gets the focus or comes back"))}
+      </div>`, { sub: esc(t("Saved right away")) });
+}
+
 export function pageLook() {
   const v = S.lookDraft;
   const px = (x) => `${nf(x)}${NB}px`;
@@ -127,5 +144,6 @@ export function pageLook() {
         ${opacity("activeOpacity", t("Active window"), t("100 % = solid"))}
         ${opacity("inactiveOpacity", t("Other windows"), t("100 % = solid"))}
       </div>`)}
-      <div class="stack" style="margin-top:var(--s1)">${advanced(v)}</div>`;
+      <div class="stack" style="margin-top:var(--s1)">${advanced(v)}</div>
+      ${behaviour()}`;
 }

@@ -253,24 +253,25 @@ def test_keys_list_actions_and_what_hyprland_has_bound(desk):
     desk.binds = [
         {"modmask": 64, "key": "Q", "description": "Close window"},
         {"modmask": 64, "key": "", "keycode": 10, "description": "Switch to workspace 1"},
-        {"modmask": 64, "key": "M", "description": "Minimize window"},  # ours
+        {"modmask": 64, "key": "R", "description": "Minimize window"},  # ours
         {"modmask": 0, "key": "escape", "submap": "hypr-screens-record", "description": ""},
     ]
     result = api.keys()
     stash = next(a for a in result["actions"] if a["id"] == "stash")
     assert stash == {"id": "stash", "title": "Hide window", "desc": "Hides the active window.",
-                     "slots": ["SUPER + M", None]}
+                     "slots": ["SUPER + R", None]}
     assert result["hyprBinds"] == {"SUPER + Q": "Close window", "SUPER + 1": "Switch to workspace 1"}
     assert result["options"] == {"desktop_keys": False, "default_fixed": "off", "fixed_desktops": 1, "unplug_windows": "fold",
                                  "scratch": True, "scratch_shift_s": False, "scratch_kept": 5,
-                                 "scratch_swipe": True}
+                                 "scratch_swipe": True, "dock": True, "taskbar": True,
+                                 "minimize_animation": True, "float_in_front": True, "resize_swipe": True, "no_warps": False}
 
 
 def test_a_key_moves_from_another_action_and_goes_live(desk):
-    result = api.set_key("pop", 1, "super+m")
-    assert result["slots"] == ["SUPER + I", "SUPER + M"]
+    result = api.set_key("pop", 1, "super+r")
+    assert result["slots"] == ["SUPER + I", "SUPER + R"]
     assert config.load()["keybinds"]["stash"] == ["", ""]
-    assert 'hl.bind("SUPER + M", hl.dsp.exec_cmd("hypr-minimizer pop")' in keybinds.lua_file().read_text()
+    assert 'hl.bind("SUPER + R", hl.dsp.exec_cmd("hypr-minimizer pop")' in keybinds.lua_file().read_text()
     assert any("hypr-minimizer pop" in code for code in desk.evaluated)
     assert api.set_key("pop", 1, None)["slots"] == ["SUPER + I", None]
     assert error_of(api.set_key, "pop", 2, "SUPER + K").code == "bad_value"
@@ -281,7 +282,9 @@ def test_a_key_moves_from_another_action_and_goes_live(desk):
 def test_options_and_key_capture(desk):
     assert api.set_option("desktop_keys", True) == {"desktop_keys": True, "default_fixed": "off", "fixed_desktops": 1, "unplug_windows": "fold",
                                                     "scratch": True, "scratch_shift_s": False, "scratch_kept": 5,
-                                                    "scratch_swipe": True}
+                                                    "scratch_swipe": True, "dock": True, "taskbar": True,
+                                                    "minimize_animation": True, "float_in_front": True,
+                                                    "resize_swipe": True, "no_warps": False}
     assert "tuneup switch 1" in keybinds.lua_file().read_text()
     assert error_of(api.set_option, "default_fixed", "laptop").code == "bad_value"
     assert api.set_option("unplug_windows", "spread")["unplug_windows"] == "spread"
@@ -302,6 +305,35 @@ def test_scratch_desktop_options(desk):
     assert desk.calls.count(("reload",)) == reloads + 1              # Omarchy's scratchpad keys come back
     assert "tuneup_scratch" not in keybinds.lua_file().read_text()
     assert api.set_option("scratch", True)["scratch"] is True
+
+
+def test_touchpad_resize_and_pointer_options(desk):
+    gesture = 'hl.gesture({ fingers = 3, direction = "swipe", mods = "SUPER", action = "resize" })'
+    assert gesture in keybinds.render(config.default_config())
+    assert gesture not in keybinds.render(config.default_config(), runtime=True)  # only once, see go_live
+    reloads = desk.calls.count(("reload",))
+    assert api.set_option("resize_swipe", False)["resize_swipe"] is False
+    assert desk.calls.count(("reload",)) == reloads + 1  # Hyprland cannot take a gesture back otherwise
+    assert gesture not in keybinds.lua_file().read_text()
+    assert api.set_option("resize_swipe", True)["resize_swipe"] is True
+    assert gesture in desk.evaluated[-1]
+
+    pointer = "hl.config({ cursor = { no_warps = true } })"
+    assert api.set_option("no_warps", True)["no_warps"] is True
+    assert pointer in keybinds.lua_file().read_text() and pointer in desk.evaluated[-1]
+    reloads = desk.calls.count(("reload",))
+    assert api.set_option("no_warps", False)["no_warps"] is False
+    assert desk.calls.count(("reload",)) == reloads + 1
+    assert error_of(api.set_option, "no_warps", "yes").code == "bad_value"
+
+
+def test_dock_and_taskbar_options_change_the_bar(desk, monkeypatch):
+    synced = []
+    monkeypatch.setattr(install, "sync_bar", lambda cfg: synced.append((cfg["dock"], cfg["taskbar"])))
+    assert api.set_option("taskbar", False)["taskbar"] is False
+    assert api.set_option("dock", False)["dock"] is False
+    assert synced == [(True, False), (False, False)]
+    assert config.load()["dock"] is False
 
 
 def test_closing_the_window_while_recording_gives_the_keys_back(desk):

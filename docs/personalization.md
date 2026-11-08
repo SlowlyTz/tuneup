@@ -16,6 +16,12 @@ Gaps between windows and at the screen edge, corner rounding, border width, blur
 - Taking app rules or the own border back takes a short reload of Hyprland; everything else changes live.
 - **Reset to Omarchy** (top right) forgets your look, and the Omarchy theme decides again. Hyprland reloads its config for that.
 
+**Behavior** (bottom of the page, saved at once, not part of the preview):
+
+- **Minimize animation:** a minimized window shrinks into its center as it fades, and grows back from there. Off, it just goes.
+- **Brought back in front:** where other windows float, a tiled window you bring back (taskbar, dock) would end up behind them, so it floats too, in the middle of the screen.
+- **Pointer stays put:** the pointer does not jump to a window that opens, gets the focus or comes back (Hyprland's `cursor:no_warps`). Off by default.
+
 The look is saved in `~/.config/tuneup/config.json` under `look`. It is written into Tuneup's generated Hyprland file, which loads after the Omarchy theme and so wins over it.
 
 ## Widgets
@@ -27,6 +33,8 @@ Widgets sit on the desktop **behind the windows**. The Widgets page shows each w
 - **Where & when:** screens, desktops, visibility.
 
 Colors, font, effect and background card are set **on the desktop**, while arranging.
+
+**In the bar** (below the widgets): the **Dock** behind the Omarchy logo and the **Taskbar** beside the desktops, each on or off. Off, the dock gives Omarchy's logo button back. See [minimizer.md](minimizer.md#dock).
 
 | Widget | Shows | Settings |
 |---|---|---|

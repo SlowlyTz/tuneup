@@ -52,7 +52,7 @@ def test_the_keys_it_takes_over():
 
 
 def test_three_fingers_up_open_the_row_and_down_close_it(monkeypatch):
-    cfg = config.default_config()
+    cfg = {**config.default_config(), "resize_swipe": False}  # its own gesture, tested in test_screens
     lua = keybinds.render(cfg)
     assert ('hl.gesture({ fingers = 3, direction = "up", action = function() if tuneup_scratch then '
             'tuneup_scratch.open() end end })') in lua
@@ -75,7 +75,7 @@ def test_switching_the_swipes_off_reloads(model):
 
     assert cli.run(cli.build_parser().parse_args(["option", "scratch_swipe", "off"])) == 0
     assert config.load()["scratch_swipe"] is False and model.reloads == 1
-    assert "hl.gesture" not in keybinds.lua_file().read_text()
+    assert "tuneup_scratch.open()" not in keybinds.lua_file().read_text()
 
 
 def test_our_scratch_keys_are_ours_for_the_enforcer():

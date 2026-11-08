@@ -69,11 +69,11 @@ def test_window_look_and_keys_come_back(docked):
     model = docked
     model.options["general:gaps_in"] = 0
     model.binds = [b for b in model.binds if b["description"] != "Minimize window"]
-    model.binds.append(model.bind("SUPER + M", "Something else"))
+    model.binds.append(model.bind("SUPER + R", "Something else"))
     fixed = drift.run()
     assert [f.split(":")[0] for f in fixed] == ["look", "keys"]
     assert model.options["general:gaps_in"] == 5
-    assert [b["description"] for b in model.binds if b["combo"] == "SUPER + M"] == ["Minimize window"]
+    assert [b["description"] for b in model.binds if b["combo"] == "SUPER + R"] == ["Minimize window"]
     assert drift.run() == []
 
 

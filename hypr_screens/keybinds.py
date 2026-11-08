@@ -12,7 +12,7 @@ import os
 from collections import Counter
 from pathlib import Path
 
-from hypr_screens import brand, config, desktops, hypr, look, scratch
+from hypr_screens import brand, config, desktops, hypr, install, look, scratch
 
 RECORD_SUBMAP = "hypr-screens-record"
 # The settings window (brand.APP_ID, its size).
@@ -292,6 +292,9 @@ def render(cfg: dict, runtime: bool = False) -> str:
         lines += ["", scratch.module_lua(kept=cfg.get("scratch_kept", scratch.KEPT))]
         for combo, body, label in scratch.binds(cfg):
             lines += lua_bind_line(combo, scratch.call(body), label)
+    if cfg.get("no_warps"):
+        lines += ["", "-- The pointer stays where it is when a window opens, gets focus or comes back.",
+                  "hl.config({ cursor = { no_warps = true } })"]
     window_look = look.lua_table(cfg.get("look") or {})
     if window_look:
         lines += ["", "-- Window look from Personalization → Window (overrides the Omarchy theme).", window_look]
@@ -309,6 +312,10 @@ def render(cfg: dict, runtime: bool = False) -> str:
         gestures = scratch.gesture_lines(cfg)
         if gestures:
             lines += ["", "-- Three fingers up open the scratch desktops, down close them."] + gestures
+        if cfg.get("resize_swipe"):
+            lines += ["", "-- SUPER + three fingers resize the window under the pointer (the touchpad's",
+                      "-- SUPER + right-drag); without SUPER the three-finger swipes stay as they are."]
+            lines += resize_gesture_lines(cfg)
         lines += [
             "",
             "-- The settings window floats, sized and centred, from its first frame.",
@@ -379,6 +386,14 @@ def render(cfg: dict, runtime: bool = False) -> str:
     return "\n".join(lines) + "\n"
 
 
+def resize_gesture_lines(cfg: dict) -> list[str]:
+    """Like the scratch swipes, only taken back by a reload."""
+    if not cfg.get("resize_swipe"):
+        return []
+    return [f"hl.gesture({{ fingers = {scratch.SWIPE_FINGERS}, direction = \"swipe\", mods = \"SUPER\", "
+            "action = \"resize\" })"]
+
+
 def write(cfg: dict) -> Path:
     path = lua_file()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -406,6 +421,8 @@ def go_live(old: dict | None, new: dict) -> None:
         lines += [f"hl.unbind({lua_quote(combo)})" for combo in sorted(gone)]
     if old is None or not scratch.swipes(old):
         lines += scratch.gesture_lines(new)  # not on every change; taking them away needs a reload
+    if old is None or not old.get("resize_swipe"):
+        lines += resize_gesture_lines(new)
     code = "\n".join(lines) + "\n" + render(new, runtime=True)
     hypr.eval_lua(code)
 
@@ -486,18 +503,26 @@ def set_key(cfg: dict, action: str, slot: int, combo: str) -> str:
     return "; ".join(notes)
 
 
-KEY_OPTIONS = ("desktop_keys", "fixed_desktops", "scratch", "scratch_shift_s", "scratch_kept", "scratch_swipe")
+KEY_OPTIONS = ("desktop_keys", "fixed_desktops", "scratch", "scratch_shift_s", "scratch_kept", "scratch_swipe",
+               "resize_swipe", "no_warps")
+# Hyprland cannot take these back but by a reload (which brings back what sat there before).
+RELOAD_OPTIONS = ("scratch", "scratch_shift_s", "scratch_swipe", "desktop_keys", "resize_swipe", "no_warps")
+# Bar widgets: in or out of the bar's layout.
+BAR_OPTIONS = ("dock", "taskbar")
 
 
 def option_changed(before: dict, cfg: dict, name: str) -> None:
-    """An option that shapes the keys took a new value: the Lua file anew and
-    live. Taking a scratch key, the swipes or the desktop keys away needs a reload, which brings
+    """An option took a new value. The dock or taskbar: in or out of the bar.
+    One that shapes the keys: the Lua file anew and live. Taking a scratch key, the swipes or the desktop keys away needs a reload, which brings
     back what sat there before (Omarchy's scratchpad and SUPER + 1…0 / TAB, the user's own key)
     -- and with the scratch desktops off, nothing may stay hidden."""
+    if name in BAR_OPTIONS:
+        install.sync_bar(cfg)
+        return
     if name not in KEY_OPTIONS:
         return
     write(cfg)
-    if name in ("scratch", "scratch_shift_s", "scratch_swipe", "desktop_keys") and before[name] and not cfg[name]:
+    if name in RELOAD_OPTIONS and before[name] and not cfg[name]:
         if name == "scratch":
             scratch.unpark_all()
         hypr.hyprctl("reload")

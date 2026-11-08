@@ -1431,3 +1431,41 @@ def test_show_window_grows_a_floating_one_back(monkeypatch):
     bring = evals(hyprctl)[-1]
     assert "follow = false" in bring and "float(" not in bring
     assert "resize({ x = 1000, y = 800" in bring and "move({ x = 10, y = 20" in bring
+
+
+def tuneup_settings(tmp_path, monkeypatch, **switches):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    folder = tmp_path / "config" / "tuneup"
+    folder.mkdir(parents=True)
+    (folder / "config.json").write_text(json.dumps(switches))
+
+
+def test_tuneup_switches_have_defaults_without_tuneup(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "nothing"))
+    assert minimizer.tuneup_option("minimize_animation", True) is True
+    tuneup_settings(tmp_path, monkeypatch, minimize_animation=False, float_in_front="no")
+    assert minimizer.tuneup_option("minimize_animation", True) is False
+    assert minimizer.tuneup_option("float_in_front", True) is True  # not a bool: the default
+
+
+def test_without_the_animation_a_window_just_goes(tmp_path, state_file, monkeypatch):
+    tuneup_settings(tmp_path, monkeypatch, minimize_animation=False)
+    monkeypatch.setattr(minimizer, "_LUA_DISPATCH", True)
+    hyprctl = HyprctlMock()
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    minimizer.hide_window("0xaaa", {**client("0xaaa", minimized=False), "monitor": 0, "at": [0, 0], "size": [800, 600]})
+
+    assert hyprctl.commands == [["hyprctl", "dispatch",
+                                 "hl.dsp.window.move({ workspace = 'special:minimized', follow = false, window = 'address:0xaaa' })"]]
+
+
+def test_fetch_can_leave_a_tiled_window_tiled(tmp_path, state_file, monkeypatch):
+    tuneup_settings(tmp_path, monkeypatch, float_in_front=False)
+    floating = {**client("0xbbb", workspace_id=2, minimized=False), "floating": True, "monitor": 0}
+    hyprctl = HyprctlMock(clients=[[client("0xaaa", workspace_id=4, minimized=False), floating]])
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    assert minimizer.fetch_address("0xaaa", "2")
+
+    assert not any("setfloating" in " ".join(c) for c in hyprctl.commands)

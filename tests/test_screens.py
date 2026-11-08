@@ -513,7 +513,7 @@ def test_set_key_rejects_a_combo_we_already_use(fake):
     fake(laptop())
     cfg = config.default_config()
     with pytest.raises(ValueError, match="Minimize window"):
-        keybinds.set_key(cfg, "pop", 1, "super + m")
+        keybinds.set_key(cfg, "pop", 1, "super + r")
     assert keybinds.set_key(cfg, "pop", 1, "SUPER + O") == ""
     assert cfg["keybinds"]["pop"] == ["SUPER + I", "SUPER + O"]
 
