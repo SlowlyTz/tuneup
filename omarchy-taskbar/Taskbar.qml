@@ -8,8 +8,8 @@ import qs.Ui
 
 // The windows of the desktop this screen shows, as icons in the order they sit
 // on it (left to right). A window minimized from it (hypr-minimizer keeps which
-// desktop that was) stays where it was and turns grey. A click minimizes a
-// window or brings a minimized one back; a middle click closes it.
+// desktop that was) stays where it was and turns grey. A click brings a window
+// to the front, or minimizes the one already there; a middle click closes it.
 //
 // Icons come and go with their width, so their neighbours slide aside; a
 // change of desktop fades the whole row instead of animating every icon.
@@ -168,8 +168,10 @@ BarWidget {
     if (at !== -1 && tiles.get(at).leaving) tiles.remove(at)
   }
 
+  // The window in front is minimized; any other, grey or hidden behind
+  // others, comes to the front.
   function activate(address, minimized) {
-    if (!minimized)
+    if (!minimized && address === root.focusedAddress)
       Quickshell.execDetached(["hypr-minimizer", "minimize", address])
     else if (root.here > 0)
       Quickshell.execDetached(["hypr-minimizer", "fetch", address, String(root.here)])

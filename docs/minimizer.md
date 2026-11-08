@@ -43,7 +43,7 @@ Keyboard only (the mouse does nothing inside it; clicking outside closes it).
 
 Rest the pointer on the Omarchy logo in the bar for a moment and a dock fades in on the left: one icon per app with open windows, in the order of their desktops (the small number shows where), minimized ones paler below a line. A dot marks an app with a window on this desktop.
 
-- Click an icon to bring the window to this desktop. An app with several windows shows how many; a click lists them, and a click on one brings it.
+- Click an icon to bring the window to this desktop, in front; click the window that is already in front to minimize it. An app with several windows shows how many; a click lists them, and a click on one brings it.
 - A window brought this way always lands in front. Where other windows float, a tiled one would end up behind them, so it floats too, in the middle of the screen.
 - The dock stays while the pointer is on the logo or the dock, and goes a moment after it left.
 - Left click on the logo still opens the Omarchy menu, right click a terminal.
@@ -53,7 +53,7 @@ Rest the pointer on the Omarchy logo in the bar for a moment and a dock fades in
 
 Right of the desktops in the bar sit the windows of the desktop on that screen, in the order they lie on it from left to right. A short line marks the focused one. A window minimized from this desktop keeps its place and turns grey.
 
-- Click a window to minimize it, click a grey one to bring it back.
+- Click a window to bring it to the front, grey ones included; click the one already in front to minimize it.
 - Middle click closes a window. Resting on an icon shows its title.
 - Windows come and go with a slide; another desktop fades the row over.
 
