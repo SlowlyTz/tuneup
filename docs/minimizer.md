@@ -44,6 +44,7 @@ Keyboard only (the mouse does nothing inside it; clicking outside closes it).
 Rest the pointer on the Omarchy logo in the bar for a moment and a dock fades in on the left: one icon per app with open windows, in the order of their desktops (the small number shows where), minimized ones paler below a line. A dot marks an app with a window on this desktop.
 
 - Click an icon to bring the window to this desktop. An app with several windows shows how many; a click lists them, and a click on one brings it.
+- A window brought this way always lands in front. Where other windows float, a tiled one would end up behind them, so it floats too, in the middle of the screen.
 - The dock stays while the pointer is on the logo or the dock, and goes a moment after it left.
 - Left click on the logo still opens the Omarchy menu, right click a terminal.
 - A full-screen window hides the bar, and with it the dock.

@@ -31,6 +31,9 @@ MINIMIZE_SHRINK = 0.85
 # it floats and was shrunk (grown back).
 TILED_TAG = "tuneup-tiled"
 SHRUNK_TAG = "tuneup-shrunk"
+# A tiled window lies under every floating one: fetched onto a desktop with
+# floating windows it floats too, centered, at this share of the screen.
+FRONT_FLOAT_SHARE = (0.6, 0.75)
 # Hyprland events after which a peeked window may have gone out of sight.
 PEEK_WATCH_EVENTS = {
     "workspace",
@@ -221,8 +224,11 @@ def hide_window(address: str, client: dict | None = None) -> None:
     move_window(address, MINIMIZED_WORKSPACE, silent=True)
 
 
-def show_window(address: str, workspace_id: str, silent: bool = False) -> None:
-    """Back from minimized: it fades in at its center and grows to its place."""
+def show_window(
+    address: str, workspace_id: str, silent: bool = False, stay_floating: bool = False
+) -> None:
+    """Back from minimized: it fades in at its center and grows to its place.
+    `stay_floating` keeps a window that was tiled floating where it is."""
     if not _lua_dispatch_supported():
         move_window(address, workspace_id, silent=silent)
         return
@@ -239,10 +245,9 @@ def show_window(address: str, workspace_id: str, silent: bool = False) -> None:
     follow = "false" if silent else "true"
     steps = [f"hl.dsp.window.move({{ workspace = '{workspace_id}', follow = {follow}, {window} }})"]
     if TILED_TAG in tags:
-        steps += [
-            f"hl.dsp.window.float({{ action = 'disable', {window} }})",
-            f"hl.dsp.window.tag({{ tag = '-{TILED_TAG}', {window} }})",
-        ]
+        if not stay_floating:
+            steps.append(f"hl.dsp.window.float({{ action = 'disable', {window} }})")
+        steps.append(f"hl.dsp.window.tag({{ tag = '-{TILED_TAG}', {window} }})")
     else:
         (x, y), (small_width, small_height) = client.get("at", [0, 0]), client.get("size", [0, 0])
         width, height = round(small_width / MINIMIZE_SHRINK), round(small_height / MINIMIZE_SHRINK)
@@ -923,7 +928,9 @@ def stash_others() -> None:
     focus_window(active_address)
 
 
-def restore_address(address: str, workspace_id: str | None = None) -> bool:
+def restore_address(
+    address: str, workspace_id: str | None = None, stay_floating: bool = False
+) -> bool:
     end_peek()
     storage = load_storage()
     state = storage["stacks"]  # type: ignore[assignment]
@@ -947,25 +954,67 @@ def restore_address(address: str, workspace_id: str | None = None) -> bool:
     history = push_undo_snapshot(history, snapshot, target_workspace)
     remove_address(pruned_state, address)
 
-    show_window(address, str(target_workspace))
+    show_window(address, str(target_workspace), stay_floating=stay_floating)
     focus_window(address)
     save_state(pruned_state, history=history)
     return True
 
 
+def front_geometry(monitor_id: object) -> list[int] | None:
+    """x, y, width, height of a window floating in the middle of a monitor."""
+    monitor = next((m for m in get_monitors() if m.get("id") == monitor_id), None)
+    if monitor is None:
+        return None
+    width, height = monitor_size(monitor)
+    left, top, right, bottom = (list(monitor.get("reserved") or []) + [0, 0, 0, 0])[:4]
+    area_width, area_height = width - left - right, height - top - bottom
+    share_width, share_height = FRONT_FLOAT_SHARE
+    float_width, float_height = round(area_width * share_width), round(area_height * share_height)
+    return [
+        int(monitor.get("x") or 0) + left + (area_width - float_width) // 2,
+        int(monitor.get("y") or 0) + top + (area_height - float_height) // 2,
+        float_width,
+        float_height,
+    ]
+
+
 def fetch_address(address: str, workspace_id: str) -> bool:
     """The dock's click: the window onto workspace_id and focused, a minimized one
-    restored there (through its stack, so undo knows it)."""
-    client = clients_by_address().get(address)
+    restored there (through its stack, so undo knows it). It always lands in
+    front: where other windows float, a tiled one would end up under them, so
+    it floats as well, in the middle of the screen."""
+    clients = clients_by_address()
+    client = clients.get(address)
     if client is None:
         return False
-    if is_minimized(client) and restore_address(address, workspace_id):
+    floating_here = [
+        other
+        for other_address, other in clients.items()
+        if other_address != address
+        and other.get("floating")
+        and client_workspace_id(other) == workspace_id
+    ]
+    tags = set(client.get("tags") or [])
+    would_tile = TILED_TAG in tags or not client.get("floating")
+    to_front = front_geometry(floating_here[0].get("monitor")) if floating_here and would_tile else None
+
+    if is_minimized(client) and restore_address(address, workspace_id, stay_floating=bool(to_front)):
+        if to_front:
+            float_in_front(address, to_front)
+            focus_window(address)
         return True
     # Not minimized, or hidden without a stack: moved like any other window.
     if client_workspace_id(client) != workspace_id:
         move_window(address, workspace_id, silent=True)
+    if to_front:
+        float_in_front(address, to_front)
     focus_window(address)
     return True
+
+
+def float_in_front(address: str, geometry: list[int]) -> None:
+    set_floating(address, True)
+    place_window(address, geometry)
 
 
 def peek_address(address: str) -> bool:
