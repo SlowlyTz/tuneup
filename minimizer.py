@@ -105,7 +105,9 @@ def move_window(address: str, workspace: str, silent: bool = False) -> None:
 
 def focus_window(address: str) -> None:
     if _lua_dispatch_supported():
-        run_hyprctl("dispatch", f"hl.dsp.focus({{ window = 'address:{address}' }})")
+        # Focus alone leaves a floating window behind the others it overlaps;
+        # bring_to_top raises the (now active) one above them.
+        batch(f"hl.dsp.focus({{ window = 'address:{address}' }})", "hl.dsp.window.bring_to_top()")
     else:
         run_hyprctl("dispatch", "focuswindow", f"address:{address}")
 
