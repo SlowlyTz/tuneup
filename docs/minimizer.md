@@ -53,7 +53,7 @@ Rest the pointer on the Omarchy logo in the bar for a moment and a dock fades in
 
 ## Taskbar
 
-Right of the desktops in the bar sit the windows of the desktop on that screen, in the order they lie on it from left to right. A short line marks the focused one. A window minimized from this desktop keeps its place and turns grey.
+Right of the desktops in the bar sit the windows of the desktop on that screen, in a fixed order: an icon never changes places, a new window joins on the right. A short line marks the focused one. A window minimized from this desktop keeps its place and turns grey.
 
 - Click a window to bring it to the front, grey ones included; click one that nothing covers to minimize it, whether it has the focus or not.
 - Middle click closes a window. Resting on an icon shows its title.
