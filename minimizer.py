@@ -993,6 +993,50 @@ def front_geometry(monitor_id: object) -> list[int] | None:
     ]
 
 
+def overlaps(first: dict, second: dict) -> bool:
+    try:
+        (x1, y1), (w1, h1) = first["at"], first["size"]
+        (x2, y2), (w2, h2) = second["at"], second["size"]
+    except (KeyError, TypeError, ValueError):
+        return True
+    return x1 < x2 + w2 and x2 < x1 + w1 and y1 < y2 + h2 and y2 < y1 + h1
+
+
+def lies_on_top(address: str, clients: list[dict]) -> bool:
+    """Nothing on its desktop covers the window. Hyprland lists windows from the
+    bottom up, floating ones always drawn over tiled ones."""
+    index = next((i for i, c in enumerate(clients) if c.get("address") == address), None)
+    if index is None:
+        return False
+    client = clients[index]
+    workspace_id = client_workspace_id(client)
+    for other_index, other in enumerate(clients):
+        if other_index == index or client_workspace_id(other) != workspace_id or other.get("hidden"):
+            continue
+        floating, other_floating = bool(client.get("floating")), bool(other.get("floating"))
+        above = other_floating > floating or (other_floating == floating and other_index > index)
+        if above and overlaps(client, other):
+            return False
+    return True
+
+
+def toggle_address(address: str, workspace_id: str) -> bool:
+    """The dock's and taskbar's click: a window lying on top on workspace_id is
+    minimized, any other brought to the front. Which one has the focus does not
+    matter."""
+    clients = get_clients()
+    client = next((c for c in clients if c.get("address") == address), None)
+    if client is None:
+        return False
+    if (
+        not is_minimized(client)
+        and client_workspace_id(client) == workspace_id
+        and lies_on_top(address, clients)
+    ):
+        return minimize_address(address)
+    return fetch_address(address, workspace_id)
+
+
 def fetch_address(address: str, workspace_id: str) -> bool:
     """The dock's click: the window onto workspace_id and focused, a minimized one
     restored there (through its stack, so undo knows it). It always lands in
@@ -1551,6 +1595,10 @@ def main() -> None:
     fetch_parser.add_argument("address")
     fetch_parser.add_argument("workspace", help="the workspace to bring it onto")
 
+    toggle_parser = subparsers.add_parser("toggle")
+    toggle_parser.add_argument("address")
+    toggle_parser.add_argument("workspace", help="the workspace it is on top of, or comes onto")
+
     peek_parser = subparsers.add_parser("peek")
     peek_parser.add_argument("address")
 
@@ -1593,6 +1641,8 @@ def run_command(args: argparse.Namespace) -> None:
         raise SystemExit(0 if minimize_address(args.address) else 1)
     elif args.command == "fetch":
         raise SystemExit(0 if fetch_address(args.address, args.workspace) else 1)
+    elif args.command == "toggle":
+        raise SystemExit(0 if toggle_address(args.address, args.workspace) else 1)
     elif args.command == "peek":
         raise SystemExit(0 if peek_address(args.address) else 1)
 

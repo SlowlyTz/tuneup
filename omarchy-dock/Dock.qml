@@ -169,15 +169,11 @@ PanelWindow {
     return null
   }
 
-  // The window in front is minimized; any other comes here, to the front.
+  // A window here that nothing covers is minimized; any other comes here, to
+  // the front. The focus does not matter (hypr-minimizer toggle).
   function fetch(address) {
     if (dock.here <= 0) return
-    var active = Hyprland.activeToplevel
-    // Hyprland keeps the last one as active when nothing has focus: only a shown one counts.
-    var front = !!active && !!active.workspace && String(active.workspace.name || "") !== dock.minimizedName
-                && "0x" + String(active.address).replace(/^0x/, "") === address
-    Quickshell.execDetached(front ? ["hypr-minimizer", "minimize", address]
-                                  : ["hypr-minimizer", "fetch", address, String(dock.here)])
+    Quickshell.execDetached(["hypr-minimizer", "toggle", address, String(dock.here)])
     dock.fetched()
   }
 
