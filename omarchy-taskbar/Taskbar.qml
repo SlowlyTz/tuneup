@@ -6,10 +6,11 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
-// The windows of the desktop this screen shows, as icons in the order they sit
-// on it (left to right). A window minimized from it (hypr-minimizer keeps which
-// desktop that was) stays where it was and turns grey. A click brings a window
-// to the front, or minimizes one nothing covers; a middle click closes it.
+// The windows of the desktop this screen shows, as icons that never change
+// places: a new one joins on the right. A window minimized from it
+// (hypr-minimizer keeps which desktop that was) stays where it was and turns
+// grey. A click brings a window to the front, or minimizes the one nothing
+// covers; a middle click closes it.
 //
 // Icons come and go with their width, so their neighbours slide aside; a
 // change of desktop fades the whole row instead of animating every icon.
@@ -33,7 +34,7 @@ BarWidget {
   property var stacks: ({})
   // The window behind each address, for its title.
   property var windows: ({})
-  // Each desktop's row as last shown, so a minimized window keeps its place.
+  // Each desktop's row as last shown, so every icon keeps its place.
   property var orders: ({})
   // A window changed places: the icons glide to their new spots.
   property bool reordering: false
@@ -68,9 +69,8 @@ BarWidget {
     return ipc && ipc.at ? Number(ipc.at[axis]) || 0 : 0
   }
 
-  // What the row shows: the open windows in their order on the screen, the
-  // minimized ones where they were; new open ones after the last open one,
-  // minimized ones never seen here at the end.
+  // What the row shows: every window where it was last time, new ones on the
+  // right (a desktop seen for the first time in their order on the screen).
   function collect() {
     var open = [], byAddress = {}, minimized = {}, stacked = {}
     var all = Hyprland.toplevels.values
@@ -105,15 +105,8 @@ BarWidget {
     for (var p = 0; p < previous.length; p++)
       if (!openSet[previous[p]] && !stacked[previous[p]] && hidden(previous[p])) minimized[previous[p]] = true
 
-    var slots = previous.filter(function(a) { return openSet[a] || minimized[a] })
-                        .map(function(a) { return minimized[a] ? a : null })
-    var next = 0, lastOpen = -1, order = []
-    for (var k = 0; k < slots.length; k++) {
-      if (slots[k] === null) { order.push(open[next++].address); lastOpen = order.length - 1 }
-      else order.push(slots[k])
-    }
-    var fresh = open.slice(next).map(function(w) { return w.address })
-    order.splice.apply(order, [lastOpen + 1, 0].concat(fresh))
+    var order = previous.filter(function(a) { return openSet[a] || minimized[a] })
+    for (var n = 0; n < open.length; n++) if (order.indexOf(open[n].address) === -1) order.push(open[n].address)
     for (var m in minimized) if (order.indexOf(m) === -1) order.push(m)
 
     var orders = root.orders
@@ -187,12 +180,6 @@ BarWidget {
   ListModel { id: tiles }
 
   Timer { id: rebuildTimer; interval: 40; onTriggered: root.rebuild(true) }
-  // Tiling places a new window a moment after it opened: its spot, read again.
-  Timer {
-    id: settleTimer
-    interval: 350
-    onTriggered: { Hyprland.refreshToplevels(); rebuildTimer.restart() }
-  }
   Timer { id: reorderTimer; interval: 320; onTriggered: root.reordering = false }
 
   readonly property var watchedEvents: ["openwindow", "closewindow", "movewindowv2", "activewindowv2",
@@ -203,7 +190,6 @@ BarWidget {
       if (!event || root.watchedEvents.indexOf(String(event.name)) === -1) return
       Hyprland.refreshToplevels()
       rebuildTimer.restart()
-      settleTimer.restart()
     }
   }
   Connections {
