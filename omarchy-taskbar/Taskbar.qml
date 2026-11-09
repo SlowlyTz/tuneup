@@ -9,7 +9,7 @@ import qs.Ui
 // The windows of the desktop this screen shows, as icons in the order they sit
 // on it (left to right). A window minimized from it (hypr-minimizer keeps which
 // desktop that was) stays where it was and turns grey. A click brings a window
-// to the front, or minimizes the one already there; a middle click closes it.
+// to the front, or minimizes one nothing covers; a middle click closes it.
 //
 // Icons come and go with their width, so their neighbours slide aside; a
 // change of desktop fades the whole row instead of animating every icon.
@@ -168,13 +168,11 @@ BarWidget {
     if (at !== -1 && tiles.get(at).leaving) tiles.remove(at)
   }
 
-  // The window in front is minimized; any other, grey or hidden behind
-  // others, comes to the front.
-  function activate(address, minimized) {
-    if (!minimized && address === root.focusedAddress)
-      Quickshell.execDetached(["hypr-minimizer", "minimize", address])
-    else if (root.here > 0)
-      Quickshell.execDetached(["hypr-minimizer", "fetch", address, String(root.here)])
+  // A window nothing covers is minimized; any other, grey or hidden behind
+  // others, comes to the front. The focus does not matter (hypr-minimizer toggle).
+  function activate(address) {
+    if (root.here > 0)
+      Quickshell.execDetached(["hypr-minimizer", "toggle", address, String(root.here)])
   }
 
   function closeWindow(address) {
@@ -337,7 +335,7 @@ BarWidget {
       onClicked: function(mouse) {
         if (root.bar) root.bar.hideTooltip(tile)
         if (mouse.button === Qt.MiddleButton) root.closeWindow(tile.address)
-        else root.activate(tile.address, tile.minimized)
+        else root.activate(tile.address)
       }
     }
   }

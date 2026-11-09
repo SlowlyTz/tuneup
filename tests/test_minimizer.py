@@ -1469,3 +1469,59 @@ def test_fetch_can_leave_a_tiled_window_tiled(tmp_path, state_file, monkeypatch)
     assert minimizer.fetch_address("0xaaa", "2")
 
     assert not any("setfloating" in " ".join(c) for c in hyprctl.commands)
+
+
+def placed(address, at, size, floating=False, workspace_id=2):
+    return {**client(address, workspace_id=workspace_id, minimized=False), "at": at, "size": size, "floating": floating}
+
+
+def test_a_window_lies_on_top_unless_one_above_it_overlaps():
+    tiled = placed("0xaaa", [0, 0], [1000, 1000])
+    side = placed("0xbbb", [1000, 0], [900, 1000])
+    assert minimizer.lies_on_top("0xaaa", [tiled, side])
+
+    over = placed("0xccc", [500, 500], [800, 400], floating=True)
+    assert not minimizer.lies_on_top("0xaaa", [over, tiled])  # floating is drawn over tiled
+    assert minimizer.lies_on_top("0xccc", [over, tiled])
+
+    lower = placed("0xddd", [600, 600], [400, 400], floating=True)
+    assert not minimizer.lies_on_top("0xddd", [lower, over])  # later in the list is higher
+    assert minimizer.lies_on_top("0xddd", [over, lower])
+
+    elsewhere = placed("0xeee", [0, 0], [1000, 1000], floating=True, workspace_id=3)
+    assert minimizer.lies_on_top("0xaaa", [tiled, elsewhere])
+
+
+def test_toggle_minimizes_the_window_on_top_even_without_focus(state_file, monkeypatch):
+    tiled = placed("0xaaa", [0, 0], [1920, 1080])
+    floating = placed("0xbbb", [400, 200], [800, 600], floating=True)
+    hyprctl = HyprctlMock(clients=[[tiled, floating], [tiled, floating]])
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    assert minimizer.toggle_address("0xbbb", "2")
+
+    assert hyprctl.commands[-1] == [
+        "hyprctl", "dispatch", "movetoworkspacesilent", "special:minimized,address:0xbbb",
+    ]
+
+
+def test_toggle_brings_a_covered_window_to_the_front(state_file, monkeypatch):
+    tiled = placed("0xaaa", [0, 0], [1920, 1080])
+    floating = placed("0xbbb", [400, 200], [800, 600], floating=True)
+    hyprctl = HyprctlMock(clients=[[tiled, floating], [tiled, floating]], monitors=[[SCREEN]])
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    assert minimizer.toggle_address("0xaaa", "2")
+
+    assert hyprctl.commands[-1] == ["hyprctl", "dispatch", "focuswindow", "address:0xaaa"]
+    assert read_state(state_file) == {}
+
+
+def test_toggle_fetches_a_window_from_another_desktop(state_file, monkeypatch):
+    mine = placed("0xaaa", [0, 0], [800, 600], workspace_id=4)
+    hyprctl = HyprctlMock(clients=[[mine], [mine]])
+    monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
+
+    assert minimizer.toggle_address("0xaaa", "2")
+
+    assert ["hyprctl", "dispatch", "movetoworkspacesilent", "2,address:0xaaa"] in hyprctl.commands
