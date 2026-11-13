@@ -74,6 +74,5 @@ BarWidget {
       if (dock.hovered) closeTimer.stop()
       else if (!root.logoHovered) closeTimer.restart()
     }
-    onFetched: root.dismiss()
   }
 }

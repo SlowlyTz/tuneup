@@ -7,8 +7,11 @@ import qs.Commons
 // The dock itself: one icon per app with open windows, in the order of their
 // desktops, the minimized ones (hypr-minimizer) after a line and paler. An app
 // with a window on this desktop has a dot beside it; one with several windows
-// shows how many and lists them on a click. Clicking a window brings it onto
-// the desktop this screen shows now (`hypr-minimizer fetch`).
+// shows how many and lists them, with their whole titles, as soon as the
+// pointer rests on it. Clicking a window brings it onto the desktop this
+// screen shows now (`hypr-minimizer fetch`).
+//
+// Clicking does not close it: it goes only when the pointer leaves it.
 //
 // The layer stays mapped and only fades: mapping it each time would play
 // Hyprland's layer animation instead of the fade. Hidden, it takes no input.
@@ -18,7 +21,6 @@ PanelWindow {
   property bool wanted: false
   readonly property bool showing: wanted && dock.groups.length + dock.minimized.length > 0
   readonly property bool hovered: showing && (cardHover.hovered || listHover.hovered || hintHover.hovered)
-  signal fetched()
 
   // hypr_screens: the external screen's own desktops (shown as 1, 2, ...) and
   // the scratch desktops (201 and up while open, parked as special workspaces while closed).
@@ -33,12 +35,18 @@ PanelWindow {
   readonly property int pad: Style.space(6)
   readonly property int radius: Style.space(14)
   readonly property int gap: Style.space(8)
-  readonly property int listWidth: Style.space(300)
+  readonly property int minListWidth: Style.space(220)
+  // Titles are shown whole: the list grows up to the screen's edge and only then wraps.
+  readonly property int maxListWidth: {
+    var room = dock.screen ? dock.screen.width - Style.gapsOut * 2 - card.width - dock.gap : Style.space(900)
+    return Math.max(dock.minListWidth, room)
+  }
   readonly property color surface: Qt.rgba(Color.menu.background.r, Color.menu.background.g, Color.menu.background.b, 0.92)
   readonly property color edge: Qt.rgba(Color.menu.text.r, Color.menu.text.g, Color.menu.text.b, 0.08)
   readonly property color lit: Qt.rgba(Color.menu.text.r, Color.menu.text.g, Color.menu.text.b, 0.1)
 
-  // The app whose window list is open, by its key.
+  // The app whose window list is open, by its key: the last one with several
+  // windows the pointer rested on.
   property string openKey: ""
   // The app under the pointer: a lone window shows its title beside it.
   property string hoverKey: ""
@@ -52,7 +60,7 @@ PanelWindow {
   WlrLayershell.namespace: "tuneup-dock"
   WlrLayershell.layer: WlrLayer.Top
   WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-  implicitWidth: card.width + dock.gap + dock.listWidth
+  implicitWidth: card.width + dock.gap + dock.maxListWidth
   implicitHeight: Math.max(card.height, list.y + list.height, hint.y + hint.height, 1)
 
   mask: Region {
@@ -63,12 +71,33 @@ PanelWindow {
 
   // Kept a moment after it is no longer wanted, for the fade-out.
   property bool live: false
-  Timer { id: rest; interval: 200; onTriggered: dock.live = false }
+  Timer {
+    id: rest
+    interval: 200
+    onTriggered: {
+      dock.live = false
+      dock.frozen = null
+    }
+  }
+
+  // While it shows, apps and windows keep their places, whatever happens to
+  // them; they are sorted anew only the next time it opens. Maps each app's
+  // and each window's key to its place; new ones go after these.
+  property var frozen: null
 
   onWantedChanged: {
     if (wanted) {
       rest.stop()
       Hyprland.refreshToplevels()
+      if (!dock.frozen) {
+        var now = dock.collect(Hyprland.toplevels.values, dock.here, null)
+        var places = {}
+        now.open.concat(now.hidden).forEach(function(group, i) {
+          places[group.key] = i
+          group.windows.forEach(function(window, j) { places[window.address] = j })
+        })
+        dock.frozen = places
+      }
       dock.live = true
     } else {
       dock.openKey = ""
@@ -85,7 +114,7 @@ PanelWindow {
   }
 
   // Worked out only while it shows (or fades), and again whenever a window comes, goes or moves.
-  readonly property var all: dock.live ? dock.collect(Hyprland.toplevels.values, dock.here) : ({ open: [], hidden: [] })
+  readonly property var all: dock.live ? dock.collect(Hyprland.toplevels.values, dock.here, dock.frozen) : ({ open: [], hidden: [] })
   readonly property var groups: all.open
   readonly property var minimized: all.hidden
 
@@ -119,7 +148,7 @@ PanelWindow {
     return id > 0 ? id : 100000
   }
 
-  function collect(toplevels, here) {
+  function collect(toplevels, here, frozen) {
     var open = {}, hidden = {}
     for (var i = 0; i < toplevels.length; i++) {
       var toplevel = toplevels[i]
@@ -141,10 +170,18 @@ PanelWindow {
       group.here = group.here || isHere
       group.order = Math.min(group.order, isHidden ? 0 : dock.order(workspace))
     }
+    // Kept places first (frozen), then the natural order: by desktop, then by name.
+    function place(key) {
+      return frozen && frozen[key] !== undefined ? frozen[key] : 100000
+    }
     function sorted(map) {
       var list = Object.keys(map).map(function(k) { return map[k] })
-      list.forEach(function(g) { g.windows.sort(function(a, b) { return a.order - b.order || a.title.localeCompare(b.title) }) })
-      return list.sort(function(a, b) { return a.order - b.order || a.name.localeCompare(b.name) })
+      list.forEach(function(g) {
+        g.windows.sort(function(a, b) {
+          return place(a.address) - place(b.address) || a.order - b.order || a.title.localeCompare(b.title)
+        })
+      })
+      return list.sort(function(a, b) { return place(a.key) - place(b.key) || a.order - b.order || a.name.localeCompare(b.name) })
     }
     return { open: sorted(open), hidden: sorted(hidden) }
   }
@@ -174,12 +211,11 @@ PanelWindow {
   function fetch(address) {
     if (dock.here <= 0) return
     Quickshell.execDetached(["hypr-minimizer", "toggle", address, String(dock.here)])
-    dock.fetched()
   }
 
   function clicked(group) {
     if (group.windows.length === 1) dock.fetch(group.windows[0].address)
-    else dock.openKey = dock.openKey === group.key ? "" : group.key
+    else dock.openKey = group.key
   }
 
   // --- how it looks ---
@@ -252,8 +288,12 @@ PanelWindow {
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onContainsMouseChanged: {
-        if (containsMouse) dock.hoverKey = tile.group.key
-        else if (dock.hoverKey === tile.group.key) dock.hoverKey = ""
+        if (containsMouse) {
+          dock.hoverKey = tile.group.key
+          // Several windows: list them right away. The list stays while the
+          // pointer crosses over to it, until it rests on another app.
+          dock.openKey = tile.group.windows.length > 1 ? tile.group.key : ""
+        } else if (dock.hoverKey === tile.group.key) dock.hoverKey = ""
       }
       onClicked: dock.clicked(tile.group)
     }
@@ -317,16 +357,16 @@ PanelWindow {
     visible: dock.showing && dock.hintTile !== null
     x: card.x + card.width + dock.gap
     y: dock.hintTile ? Math.max(0, card.y + column.y + dock.hintTile.y + (dock.hintTile.height - height) / 2) : 0
-    width: Math.min(dock.listWidth, hintText.implicitWidth + Style.space(24))
-    height: hintText.implicitHeight + Style.space(14)
-    radius: height / 2
+    width: Math.min(dock.maxListWidth, hintText.implicitWidth + Style.space(24))
+    height: hintText.height + Style.space(14)
+    radius: Math.min(height / 2, dock.radius)
 
     HoverHandler { id: hintHover }
 
     Text {
       id: hintText
       anchors.centerIn: parent
-      width: Math.min(implicitWidth, dock.listWidth - Style.space(24))
+      width: Math.min(implicitWidth, dock.maxListWidth - Style.space(24))
       text: {
         var group = dock.hintGroup
         if (!group) return ""
@@ -335,14 +375,14 @@ PanelWindow {
         return lone.desktop && !lone.here ? lone.title + "  ·  " + lone.desktop : lone.title
       }
       textFormat: Text.PlainText
-      elide: Text.ElideRight
+      wrapMode: Text.WrapAtWordBoundaryOrAnywhere
       color: Color.menu.text
       font.family: Style.font.menuFamily
       font.pixelSize: Style.font.body
     }
   }
 
-  // The windows of the app clicked.
+  // The windows of the app under the pointer (or clicked).
   readonly property var listGroup: dock.groupByKey(dock.openKey)
   readonly property Item listTile: dock.listGroup ? dock.tileFor(dock.listGroup.key) : null
 
@@ -351,10 +391,37 @@ PanelWindow {
     visible: dock.showing && dock.listTile !== null
     x: card.x + card.width + dock.gap
     y: dock.listTile ? Math.max(0, card.y + column.y + dock.listTile.y + (dock.listTile.height - height) / 2) : 0
-    width: dock.listWidth
+    width: Math.min(dock.maxListWidth, Math.max(dock.minListWidth, measure.width + dock.pad * 2))
     height: rows.height + dock.pad * 2
 
     HoverHandler { id: listHover }
+
+    // The widest row as it would be unwrapped: title, desktop and their margins.
+    Column {
+      id: measure
+      visible: false
+      Repeater {
+        model: dock.listGroup ? dock.listGroup.windows : []
+        delegate: Item {
+          required property var modelData
+          implicitWidth: Style.space(16) + measureTitle.implicitWidth + Style.space(10) + measureDesk.implicitWidth + Style.space(10)
+          implicitHeight: 1
+          Text {
+            id: measureTitle
+            text: parent.modelData.title
+            textFormat: Text.PlainText
+            font.family: Style.font.menuFamily
+            font.pixelSize: Style.font.body
+          }
+          Text {
+            id: measureDesk
+            text: parent.modelData.desktop
+            font.family: Style.font.menuFamily
+            font.pixelSize: Style.font.caption
+          }
+        }
+      }
+    }
 
     Column {
       id: rows
@@ -387,7 +454,7 @@ PanelWindow {
             anchors { left: parent.left; leftMargin: Style.space(16); right: desk.left; rightMargin: Style.space(10); verticalCenter: parent.verticalCenter }
             text: row.modelData.title
             textFormat: Text.PlainText
-            elide: Text.ElideRight
+            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
             color: Color.menu.text
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.body
