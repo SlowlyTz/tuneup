@@ -25,10 +25,17 @@ const KEYS = {
   Home: "HOME", End: "END", PageUp: "PAGEUP", PageDown: "PAGEDOWN",
 };
 
+/* WebKitGTK reports the Super key itself (key "Super", code "OSLeft") but sets
+ * neither metaKey nor a modifier state while it is held, so it is tracked here. */
+let superHeld = false;
+const isSuper = (e) => ["Super", "Meta", "OS"].includes(e.key) || /^(OS|Meta)(Left|Right)$/.test(e.code);
+for (const type of ["keydown", "keyup"]) window.addEventListener(type, (e) => { if (isSuper(e)) superHeld = type === "keydown"; }, true);
+window.addEventListener("blur", () => { superHeld = false; });
+
 /* {mods, key, combo} of a key event; key and combo are null while only modifiers are held. */
 export function comboFrom(e) {
   const mods = [];
-  if (e.metaKey || e.getModifierState("OS") || e.getModifierState("Super") || e.getModifierState("Meta")) mods.push("SUPER");
+  if (superHeld || e.metaKey || e.getModifierState("OS") || e.getModifierState("Super") || e.getModifierState("Meta")) mods.push("SUPER");
   if (e.ctrlKey) mods.push("CTRL");
   if (e.altKey) mods.push("ALT");
   if (e.shiftKey) mods.push("SHIFT");
