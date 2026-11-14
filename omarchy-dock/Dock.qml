@@ -157,7 +157,8 @@ PanelWindow {
       var id = dock.appId(toplevel)
       var isHidden = String(workspace.name || "") === dock.minimizedName
       var into = isHidden ? hidden : open
-      var key = (isHidden ? "min:" : "") + id.toLowerCase()
+      // A window without an app id is its own group, not one with every other such window.
+      var key = (isHidden ? "min:" : "") + (id ? id.toLowerCase() : "window:" + String(toplevel.address))
       if (!into[key]) {
         var entry = dock.entryFor(id)
         into[key] = { key: key, name: entry && entry.name ? String(entry.name) : (id || String(toplevel.title || "")),
@@ -202,7 +203,10 @@ PanelWindow {
 
   function tileFor(key) {
     var tiles = column.children
-    for (var i = 0; i < tiles.length; i++) if (tiles[i].group && tiles[i].group.key === key) return tiles[i]
+    for (var i = 0; i < tiles.length; i++) {
+      var tile = tiles[i]
+      if (tile && tile.group && tile.group.key === key) return tile
+    }
     return null
   }
 
@@ -369,7 +373,7 @@ PanelWindow {
       width: Math.min(implicitWidth, dock.maxListWidth - Style.space(24))
       text: {
         var group = dock.hintGroup
-        if (!group) return ""
+        if (!group || !group.windows || group.windows.length === 0) return ""
         var lone = group.windows[0]
         if (group.windows.length > 1) return group.name
         return lone.desktop && !lone.here ? lone.title + "  ·  " + lone.desktop : lone.title

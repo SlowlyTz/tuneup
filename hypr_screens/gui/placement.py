@@ -34,8 +34,11 @@ def bring_here(workspace: int | None) -> bool:
     address = client["address"]
     where = client.get("workspace") or {}
     if str(where.get("name", "")).startswith("special:minimized") and shutil.which("hypr-minimizer"):
-        subprocess.run(["hypr-minimizer", "restore", address, "--here"], check=False, capture_output=True,
-                       timeout=10)
+        try:
+            subprocess.run(["hypr-minimizer", "restore", address, "--here"], check=False, capture_output=True,
+                           timeout=10)
+        except (subprocess.TimeoutExpired, OSError):
+            return False  # a stuck minimizer must not take the settings window down
     elif where.get("id") != workspace:
         hypr.eval_lua(f"hl.dispatch(hl.dsp.window.move({{ workspace = '{workspace}', follow = true, "
                       f"window = 'address:{address}' }}))")

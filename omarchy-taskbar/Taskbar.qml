@@ -60,7 +60,8 @@ BarWidget {
     var icon = entry ? String(entry.icon || "") : ""
     var path = icon.charAt(0) === "/" ? Util.fileUrl(icon) : (icon ? Quickshell.iconPath(icon, true) : "")
     path = path || Quickshell.iconPath("application-x-executable", true)
-    if (id) root.iconCache[id] = path
+    // The fallback is not kept: an app installed later gets its own icon.
+    if (id && entry) root.iconCache[id] = path
     return path
   }
 
@@ -180,17 +181,25 @@ BarWidget {
   ListModel { id: tiles }
 
   Timer { id: rebuildTimer; interval: 40; onTriggered: root.rebuild(true) }
+  // One query per burst of events (every screen has its own taskbar).
+  Timer { id: refreshTimer; interval: 30; onTriggered: Hyprland.refreshToplevels() }
   Timer { id: reorderTimer; interval: 320; onTriggered: root.reordering = false }
 
-  readonly property var watchedEvents: ["openwindow", "closewindow", "movewindowv2", "activewindowv2",
+  // A change of focus moves no window: it needs no new query.
+  readonly property var watchedEvents: ["openwindow", "closewindow", "movewindowv2",
                                        "changefloatingmode", "fullscreen", "workspacev2", "moveworkspacev2"]
   Connections {
     target: Hyprland
     function onRawEvent(event) {
       if (!event || root.watchedEvents.indexOf(String(event.name)) === -1) return
-      Hyprland.refreshToplevels()
+      refreshTimer.restart()
       rebuildTimer.restart()
     }
+  }
+  // Apps installed or removed while the shell runs: their icons are looked up again.
+  Connections {
+    target: DesktopEntries.applications
+    function onValuesChanged() { root.iconCache = ({}); rebuildTimer.restart() }
   }
   Connections {
     target: Hyprland.toplevels

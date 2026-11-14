@@ -26,7 +26,7 @@ class HyprctlMock:
         self.animations = animations
         self.commands = []
 
-    def __call__(self, args, check, text, capture_output):
+    def __call__(self, args, check, text, capture_output, timeout=None):
         self.commands.append(args)
 
         if args == ["hyprctl", "-j", "activewindow"]:
@@ -280,7 +280,7 @@ def test_undo_re_minimizes_last_pop(state_file, monkeypatch):
     state_file.write_text(json.dumps({"1": ["0xaaa"]}))
     hyprctl = HyprctlMock(
         active_workspaces=[{"id": 1}, {"id": 1}],
-        clients=[[client("0xaaa")], [client("0xaaa")]],
+        clients=[[client("0xaaa")], [client("0xaaa", minimized=False)]],
     )
     monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
 
@@ -625,7 +625,7 @@ def test_menu_does_not_auto_restore_single_entry_without_confirmation(
     )
     menu_calls = []
 
-    def subprocess_run(args, check=False, text=True, capture_output=True, input=None):
+    def subprocess_run(args, check=False, text=True, capture_output=True, input=None, timeout=None):
         if args[:2] == ["hyprctl", "-j"]:
             return hyprctl(args, check=check, text=text, capture_output=capture_output)
 
@@ -781,7 +781,7 @@ def fake_omarchy_shell(monkeypatch, reply, selection=None):
     """Stand in for `omarchy-shell shell summon`, answering like the picker plugin."""
     summons = []
 
-    def subprocess_run(args, check=False, text=True, capture_output=True, input=None):
+    def subprocess_run(args, check=False, text=True, capture_output=True, input=None, timeout=None):
         payload = json.loads(args[-1])
         summons.append({"args": args[:-1], "payload": payload})
         if reply == "ok":
@@ -1423,7 +1423,8 @@ def test_show_window_grows_a_floating_one_back(monkeypatch):
     monkeypatch.setattr(minimizer, "_LUA_DISPATCH", True)
     hidden = {"address": "0xaaa", "workspace": {"id": -98, "name": "special:minimized"},
               "tags": ["tuneup-shrunk"], "at": [85, 80], "size": [850, 680], "floating": True}
-    hyprctl = HyprctlMock(clients=[[hidden], [hidden]], monitors=[[{"name": "eDP-1", "focused": True}]])
+    hyprctl = HyprctlMock(clients=[[hidden], [hidden]], monitors=[[{"name": "eDP-1", "focused": True}],
+                                                          [{"name": "eDP-1", "x": 0, "y": 0, "width": 1920, "height": 1080}]])
     monkeypatch.setattr(minimizer.subprocess, "run", hyprctl)
 
     minimizer.show_window("0xaaa", "3", silent=True)

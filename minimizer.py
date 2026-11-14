@@ -20,6 +20,9 @@ BRAVE_APP_CLASS_RE = re.compile(r"^brave-([a-z]+)-Default$")
 URL_APP_CLASS_RE = re.compile(r"^chrome-(.+?)__.*-Default$")
 URL_APP_ICON = "web-browser"
 MAX_UNDO_HISTORY = 5
+HYPRCTL_SECONDS = 5
+# How long a second call waits for the state lock before giving up.
+LOCK_WAIT_SECONDS = 30
 PICKER_PLUGIN_ID = "hypr-minimizer.picker"
 PICKER_TIMEOUT_SECONDS = 600
 # A few frames for Hyprland to settle a window parked below the screen edge.
@@ -79,25 +82,71 @@ def tuneup_option(name: str, default: bool) -> bool:
     return default
 
 
+def lua_text(value: object) -> str:
+    """Text for inside a single-quoted Lua string: quotes, backslashes and
+    control characters (a newline would end the line) cannot break out of it."""
+    escaped = []
+    for char in str(value):
+        if char in "\\'":
+            escaped.append("\\" + char)
+        elif char == "\n":
+            escaped.append("\\n")
+        elif char == "\r":
+            escaped.append("\\r")
+        elif ord(char) < 32 or ord(char) == 127:
+            escaped.append(f"\\x{ord(char):02x}")
+        else:
+            escaped.append(char)
+    return "".join(escaped)
+
+
+def reply_rejected(reply: object) -> bool:
+    """Whether Hyprland refused a dispatch or eval: an error text instead of
+    "ok" (an empty answer counts as taken)."""
+    text = str(reply or "").strip().lower()
+    if not text or text == "ok":
+        return False
+    return text.startswith(("error", "err:", "invalid", "unknown", "failed", "couldn't", "could not")) \
+        or "error:" in text or "lua error" in text
+
+
 def run_hyprctl(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["hyprctl", *args],
-        check=True,
-        text=True,
-        capture_output=True,
-    )
+    """hyprctl exits 0 even when it refuses a command, so dispatch and eval are
+    judged by their reply. A hung compositor must not hang us under the lock."""
+    try:
+        result = subprocess.run(
+            ["hyprctl", *args],
+            check=True,
+            text=True,
+            capture_output=True,
+            timeout=HYPRCTL_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("hyprctl did not answer") from None
+    except FileNotFoundError:
+        raise RuntimeError("hyprctl not found") from None
+    if args and args[0] in ("dispatch", "eval") and reply_rejected(result.stdout):
+        raise RuntimeError(f"hyprctl {args[0]} failed: {str(result.stdout).strip()}")
+    return result
 
 
 def _lua_dispatch_supported() -> bool | None:
     """Hyprland >= 0.56 expects Lua for `hyprctl dispatch`; older versions take strings."""
     global _LUA_DISPATCH
     if _LUA_DISPATCH is None:
-        probe = subprocess.run(
-            ["hyprctl", "dispatch", "hl.dsp.no_op()"],
-            text=True,
-            capture_output=True,
-        )
-        _LUA_DISPATCH = probe.returncode == 0
+        try:
+            probe = subprocess.run(
+                ["hyprctl", "dispatch", "hl.dsp.no_op()"],
+                text=True,
+                capture_output=True,
+                timeout=HYPRCTL_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("hyprctl did not answer") from None
+        except FileNotFoundError:
+            raise RuntimeError("hyprctl not found") from None
+        # An old Hyprland answers the Lua text with an error; only that is a "no".
+        _LUA_DISPATCH = not reply_rejected(probe.stdout)
     return _LUA_DISPATCH
 
 
@@ -109,7 +158,7 @@ def move_window(address: str, workspace: str, silent: bool = False) -> None:
         follow = "false" if silent else "true"
         run_hyprctl(
             "dispatch",
-            f"hl.dsp.window.move({{ workspace = '{workspace}', follow = {follow}, window = 'address:{address}' }})",
+            f"hl.dsp.window.move({{ workspace = '{lua_text(workspace)}', follow = {follow}, window = 'address:{lua_text(address)}' }})",
         )
     else:
         dispatcher = "movetoworkspacesilent" if silent else "movetoworkspace"
@@ -120,7 +169,7 @@ def focus_window(address: str) -> None:
     if _lua_dispatch_supported():
         # Focus alone leaves a floating window behind the others it overlaps;
         # bring_to_top raises the (now active) one above them.
-        batch(f"hl.dsp.focus({{ window = 'address:{address}' }})", "hl.dsp.window.bring_to_top()")
+        batch(f"hl.dsp.focus({{ window = 'address:{lua_text(address)}' }})", "hl.dsp.window.bring_to_top()")
     else:
         run_hyprctl("dispatch", "focuswindow", f"address:{address}")
 
@@ -130,7 +179,7 @@ def set_floating(address: str, floating: bool) -> None:
         action = "enable" if floating else "disable"
         run_hyprctl(
             "dispatch",
-            f"hl.dsp.window.float({{ action = '{action}', window = 'address:{address}' }})",
+            f"hl.dsp.window.float({{ action = '{action}', window = 'address:{lua_text(address)}' }})",
         )
     else:
         dispatcher = "setfloating" if floating else "settiled"
@@ -142,11 +191,11 @@ def place_window(address: str, geometry: list[int]) -> None:
     if _lua_dispatch_supported():
         run_hyprctl(
             "dispatch",
-            f"hl.dsp.window.resize({{ x = {width}, y = {height}, window = 'address:{address}' }})",
+            f"hl.dsp.window.resize({{ x = {width}, y = {height}, window = 'address:{lua_text(address)}' }})",
         )
         run_hyprctl(
             "dispatch",
-            f"hl.dsp.window.move({{ x = {x}, y = {y}, window = 'address:{address}' }})",
+            f"hl.dsp.window.move({{ x = {x}, y = {y}, window = 'address:{lua_text(address)}' }})",
         )
     else:
         run_hyprctl("dispatch", "resizewindowpixel", f"exact {width} {height},address:{address}")
@@ -161,13 +210,13 @@ def batch(*steps: str) -> None:
 
 def slide_in(address: str, workspace_id: str, x: int, y: int, below: int) -> None:
     """Bring a window onto a workspace from below the screen edge (Lua dispatch only)."""
-    window = f"window = 'address:{address}'"
+    window = f"window = 'address:{lua_text(address)}'"
 
     # Moving onto a workspace pulls a window back on screen, so it is parked
     # below the edge right afterwards, unanimated and unseen.
     batch(
         f"hl.dsp.window.set_prop({{ prop = 'no_anim', value = '1', {window} }})",
-        f"hl.dsp.window.move({{ workspace = '{workspace_id}', follow = true, {window} }})",
+        f"hl.dsp.window.move({{ workspace = '{lua_text(workspace_id)}', follow = true, {window} }})",
         f"hl.dsp.window.move({{ x = {x}, y = {below}, {window} }})",
     )
     # Hyprland only takes the parked spot as the animation's start once a frame
@@ -199,7 +248,7 @@ def hidden_here(monitor: str) -> str:
     """The minimized windows' workspace moved onto `monitor` (unseen): a window
     going there or coming from there then stays on its screen instead of
     flying over to the one that held it."""
-    return f"hl.dsp.workspace.move({{ workspace = '{MINIMIZED_WORKSPACE}', monitor = '{monitor}' }})"
+    return f"hl.dsp.workspace.move({{ workspace = '{MINIMIZED_WORKSPACE}', monitor = '{lua_text(monitor)}' }})"
 
 
 def hide_window(address: str, client: dict | None = None) -> None:
@@ -215,7 +264,7 @@ def hide_window(address: str, client: dict | None = None) -> None:
         return
     (x, y), (width, height) = at, size
     tiled = not client.get("floating")
-    window = f"window = 'address:{address}'"
+    window = f"window = 'address:{lua_text(address)}'"
     steps = [hidden_here(monitor)]
     if tiled:
         # Floating where it is, unanimated: it fades in place instead of going
@@ -239,6 +288,22 @@ def hide_window(address: str, client: dict | None = None) -> None:
     move_window(address, MINIMIZED_WORKSPACE, silent=True)
 
 
+def clamp_to_monitor(x: int, y: int, width: int, height: int, monitor_name_: str) -> tuple[int, int]:
+    """Keep a window that comes back inside the screen it lands on: it was
+    minimized where it lay, maybe on a screen that is gone since."""
+    monitor = next((m for m in get_monitors() if m.get("name") == monitor_name_), None) if monitor_name_ else None
+    if monitor is None:
+        return x, y
+    left, top = int(monitor.get("x") or 0), int(monitor.get("y") or 0)
+    try:
+        screen_width, screen_height = monitor_size(monitor)
+    except (KeyError, TypeError, ValueError):
+        return x, y
+    x = max(left, min(x, left + screen_width - width)) if width <= screen_width else left
+    y = max(top, min(y, top + screen_height - height)) if height <= screen_height else top
+    return x, y
+
+
 def show_window(
     address: str, workspace_id: str, silent: bool = False, stay_floating: bool = False
 ) -> None:
@@ -256,9 +321,9 @@ def show_window(
     if monitor:
         batch(hidden_here(monitor))
         client = clients_by_address().get(address) or client  # moved along with it
-    window = f"window = 'address:{address}'"
+    window = f"window = 'address:{lua_text(address)}'"
     follow = "false" if silent else "true"
-    steps = [f"hl.dsp.window.move({{ workspace = '{workspace_id}', follow = {follow}, {window} }})"]
+    steps = [f"hl.dsp.window.move({{ workspace = '{lua_text(workspace_id)}', follow = {follow}, {window} }})"]
     if TILED_TAG in tags:
         if not stay_floating:
             steps.append(f"hl.dsp.window.float({{ action = 'disable', {window} }})")
@@ -266,9 +331,12 @@ def show_window(
     else:
         (x, y), (small_width, small_height) = client.get("at", [0, 0]), client.get("size", [0, 0])
         width, height = round(small_width / MINIMIZE_SHRINK), round(small_height / MINIMIZE_SHRINK)
+        x, y = clamp_to_monitor(
+            x - (width - small_width) // 2, y - (height - small_height) // 2, width, height, monitor
+        )
         steps += [
             f"hl.dsp.window.resize({{ x = {width}, y = {height}, {window} }})",
-            f"hl.dsp.window.move({{ x = {x - (width - small_width) // 2}, y = {y - (height - small_height) // 2}, {window} }})",
+            f"hl.dsp.window.move({{ x = {x}, y = {y}, {window} }})",
             f"hl.dsp.window.tag({{ tag = '-{SHRUNK_TAG}', {window} }})",
         ]
     batch(*steps)
@@ -445,7 +513,16 @@ def state_lock():
     read the old state, or the window of one of them is lost."""
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(STATE_FILE.with_name(STATE_FILE.name + ".lock"), "w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+        deadline = time.monotonic() + LOCK_WAIT_SECONDS
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                # Another call holds it, maybe stuck: waiting forever would pile up.
+                if time.monotonic() > deadline:
+                    raise RuntimeError("another hypr-minimizer call is still running") from None
+                time.sleep(0.02)
         yield
 
 
@@ -607,7 +684,27 @@ def workspace_key(workspace: object) -> str:
     name = str(workspace.get("name") or "")
     if name.startswith("special:"):
         return name
-    return str(workspace.get("id", ""))
+    workspace_id = workspace.get("id", "")
+    if isinstance(workspace_id, int) and workspace_id < 0 and name:
+        # A named workspace has a negative id, which Lua would read as a
+        # relative jump; its name selects it.
+        return f"name:{name}"
+    return str(workspace_id)
+
+
+def workspace_arg(workspace_id: str) -> str:
+    """A workspace as the dock, the taskbar and the Lua file pass it (its id):
+    a named one's negative id becomes the key the stacks use (workspace_key)."""
+    if not workspace_id.startswith("-"):
+        return workspace_id
+    try:
+        workspaces = json.loads(run_hyprctl("-j", "workspaces").stdout)
+    except (json.JSONDecodeError, subprocess.CalledProcessError):
+        return workspace_id
+    for workspace in workspaces if isinstance(workspaces, list) else []:
+        if isinstance(workspace, dict) and str(workspace.get("id")) == workspace_id:
+            return workspace_key(workspace)
+    return workspace_id
 
 
 def monitor_workspace_keys(monitor: dict) -> list[str]:
@@ -829,7 +926,9 @@ def client_icon(client: dict) -> str:
     return window_class
 
 
-def adopt_orphans(state: dict[str, list[str]], clients: dict[str, dict]) -> dict[str, list[str]]:
+def adopt_orphans(
+    state: dict[str, list[str]], clients: dict[str, dict], workspace_id: str | None = None
+) -> dict[str, list[str]]:
     """Windows hidden in special:minimized that no stack knows (the state file was
     lost, a restore did not take): onto the focused workspace's stack, so the menu
     can bring them back."""
@@ -837,10 +936,11 @@ def adopt_orphans(state: dict[str, list[str]], clients: dict[str, dict]) -> dict
     orphans = [address for address, client in clients.items() if is_minimized(client) and address not in known]
     if not orphans:
         return state
-    try:
-        workspace_id = get_active_workspace_id()
-    except RuntimeError:
-        workspace_id = "1"
+    if workspace_id is None:
+        try:
+            workspace_id = get_active_workspace_id()
+        except RuntimeError:
+            workspace_id = "1"
     adopted = {key: list(stack) for key, stack in state.items()}
     adopted.setdefault(workspace_id, []).extend(orphans)
     return adopted
@@ -883,19 +983,22 @@ def stash() -> None:
     if end_peek() == address:
         # Minimizing a peeked window just hides it again.
         return
-    if not address or not workspace_id:
+    if not address or not workspace_id or workspace_id == MINIMIZED_WORKSPACE:
         return
     minimize_from(address, workspace_id)
 
 
 def minimize_from(address: str, workspace_id: str, client: dict | None = None) -> None:
+    if workspace_id == MINIMIZED_WORKSPACE:  # already hidden: no stack of its own
+        return
     state = load_state()
     history = push_undo_snapshot(load_history(), state, workspace_id)
 
-    hide_window(address, client)
-
+    # Saved first: should hiding fail halfway, the window is still on a stack
+    # (a stack entry for a window that stayed is dropped as stale later).
     append_to_stack(state, workspace_id, address)
     save_state(state, history=history)
+    hide_window(address, client)
 
 
 def minimize_address(address: str) -> bool:
@@ -913,7 +1016,7 @@ def minimize_address(address: str) -> bool:
 def stash_others() -> None:
     end_peek()
     active_address, workspace_id = get_active_window()
-    if not active_address or not workspace_id:
+    if not active_address or not workspace_id or workspace_id == MINIMIZED_WORKSPACE:
         return
 
     addresses: list[str] = []
@@ -922,6 +1025,8 @@ def stash_others() -> None:
         address = client.get("address")
         if not isinstance(address, str):
             continue
+        if client.get("pinned") or client.get("mapped") is False:
+            continue  # helper windows and pinned ones stay
         if address != active_address and client_workspace_id(client) == workspace_id:
             addresses.append(address)
             others[address] = client
@@ -932,13 +1037,12 @@ def stash_others() -> None:
     state = load_state()
     history = push_undo_snapshot(load_history(), state, workspace_id)
 
-    moved_addresses: list[str] = []
+    # Each window goes on the stack and the file before it is hidden, so an
+    # abort halfway leaves none hidden without a stack.
     for address in addresses:
+        append_to_stack(state, workspace_id, address)
+        save_state(state, history=history)
         hide_window(address, others[address])
-        moved_addresses.append(address)
-
-    extend_stack(state, workspace_id, moved_addresses)
-    save_state(state, history=history)
 
     focus_window(active_address)
 
@@ -1002,6 +1106,11 @@ def overlaps(first: dict, second: dict) -> bool:
     return x1 < x2 + w2 and x2 < x1 + w1 and y1 < y2 + h2 and y2 < y1 + h1
 
 
+def is_fullscreen(client: dict) -> bool:
+    value = client.get("fullscreen")
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0 or value is True
+
+
 def lies_on_top(address: str, clients: list[dict]) -> bool:
     """Nothing on its desktop covers the window. Hyprland lists windows from the
     bottom up, floating ones always drawn over tiled ones."""
@@ -1010,9 +1119,13 @@ def lies_on_top(address: str, clients: list[dict]) -> bool:
         return False
     client = clients[index]
     workspace_id = client_workspace_id(client)
+    if is_fullscreen(client):
+        return True  # nothing is drawn over a fullscreen window
     for other_index, other in enumerate(clients):
         if other_index == index or client_workspace_id(other) != workspace_id or other.get("hidden"):
             continue
+        if is_fullscreen(other):
+            return False  # a fullscreen window covers the rest of its desktop
         floating, other_floating = bool(client.get("floating")), bool(other.get("floating"))
         above = other_floating > floating or (other_floating == floating and other_index > index)
         if above and overlaps(client, other):
@@ -1063,8 +1176,11 @@ def fetch_address(address: str, workspace_id: str) -> bool:
             float_in_front(address, to_front)
             focus_window(address)
         return True
-    # Not minimized, or hidden without a stack: moved like any other window.
-    if client_workspace_id(client) != workspace_id:
+    # Not minimized, or hidden without a stack: moved like any other window
+    # (a hidden one through show_window, so its tags and size are undone).
+    if is_minimized(client):
+        show_window(address, workspace_id, silent=True, stay_floating=bool(to_front))
+    elif client_workspace_id(client) != workspace_id:
         move_window(address, workspace_id, silent=True)
     if to_front:
         float_in_front(address, to_front)
@@ -1146,7 +1262,14 @@ def end_peek() -> str | None:
     if showing:
         slide_out(address, client)
         move_window(address, MINIMIZED_WORKSPACE, silent=True)
-    if not peek["floating"]:
+    moved_by_hand = not showing and not is_minimized(client)
+    if moved_by_hand:
+        # The user took it elsewhere: it stays as placed, only the minimizer's
+        # leftovers (tags) go.
+        clear_tags(address, client)
+        if not peek["floating"]:
+            set_floating(address, False)
+    elif not peek["floating"]:
         set_floating(address, False)
     elif peek["geometry"]:
         place_window(address, peek["geometry"])  # type: ignore[arg-type]
@@ -1156,6 +1279,14 @@ def end_peek() -> str | None:
         insert_into_stack(state, str(peek["origin"]), address, peek["index"])  # type: ignore[arg-type]
     save_storage(storage)
     return address if showing else None
+
+
+def clear_tags(address: str, client: dict) -> None:
+    """Drop the tags hiding put on a window that is not minimized any more."""
+    tags = [tag for tag in (TILED_TAG, SHRUNK_TAG) if tag in (client.get("tags") or [])]
+    if tags and _lua_dispatch_supported():
+        window = f"window = 'address:{lua_text(address)}'"
+        batch(*(f"hl.dsp.window.tag({{ tag = '-{tag}', {window} }})" for tag in tags))
 
 
 def slide_out(address: str, client: dict) -> None:
@@ -1178,7 +1309,7 @@ def slide_out(address: str, client: dict) -> None:
     x = (client.get("at") or [0])[0]
     run_hyprctl(
         "dispatch",
-        f"hl.dsp.window.move({{ x = {x}, y = {monitor_bottom(monitor)}, window = 'address:{address}' }})",  # type: ignore[arg-type]
+        f"hl.dsp.window.move({{ x = {x}, y = {monitor_bottom(monitor)}, window = 'address:{lua_text(address)}' }})",  # type: ignore[arg-type]
     )
     time.sleep(seconds)
 
@@ -1259,7 +1390,8 @@ def pop() -> None:
     state = storage["stacks"]  # type: ignore[assignment]
     history = storage["history"]  # type: ignore[assignment]
     clients = clients_by_address()
-    state = prune_stale(state, clients)
+    # Windows hidden without a stack (an aborted run) come back with the rest.
+    state = adopt_orphans(prune_stale(state, clients), clients, workspace_id)
     history = push_undo_snapshot(history, state, workspace_id)
     workspace_stack = state.get(workspace_id, [])
 
@@ -1288,7 +1420,8 @@ def pop_all() -> None:
     state = storage["stacks"]  # type: ignore[assignment]
     history = storage["history"]  # type: ignore[assignment]
     clients = clients_by_address()
-    state = prune_stale(state, clients)
+    # Windows hidden without a stack (an aborted run) come back with the rest.
+    state = adopt_orphans(prune_stale(state, clients), clients, workspace_id)
     history = push_undo_snapshot(history, state, workspace_id)
     workspace_stack = state.get(workspace_id, [])
     if not workspace_stack:
@@ -1338,14 +1471,24 @@ def undo() -> None:
         for address in current_workspace_stack
         if address not in target_workspace_stack
     ]
+    # Only windows that are still here and shown: after a restore they may
+    # have moved on, been minimized again by hand or be on another desktop.
     minimized_addresses = [
         address
         for address in target_workspace_stack
         if address not in current_workspace_stack
+        and address in clients
+        and not is_minimized(clients[address])
+        and client_workspace_id(clients[address]) == workspace_id
+    ]
+    target_workspace_stack = [
+        address
+        for address in target_workspace_stack
+        if address in current_workspace_stack or address in minimized_addresses
     ]
 
     for address in minimized_addresses:
-        hide_window(address)
+        hide_window(address, clients[address])
 
     for address in restored_addresses:
         show_window(address, str(workspace_id))
@@ -1381,7 +1524,7 @@ def print_list(as_json: bool) -> None:
 
 def workspace_label(workspace_id: object) -> str:
     """"scratchpad" for special:scratchpad, the number for a desktop."""
-    return str(workspace_id).removeprefix("special:")
+    return str(workspace_id).removeprefix("special:").removeprefix("name:")
 
 
 def menu_label(entry: dict[str, object], duplicate_app_names: set[str]) -> str:
@@ -1614,7 +1757,9 @@ def main() -> None:
             return
         with state_lock():
             run_command(args)
-    except RuntimeError as error:  # Hyprland not answering, no focused monitor (a hotplug)
+    except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+        # Hyprland not answering or answering oddly, no focused monitor (a
+        # hotplug): a clean message instead of a traceback.
         print(f"hypr-minimizer: {error}", file=sys.stderr)
         raise SystemExit(1) from None
 
@@ -1640,9 +1785,9 @@ def run_command(args: argparse.Namespace) -> None:
     elif args.command == "minimize":
         raise SystemExit(0 if minimize_address(args.address) else 1)
     elif args.command == "fetch":
-        raise SystemExit(0 if fetch_address(args.address, args.workspace) else 1)
+        raise SystemExit(0 if fetch_address(args.address, workspace_arg(args.workspace)) else 1)
     elif args.command == "toggle":
-        raise SystemExit(0 if toggle_address(args.address, args.workspace) else 1)
+        raise SystemExit(0 if toggle_address(args.address, workspace_arg(args.workspace)) else 1)
     elif args.command == "peek":
         raise SystemExit(0 if peek_address(args.address) else 1)
 
