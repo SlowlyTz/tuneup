@@ -1,5 +1,7 @@
 """Keys: the minimizer's shortcuts, recording one, the desktop key options."""
 import copy
+import threading
+import time
 
 from hypr_screens import config, hypr, keybinds
 from hypr_screens.api.core import ApiError, endpoint, need, settings, run_sync
@@ -53,7 +55,7 @@ def hypr_binds() -> dict[str, str]:
 
 def action_view(cfg: dict, action: str) -> dict:
     return {"id": action, "title": ACTION_TITLES[action], "desc": ACTION_HELP[action],
-            "slots": [combo or None for combo in cfg["keybinds"][action]]}
+            "slots": [keybinds.normalize(combo) or combo or None for combo in cfg["keybinds"][action]]}
 
 
 def options_view(cfg: dict) -> dict:
@@ -80,13 +82,18 @@ def keys() -> dict:
 def set_key(action: str, slot: int, combo: str | None) -> dict:
     """Puts `combo` ("SUPER + M"; "" or None removes) on one of an action's two
     slots. Another action of ours with that key loses it; a Hyprland key on it
-    is replaced while Tuneup runs (listed in "conflicts")."""
+    is replaced while Tuneup runs (listed in "conflicts"). A key alone (Q, Space)
+    is refused: it would stop working in every app. "live" is false when
+    Hyprland did not take the change (it holds after the next reload)."""
     need(isinstance(action, str) and action in config.DEFAULT_KEYBINDS, "bad_value", f"unknown action: {action!r}")
     need(type(slot) is int and slot in (0, 1), "bad_value", "slot must be 0 or 1")
     need(combo is None or isinstance(combo, str), "bad_value", "combo must be text")
     raw = (combo or "").strip()
     combo = keybinds.normalize(raw) if raw else ""
     need(not raw or combo, "bad_value", f"not a key combination: {raw!r}")
+    if combo:
+        combo = keybinds.check_combo(combo)
+    others = keybinds.conflicts(combo) if combo else []  # asked of Hyprland before the lock is taken
     before = []
 
     def mutate(cfg):
@@ -95,35 +102,77 @@ def set_key(action: str, slot: int, combo: str | None) -> dict:
             for index, existing in enumerate(combos):
                 if combo and (other, index) != (action, slot) and keybinds.normalize(existing) == combo:
                     combos[index] = ""
-        keybinds.set_key(cfg, action, slot, combo)
+        keybinds.set_key(cfg, action, slot, combo, others)
         return cfg["keybinds"] != before[0]["keybinds"]
-    cfg = config.update(mutate)
-    if cfg["keybinds"] != before[0]["keybinds"]:
-        keybinds.write(cfg)
-        keybinds.go_live(before[0], cfg)
-    return {**action_view(cfg, action), "conflicts": keybinds.conflicts(combo) if combo else []}
+    live = True
+    with config.locked():  # the Lua file follows the settings, whoever else writes
+        cfg = config.update(mutate)
+        changed = cfg["keybinds"] != before[0]["keybinds"]
+        if changed:
+            keybinds.write(cfg)
+    if changed:
+        live = keybinds.go_live(before[0], cfg)
+    return {**action_view(cfg, action), "conflicts": others, "live": live}
 
 
 # A capture is running: Hyprland is in the empty keymap, where none of the
 # usual keys (Super+W included) work until it ends.
 _capturing = False
+_capture_until = 0.0
+_capture_lock = threading.Lock()
+# The page asks key_capture_active() while it records; without a question for
+# this long (the page is gone, the window closed in a race) the keys come back.
+CAPTURE_GRACE_SECONDS = 4.0
+CAPTURE_START_SECONDS = 10.0
+
+
+def _watch_capture() -> None:
+    """Gives the keys back when the page stops asking."""
+    while True:
+        time.sleep(0.5)
+        with _capture_lock:
+            if not _capturing:
+                return
+            expired = time.monotonic() > _capture_until
+        if expired:
+            end_key_capture()
+            return
 
 
 @endpoint
 def begin_key_capture() -> dict:
     """While the page records a shortcut: an empty Hyprland keymap, so keys that
-    are bound already reach the page instead of firing (Esc always gets out)."""
-    global _capturing
-    hypr.dispatch(f'hl.dsp.submap("{keybinds.RECORD_SUBMAP}")')
-    _capturing = True
+    are bound already reach the page instead of firing (Esc gets out of it and
+    reaches the page as well). Fails when Hyprland does not switch."""
+    global _capturing, _capture_until
+    with _capture_lock:
+        if hypr.rejected(hypr.dispatch(f'hl.dsp.submap("{keybinds.RECORD_SUBMAP}")')):
+            raise ApiError("capture_failed", "Hyprland did not switch to the recording keymap.")
+        _capturing = True
+        _capture_until = time.monotonic() + CAPTURE_START_SECONDS
+    threading.Thread(target=_watch_capture, daemon=True).start()
     return {"ok": True}
+
+
+@endpoint
+def key_capture_active() -> dict:
+    """Whether Hyprland is still in the recording keymap (the page asks about
+    twice a second while it records; Esc or anything else may have left it)."""
+    global _capturing, _capture_until
+    reply = hypr.hyprctl("submap").strip()
+    with _capture_lock:
+        if _capturing and not hypr.rejected(reply) and reply != keybinds.RECORD_SUBMAP:
+            _capturing = False
+        _capture_until = time.monotonic() + CAPTURE_GRACE_SECONDS
+        return {"active": _capturing}
 
 
 @endpoint
 def end_key_capture() -> dict:
     global _capturing
-    hypr.dispatch('hl.dsp.submap("reset")')
-    _capturing = False
+    with _capture_lock:
+        hypr.dispatch('hl.dsp.submap("reset")')
+        _capturing = False
     return {"ok": True}
 
 
@@ -132,6 +181,10 @@ def release_key_capture() -> None:
     (the page may be gone before it could end the capture itself)."""
     if _capturing:
         end_key_capture()
+
+
+# Only these change where desktops live or what happens to windows of an unplugged screen.
+SYNC_OPTIONS = ("default_fixed", "fixed_desktops", "unplug_windows", "desktop_keys", "scratch", "scratch_kept")
 
 
 @endpoint
@@ -160,5 +213,7 @@ def set_option(name: str, value: object) -> dict:
     cfg = config.update(mutate)
     if before[0][name] != value:
         keybinds.option_changed(before[0], cfg, name)
-        run_sync()
+        reloaded = name in keybinds.RELOAD_OPTIONS and before[0][name] and not value
+        if name in SYNC_OPTIONS or reloaded:
+            run_sync()  # a reload resets the screens' settings too
     return options_view(cfg)

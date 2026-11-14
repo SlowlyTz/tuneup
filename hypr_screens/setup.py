@@ -12,15 +12,23 @@ every update; existing settings are kept.
 6. the Omarchy shell plugins: the window list, the bar widgets, the desktop widgets
 7. the desktop entry and the icon
 """
+import time
 from pathlib import Path
 
-from hypr_screens import brand, config, hypr, install, keybinds, migrate, samsung, scratch, widgets
+from hypr_screens import apply, brand, config, hypr, install, keybinds, migrate, samsung, scratch, widgets
 
 
 def lua(cfg: dict, moved: bool) -> list[str]:
     """Write the Lua file and make sure hyprland.lua loads it. A file Hyprland
-    has not loaded yet takes a reload; otherwise the keys go live by eval."""
+    has not loaded yet, or one an update changed, takes a reload (writing it
+    holds Hyprland's own reload back, and handlers that live only in the file
+    would otherwise wait for the next login); otherwise the keys go live by eval."""
+    try:
+        before = keybinds.lua_file().read_text()
+    except OSError:
+        before = None
     done = [f"wrote {keybinds.write(cfg)}"]
+    changed = before is not None and keybinds.lua_file().read_text() != before
     if not keybinds.hyprland_file().exists():
         return done + [f"no {keybinds.hyprland_file()}: Tuneup needs Hyprland >= 0.56 with a Lua config; "
                        f"load the file with {keybinds.REQUIRE_LINE}"]
@@ -28,7 +36,8 @@ def lua(cfg: dict, moved: bool) -> list[str]:
     if added:
         keybinds.add_require()
         done.append(f"{keybinds.hyprland_file()}: {keybinds.REQUIRE_LINE}")
-    if added or moved:
+    if added or moved or changed:
+        apply.reload_mark().write_text(f"{time.time()}\n")  # an own reload: a running watcher does not sync after it
         hypr.hyprctl("reload")
         done.append("reloaded Hyprland")
     else:

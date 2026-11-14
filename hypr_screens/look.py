@@ -71,8 +71,8 @@ def normalize(raw: object) -> dict:
     for rule in raw.get("apps") if isinstance(raw.get("apps"), list) else []:
         if not isinstance(rule, dict) or not str(rule.get("class") or "").strip():
             continue
-        name = str(rule["class"]).strip()
-        if any(other["class"] == name for other in apps):
+        name = re.sub(r"[\x00-\x1f\x7f]", "", str(rule["class"])).strip()
+        if not name or any(other["class"] == name for other in apps):
             continue
         active, inactive = (clean("active_opacity", rule.get(k, 1.0)) for k in ("active", "inactive"))
         apps.append({"class": name, "active": active if active is not None else 1.0,

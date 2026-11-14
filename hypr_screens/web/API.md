@@ -96,7 +96,7 @@ fixed is not a screen setting: it follows the `default_fixed` option and swaps.
 screen is connected. **The real model has one screen at most**, not a list of
 several. `active` = the value is set and its condition holds now.
 
-### `setScreenSetting(sid, key, value, when?)` → `Screen & {applied: string[]}`
+### `setScreenSetting(sid, key, value, when?, arm?)` → `Screen & {applied: string[]}`
 
 - `key`: `rotation | scale | mode | position | mirror`; `value: null` unsets
   (its condition goes with it).
@@ -104,6 +104,13 @@ several. `active` = the value is set and its condition holds now.
 - Saves, then applies everything (`engine.sync`: monitor rules, desktops).
   `applied` lists the connectors that got a new rule (empty when nothing
   changed on screen) – use it for "Keep this setting?".
+- `arm`: true when the page asks "Keep this setting?" next. Until
+  `clearPendingKeep()` the change goes back by itself if the window closes
+  (or the page's web process dies), as when the countdown runs out.
+
+### `clearPendingKeep()` → `{ok: true}`
+
+The page answered "Keep this setting?" (kept, or reverted by itself).
 - **Position from a drag**: `value` may be `{x, y}` – the dragged screen's
   top-left in the same coordinates as `position`. It is turned into the
   nearest side of the laptop (by the rectangles' middles); the backend then
@@ -145,16 +152,26 @@ Swaps which screen is fixed until the monitor is unplugged. Error `no_external`.
 }
 ```
 
-### `setKey(action, slot, combo)` → `Action & {conflicts: string[]}`
+### `setKey(action, slot, combo)` → `Action & {conflicts: string[], live: boolean}`
 `slot` 0/1; `combo` like `"SUPER + SHIFT + PERIOD"` (normalized), `""`/`null`
 removes. Another action of ours with the same key loses it. `conflicts` names
 the Hyprland binds it now replaces (while Tuneup runs). The Lua file is
-rewritten and the keys go live at once.
+rewritten and the keys go live at once; `live: false` when Hyprland refused
+that (saved anyway, taken on the next reload). A combo without Super, Ctrl,
+Alt or Shift is refused with `bad_value` (F-keys, XF86 keys, Print and Pause
+may stand alone), as is a key name xkb does not know.
 
 ### `beginKeyCapture()` / `endKeyCapture()` → `{ok: true}` (new)
 Call around the "press the new keys" dialog: Hyprland switches to an empty
 keymap, so combos it has bound (Super+Q closes the window!) reach the page.
-Esc always drops back to the normal keymap.
+Esc always drops back to the normal keymap (and still reaches the page).
+`beginKeyCapture` fails with `capture_failed` when Hyprland refuses the switch;
+the dialog then takes no keys. If the page stops asking `keyCaptureActive` for
+a few seconds, the capture ends by itself.
+
+### `keyCaptureActive()` → `{active: boolean}` (new)
+Whether Hyprland is still in the capture keymap; the dialog polls it and
+closes once it is not (Esc, or the capture ended elsewhere).
 
 ### `setOption(name, value)` → `options`
 `desktop_keys` true/false (rewrites and reloads the keys, then syncs),
@@ -370,9 +387,11 @@ it starts in the middle of the screen (`placed: false`) – offer
 ```
 - `saveLayout(name)` – keeps all widgets as they are under this name (replaces one of that name).
 - `loadLayout(name)` – the widgets as saved; live at once. Also returns
-  `previous`: all widgets as they were before (saved or not).
-- `restoreWidgets(previous)` (new) – undoes a load: the widgets back as in that
-  `previous`. `bad_value` if it is not an object.
+  `previous`: all widgets as they were before (saved or not), and `loaded`:
+  the widgets the load produced.
+- `restoreWidgets(previous, loaded?)` (new) – undoes a load: the widgets back as in that
+  `previous`. `bad_value` if it is not an object. With `loaded`, `conflict`
+  when the widgets changed since the load (an old snapshot never overwrites them).
 - `deleteLayout(name)` (new), `renameLayout(name, newName)` (new; `conflict`).
 - `setLayoutAuto(name, on)` (new) – loads by itself whenever exactly the screens
   connected now are connected (another layout with the same screens gives them up).

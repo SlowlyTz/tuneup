@@ -351,8 +351,9 @@
     screens: () => reply(db.screens),
     /** key: rotation | scale | mode | position | mirror; value null = unset.
      *  when: null/undefined keeps the condition, [] = always, [sid] = only with that one.
-     *  position: "left" | "right" | "above" | "below", or {x, y} from a drag. */
-    async setScreenSetting(sid, key, value, when) {
+     *  position: "left" | "right" | "above" | "below", or {x, y} from a drag.
+     *  arm (ignored here): the real backend reverts it if the window closes before clearPendingKeep. */
+    async setScreenSetting(sid, key, value, when, arm) {
       let s = screen(sid);
       const target0 = s;
       need(["rotation", "scale", "mode", "position", "mirror"].includes(key), "bad_value", `unknown setting: ${key}`);
@@ -365,6 +366,7 @@
       const applied = changed();
       return reply({ ...target0, applied });
     },
+    clearPendingKeep: () => reply({ ok: true }),
     async forgetScreen(sid) {
       const s = screen(sid);
       need(!s.laptop, "internal_screen", "the laptop screen cannot be forgotten");
@@ -410,6 +412,7 @@
     },
     async beginKeyCapture() { return reply({ ok: true }); },
     async endKeyCapture() { return reply({ ok: true }); },
+    async keyCaptureActive() { return reply({ active: true }); },
 
     /* Window look */
     look: () => reply({ ...db.look, values: db.lookShown || db.look.values, previewing: !!db.lookShown }),
@@ -551,10 +554,11 @@
       knownLayout(name);
       const previous = snapshot();
       restore(db.layoutStore[name]);
-      return reply({ ...layoutsView(), previous });
+      return reply({ ...layoutsView(), previous, loaded: snapshot() });
     },
-    async restoreWidgets(previous) {
+    async restoreWidgets(previous, loaded) {
       need(previous && typeof previous === "object", "bad_value", "previous must be the widgets from loadLayout");
+      need(!loaded || JSON.stringify(loaded) === JSON.stringify(snapshot()), "conflict", "The widgets changed since – not going back");
       restore(previous);
       return reply(layoutsView());
     },

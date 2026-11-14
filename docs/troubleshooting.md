@@ -87,7 +87,7 @@ What helps then:
 
 ## Stuck in "press the new shortcut"
 
-Press `Esc`. If it is still stuck:
+Press `Esc` (the dialog also closes by itself once Hyprland has left the recording keymap, and the keymap ends by itself a few seconds after the window is gone). If it is still stuck:
 
 ```bash
 hyprctl dispatch 'hl.dsp.submap("reset")'

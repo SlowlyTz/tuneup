@@ -15,7 +15,7 @@ Only **window keys** live on the keyboard: minimize, bring back, the window menu
 
 1. Tray icon → Tuneup → **Keyboard**.
 2. Click the key you want to change, or **+ Second key**.
-3. Press the new combination. `Backspace` removes the key, `Esc` cancels.
+3. Press the new combination. `Backspace` removes the key, `Esc` cancels. A key alone needs `SUPER`, `CTRL`, `ALT` or `SHIFT` with it (only F-keys, media keys, `Print` and `Pause` may stand alone), so it never stops working in your apps.
 4. If the key is already used by something else, Tuneup tells you what it does now and asks before replacing it.
 
 While you press the new keys, Hyprland's own shortcuts are paused, so even taken combinations get recorded.

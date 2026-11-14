@@ -413,16 +413,20 @@ def keys_change(work) -> tuple[dict, dict] | int:
 
 
 def bind_command(args: argparse.Namespace) -> int:
-    from hypr_screens import keybinds
+    from hypr_screens import config, keybinds
 
     notes = []
-    result = keys_change(lambda cfg: notes.append(keybinds.set_key(cfg, args.action, args.slot - 1, args.combo)))
-    if isinstance(result, int):
-        return result
-    before, cfg = result
-    keybinds.write(cfg)
-    keybinds.go_live(before, cfg)
-    print_state(cfg, notes[0])
+    parsed = keybinds.parse(args.combo)
+    others = keybinds.conflicts(keybinds.normalize(args.combo)) if parsed else []  # asked before the lock
+    with config.locked():  # the file follows the settings, whoever else writes
+        result = keys_change(lambda cfg: notes.append(
+            keybinds.set_key(cfg, args.action, args.slot - 1, args.combo, others)))
+        if isinstance(result, int):
+            return result
+        before, cfg = result
+        keybinds.write(cfg)
+    live = keybinds.go_live(before, cfg)
+    print_state(cfg, notes[0] if live else f"{notes[0]}; Hyprland did not take it live (it will after a reload)".lstrip("; "))
     return 0
 
 

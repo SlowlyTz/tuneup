@@ -96,7 +96,7 @@ def fix_look(cfg: dict) -> None:
 
 
 def fix_keys(cfg: dict) -> None:
-    keybinds.go_live(None, cfg)
+    keybinds.go_live(None, cfg, settled=True)
 
 
 # (area, item, check, fix); a sync for the screens places the desktops as well.
@@ -116,7 +116,10 @@ def run(cfg: dict | None = None) -> list[str]:
     """One audit; returns what was put back ("area: detail")."""
     if apply.busy("sync") or apply.busy("apply"):
         return []
-    cfg = config.load() if cfg is None else cfg
+    try:
+        cfg = config.read() if cfg is None else cfg
+    except config.ConfigError:
+        return []  # not the defaults in its place: they would bind the standard keys on top of the user's
     if not enforce.enabled(cfg):
         return dark_screens(Audit(cfg), recover=False)
     audit = Audit(cfg)

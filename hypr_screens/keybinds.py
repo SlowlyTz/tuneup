@@ -6,9 +6,14 @@ window (tray icon).
 Tuneup owns ~/.config/hypr/tuneup.lua (hypr_screens.lua before), loaded by one
 line at the end of hyprland.lua (REQUIRE_LINE). It unbinds whatever else sits on our keys first,
 so nothing fires twice. Changes also go live at once via `hyprctl eval` -- a
-reload would reset the monitor settings for a moment.
+reload would reset the monitor settings for a moment. Hyprland reloads by
+itself when a file it loaded changes (misc:disable_autoreload is off), so write()
+holds that back for the moment of writing and leaves an unchanged file alone.
 """
+import ctypes
+import ctypes.util
 import os
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -22,6 +27,7 @@ SETTINGS_SIZE = (1100, 760)
 # be shown counts as started from it: a running app needs a moment to answer.
 LAUNCHER_NAMESPACE = "omarchy-menu"
 LAUNCH_WINDOW_MS = 5000
+MINIMIZER_COMMAND = "hypr-minimizer"
 REQUIRE_LINE = f'require("hypr.{brand.LUA_MODULE}")'
 OLD_REQUIRE_LINE = f'require("hypr.{brand.OLD_LUA_MODULE}")'
 REQUIRE_COMMENT = f"-- {brand.NAME}: keys, desktop keys, monitor watcher"
@@ -33,7 +39,13 @@ MODIFIERS = {
     "SHIFT": 1, "CAPS": 2, "CTRL": 4, "CONTROL": 4, "ALT": 8, "MOD2": 16, "MOD3": 32,
     "SUPER": 64, "WIN": 64, "LOGO": 64, "MOD4": 64, "MOD5": 128,
 }
+REAL_MODIFIERS = MODIFIERS["SHIFT"] | MODIFIERS["CTRL"] | MODIFIERS["ALT"] | MODIFIERS["SUPER"] | MODIFIERS["MOD5"]
 MODIFIER_ORDER = ["SUPER", "CTRL", "ALT", "SHIFT"]
+# Spellings that are no xkb key name (older versions of the page wrote them).
+KEY_ALIASES = {"PAGEUP": "PRIOR", "PAGE_UP": "PRIOR", "PAGEDOWN": "NEXT", "PAGE_DOWN": "NEXT"}
+# Keys that may be bound without a modifier: they are not typed into apps.
+BARE_KEY = re.compile(r"^(F\d{1,2}|XF86[A-Z0-9_]+|PRINT|PAUSE)$")
+KEY_NAME = re.compile(r"^(code:\d+|[A-Za-z0-9_]+)$", re.IGNORECASE)
 
 # Keys whose keycode does not depend on the layout, so a keysym bind and a
 # `code:` bind on the same key are recognised as the same key.
@@ -96,7 +108,9 @@ def parse(combo: str) -> tuple[int, str] | None:
         if mod.upper() not in MODIFIERS:
             return None
         mask |= MODIFIERS[mod.upper()]
-    key = key if key.lower().startswith("code:") else key.upper()
+    if not KEY_NAME.match(key):
+        return None  # also keeps quotes and line breaks out of the Lua file
+    key = key if key.lower().startswith("code:") else KEY_ALIASES.get(key.upper(), key.upper())
     return mask, key
 
 
@@ -108,6 +122,27 @@ def normalize(combo: str) -> str:
     mask, key = parsed
     mods = [mod for mod in MODIFIER_ORDER if mask & MODIFIERS[mod]]
     return " + ".join([*mods, key])
+
+
+def known_key(key: str) -> bool:
+    """Whether xkb knows the key's name (Hyprland binds a name it does not
+    know without a word, and the key never fires). True when it cannot be
+    checked."""
+    if key.lower().startswith("code:"):
+        return key[5:].isdigit() and 8 <= int(key[5:]) <= 255
+    try:
+        library = ctypes.CDLL(ctypes.util.find_library("xkbcommon") or "libxkbcommon.so.0")
+        library.xkb_keysym_from_name.argtypes = [ctypes.c_char_p, ctypes.c_int]
+        return library.xkb_keysym_from_name(key.encode(), 1) != 0  # 1: ignore case
+    except (OSError, AttributeError):
+        return True
+
+
+def needs_modifier(combo: str) -> bool:
+    """A key alone would stop working in every app (Q, Space ...); function and
+    media keys are fine."""
+    parsed = parse(combo)
+    return parsed is not None and not parsed[0] & REAL_MODIFIERS and not BARE_KEY.match(parsed[1])
 
 
 def keycode(key: str) -> int | None:
@@ -266,7 +301,32 @@ def missing(cfg: dict, binds: list[dict]) -> list[str]:
     return found
 
 
-def render(cfg: dict, runtime: bool = False) -> str:
+def record_lines() -> list[str]:
+    """The blur of the widget cards and the empty keymap of the key recorder:
+    set once per Hyprland config load, a second time they would be listed twice."""
+    return [
+        "",
+        "-- Desktop widgets with a blurred card sit on their own layers, blurred here.",
+        WIDGETS_BLUR_RULE,
+        "",
+        "-- Empty keymap used while the menu records a new shortcut, so keys that are",
+        "-- already bound reach the menu instead of firing. Escape gets out of it, and",
+        "-- still reaches the menu (non_consuming), which ends the recording itself.",
+        f"hl.define_submap({lua_quote(RECORD_SUBMAP)}, function()",
+        '  hl.bind("escape", hl.dsp.submap("reset"), { non_consuming = true })',
+        "end)",
+    ]
+
+
+def record_loaded() -> bool:
+    """Hyprland has the recorder's keymap (and so the rest of record_lines())
+    from the loaded file already."""
+    return any(bind.get("submap") == RECORD_SUBMAP for bind in hypr.query_list("binds"))
+
+
+def render(cfg: dict, runtime: bool = False, fresh: bool = True) -> str:
+    """The Lua file; runtime: what goes live by eval (no watcher, no events, no
+    gestures); fresh: with the parts Hyprland may have from the file already."""
     lines = [
         f"-- Generated by {brand.NAME}. Do not edit: change keys in the app",
         f"-- (tray icon) or with `{brand.COMMAND} bind`. Loaded by this line in hyprland.lua:",
@@ -298,16 +358,8 @@ def render(cfg: dict, runtime: bool = False) -> str:
     window_look = look.lua_table(cfg.get("look") or {})
     if window_look:
         lines += ["", "-- Window look from Personalization → Window (overrides the Omarchy theme).", window_look]
-    lines += ["", "-- Desktop widgets with a blurred card sit on their own layers, blurred here.",
-              WIDGETS_BLUR_RULE]
-    lines += [
-        "",
-        "-- Empty keymap used while the menu records a new shortcut, so keys that are",
-        "-- already bound reach the menu instead of firing. Escape always gets out.",
-        f"hl.define_submap({lua_quote(RECORD_SUBMAP)}, function()",
-        '  hl.bind("escape", hl.dsp.submap("reset"))',
-        "end)",
-    ]
+    if fresh:
+        lines += record_lines()
     if not runtime:
         gestures = scratch.gesture_lines(cfg)
         if gestures:
@@ -377,6 +429,11 @@ def render(cfg: dict, runtime: bool = False) -> str:
             "  local there = window.workspace",
             "  if not here or not there then return end",
             '  local target = "address:" .. window.address',
+            '  if not window.pinned and there.name == "special:minimized" then',
+            "    -- Minimized: back through the minimizer, which undoes its tags and the smaller size.",
+            f'    hl.exec_cmd("{MINIMIZER_COMMAND} fetch " .. window.address .. " " .. tostring(here.id))',
+            "    return",
+            "  end",
             "  if not window.pinned and there.id ~= here.id and not (there.special and there.visible) then",
             "    hl.dispatch(hl.dsp.window.move({ workspace = tostring(here.id), follow = false, window = target }))",
             "  end",
@@ -394,15 +451,45 @@ def resize_gesture_lines(cfg: dict) -> list[str]:
             "action = \"resize\" })"]
 
 
+AUTORELOAD_HOLD_MS = 3000
+# Hyprland reloads the whole config (monitors, shell, desktops) when a file it
+# loaded changes. Off for a moment around the write, and given back as it was
+# (a later hold takes the earlier one's timer over).
+HOLD_AUTORELOAD = f"""\
+local gen = (_G.tuneup_autoreload_gen or 0) + 1
+_G.tuneup_autoreload_gen = gen
+if _G.tuneup_autoreload_was == nil then
+  local now = hl.get_config("misc.disable_autoreload")
+  _G.tuneup_autoreload_was = now == true or now == 1
+end
+hl.config({{ misc = {{ disable_autoreload = true }} }})
+hl.timer(function()
+  if _G.tuneup_autoreload_gen ~= gen then return end
+  hl.config({{ misc = {{ disable_autoreload = _G.tuneup_autoreload_was }} }})
+  _G.tuneup_autoreload_was = nil
+end, {{ timeout = {AUTORELOAD_HOLD_MS}, type = "oneshot" }})"""
+
+
 def write(cfg: dict) -> Path:
+    """The Lua file for `cfg`, in one step and only when it changes: Hyprland
+    reloads on every write, and the keys go live by eval instead."""
     path = lua_file()
+    text = render(cfg)
+    try:
+        if path.read_text() == text:
+            return path
+    except OSError:
+        pass
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render(cfg))
+    hypr.eval_lua(HOLD_AUTORELOAD)
+    replace_text(path, text)
     return path
 
 
-def go_live(old: dict | None, new: dict) -> None:
-    """Make the new keys work now: drop keys that are gone, rebind the rest."""
+def go_live(old: dict | None, new: dict, settled: bool = False) -> bool:
+    """Make the new keys work now: drop keys that are gone, rebind the rest.
+    settled: the keys are put back again (nothing new, Hyprland has the file's
+    gestures). False when Hyprland did not take it."""
     lines = []
     if old is not None:
         kept = {normalize(combo) for keys in new["keybinds"].values() for combo in keys}
@@ -419,12 +506,12 @@ def go_live(old: dict | None, new: dict) -> None:
                 lines.append(f"hl.unbind({lua_quote(combo)})")
         gone = {combo for combo, _b, _l in scratch.binds(old)} - {combo for combo, _b, _l in scratch.binds(new)}
         lines += [f"hl.unbind({lua_quote(combo)})" for combo in sorted(gone)]
-    if old is None or not scratch.swipes(old):
+    if (old is None and not settled) or (old is not None and not scratch.swipes(old)):
         lines += scratch.gesture_lines(new)  # not on every change; taking them away needs a reload
-    if old is None or not old.get("resize_swipe"):
+    if (old is None and not settled) or (old is not None and not old.get("resize_swipe")):
         lines += resize_gesture_lines(new)
-    code = "\n".join(lines) + "\n" + render(new, runtime=True)
-    hypr.eval_lua(code)
+    code = "\n".join(lines) + "\n" + render(new, runtime=True, fresh=not record_loaded())
+    return not hypr.rejected(hypr.eval_lua(code))
 
 
 def is_required() -> bool:
@@ -484,19 +571,31 @@ def remove_require() -> bool:
     return True
 
 
-def set_key(cfg: dict, action: str, slot: int, combo: str) -> str:
-    """Store a key; returns a note about what it replaces (or "")."""
+def check_combo(combo: str) -> str:
+    """The canonical combo, or ValueError for one that cannot be bound well."""
+    parsed = parse(combo)
+    if parsed is None:
+        raise ValueError(f"not a key combination: {combo}")
+    if needs_modifier(combo):
+        raise ValueError(f"{normalize(combo)} needs Super, Ctrl, Alt or Shift: a key alone would stop working in every app")
+    if not known_key(parsed[1]):
+        raise ValueError(f"unknown key: {parsed[1]}")
+    return normalize(combo)
+
+
+def set_key(cfg: dict, action: str, slot: int, combo: str, others: list[str] | None = None) -> str:
+    """Store a key; returns a note about what it replaces (or ""). others:
+    what else sits on the key (asked of Hyprland before, so this can run under
+    the settings lock)."""
     if action not in cfg["keybinds"] or slot not in (0, 1):
         raise ValueError("unknown action or slot")
-    if combo and parse(combo) is None:
-        raise ValueError(f"not a key combination: {combo}")
-    combo = normalize(combo) if combo else ""
+    combo = check_combo(combo) if combo else ""
     notes = []
     if combo:
         mine = taken_by_us(cfg, combo, except_slot=(action, slot))
         if mine:
             raise ValueError(f"{combo} is already used for {mine}")
-        others = conflicts(combo)
+        others = conflicts(combo) if others is None else others
         if others:
             notes.append(f"{combo} replaces: {', '.join(others)}")
     cfg["keybinds"][action][slot] = combo
@@ -523,8 +622,8 @@ def option_changed(before: dict, cfg: dict, name: str) -> None:
         return
     write(cfg)
     if name in RELOAD_OPTIONS and before[name] and not cfg[name]:
-        if name == "scratch":
-            scratch.unpark_all()
         hypr.hyprctl("reload")
+        if name == "scratch":
+            scratch.unpark_all()  # after the reload: the handlers of the park are gone then
     else:
         go_live(before, cfg)

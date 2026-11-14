@@ -1,5 +1,6 @@
 """Thin hyprctl wrappers. Tuneup needs Hyprland >= 0.56 (Lua dispatchers)."""
 import json
+import re
 import subprocess
 
 HYPRCTL_SECONDS = 5
@@ -54,5 +55,11 @@ def eval_lua(code: str) -> str:
     return hyprctl("eval", code)
 
 
+_LUA_CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+
+
 def lua_string(value: str) -> str:
-    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+    """A Lua string literal for any text: quotes, backslashes and control
+    characters (a newline would end the line) are escaped."""
+    text = str(value).replace("\\", "\\\\").replace('"', '\\"')
+    return '"' + _LUA_CONTROL.sub(lambda match: f"\\{ord(match.group()):03d}", text) + '"'
