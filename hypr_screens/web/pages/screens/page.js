@@ -22,7 +22,7 @@ const keepIfApplied = (r) => r && r.applied && r.applied.length > 0;
 function setScreen(s, key, value, when = null, msg = undefined) {
   const old = clone(s.settings[key]);
   return change(
-    () => api.setScreenSetting(s.id, key, value, when),
+    () => api.setScreenSetting(s.id, key, value, when, true),
     () => api.setScreenSetting(s.id, key, old.value, old.value == null ? [] : old.when),
     { reload: ["screens"], confirm: keepIfApplied, msg },
   );
@@ -262,7 +262,7 @@ export function pageScreens() {
   afterRender(() => bindArrange({
     onDrop: (s, at, drop) => {
       const old = clone(drop.target.settings.position);
-      change(() => api.setScreenSetting(s.id, "position", at),
+      change(() => api.setScreenSetting(s.id, "position", at, null, true),
         () => api.setScreenSetting(drop.target.id, "position", old.value, old.value == null ? [] : old.when),
         { reload: ["screens"], confirm: keepIfApplied });
     },

@@ -1,6 +1,7 @@
 """Screens: the list, their settings, dragging one next to the laptop, the fixed screen."""
 import copy
 import re
+import threading
 
 from hypr_screens import apply, config, desktops, hypr
 from hypr_screens.api.core import ApiError, endpoint, need, is_number, settings, recorded, run_sync
@@ -205,12 +206,48 @@ def side_from_point(cfg: dict, sid: str, point: dict, monitors: list[dict]) -> t
 
 KEEP = object()
 
+# A setting that was applied and not confirmed yet (the page asks "keep it?"):
+# {"sid", "key", "old"}. If the window closes meanwhile, it goes back.
+_pending_keep: dict | None = None
+_pending_lock = threading.Lock()
+
+
+def revert_pending_keep() -> None:
+    """The unconfirmed setting goes back, as when the countdown runs out."""
+    global _pending_keep
+    with _pending_lock:
+        pending, _pending_keep = _pending_keep, None
+    if pending is None:
+        return
+    sid, key, old = pending["sid"], pending["key"], pending["old"] or {}
+    value = old.get("value")
+
+    def mutate(fresh):
+        if sid not in fresh["screens"]:
+            return False
+        config.set_setting(fresh, sid, key, value)
+        if value is not None:
+            config.set_condition(fresh, sid, key, old.get("when"))
+    config.update(mutate)
+    run_sync()
+
 
 @endpoint
-def set_screen_setting(sid: str, key: str, value: object, when: object = None) -> dict:
+def clear_pending_keep() -> dict:
+    """The page answered "keep it?" (kept or reverted by itself)."""
+    global _pending_keep
+    with _pending_lock:
+        _pending_keep = None
+    return {"ok": True}
+
+
+@endpoint
+def set_screen_setting(sid: str, key: str, value: object, when: object = None, arm: bool = False) -> dict:
     """key: rotation | scale | mode | position | mirror; value None unsets.
     when: None (or left out) keeps the condition, [] = always, [other id] = only
-    while that screen is connected. position also takes {x, y} from a drag."""
+    while that screen is connected. position also takes {x, y} from a drag.
+    arm: the page asks "keep it?" next; until clear_pending_keep() the change
+    goes back if the window closes."""
     cfg, monitors = recorded()
     sid = known_screen(cfg, sid)
     need(key in config.SETTING_KEYS, "bad_value", f"unknown setting: {key!r}")
@@ -221,10 +258,12 @@ def set_screen_setting(sid: str, key: str, value: object, when: object = None) -
     wanted_when = KEEP if when is None else condition(cfg, target, when)
 
     changed = []
+    olds = []
 
     def mutate(fresh):
         known_screen(fresh, target)
         before = copy.deepcopy(config.get_setting(fresh, target, key))
+        olds[:] = [before]
         config.set_setting(fresh, target, key, value)
         if value is not None and wanted_when is not KEEP:
             config.set_condition(fresh, target, key, wanted_when)
@@ -232,6 +271,10 @@ def set_screen_setting(sid: str, key: str, value: object, when: object = None) -
         return changed[-1]
     config.update(mutate)
     applied = run_sync() if changed and changed[-1] else []
+    if arm and applied:
+        global _pending_keep
+        with _pending_lock:
+            _pending_keep = {"sid": target, "key": key, "old": olds[0] if olds else None}
     return {**one_screen(sid), "applied": applied}
 
 

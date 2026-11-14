@@ -16,9 +16,9 @@ import { scr, sname } from "../screens/model.js";
 
 const NAME_MAX = 40;
 
-/* Undo brings back the widgets exactly as they were, also when unsaved. */
+/* Undo brings back the widgets exactly as they were, also when unsaved (not after a later change). */
 const loadLayout = (name) =>
-  change(() => api.loadLayout(name), (result) => api.restoreWidgets(result.previous), { reload: ["widgets"], msg: t("Layout “{name}” loaded", { name }) });
+  change(() => api.loadLayout(name), (result) => api.restoreWidgets(result.previous, result.loaded), { reload: ["widgets"], msg: t("Layout “{name}” loaded", { name }) });
 
 async function saveLayout(name) {
   if (S.layouts.items.includes(name) && name !== S.layouts.current) {

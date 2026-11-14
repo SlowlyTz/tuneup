@@ -96,11 +96,12 @@ class Tray:
     says whether the entry is in the menu right now; None entries are
     separators."""
 
-    def __init__(self, title: str, icon: str, on_activate, entries):
+    def __init__(self, title: str, icon: str, on_activate, entries, on_open=None):
         self.title = title
         self.icon = icon
         self.on_activate = on_activate
         self.entries = entries
+        self.on_open = on_open  # the bar is about to show the menu: refresh what shown() reads
         self.revision = 1
         self.bus = None
         self.name = f"org.kde.StatusNotifierItem-{os.getpid()}-1"
@@ -220,6 +221,8 @@ class Tray:
             invocation.return_value(GLib.Variant("(ai)", ([],)))
         elif method == "AboutToShow":
             # Entries come and go (a monitor plugged in): ask for the layout again.
+            if self.on_open:
+                self.on_open()
             invocation.return_value(GLib.Variant("(b)", (True,)))
         elif method == "AboutToShowGroup":
             invocation.return_value(GLib.Variant("(aiai)", ([], [])))

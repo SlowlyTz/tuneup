@@ -119,15 +119,21 @@ def load_layout(name: str) -> dict:
     known_layout(before, name)
     cfg = config.update(changing(widgets_mod.load_layout, name))
     widgets_mod.apply(cfg)
-    return {**layouts_view(cfg), "previous": widgets_mod.normalize(before["widgets"])}
+    return {**layouts_view(cfg), "previous": widgets_mod.normalize(before["widgets"]),
+            "loaded": widgets_mod.normalize(cfg["widgets"])}
 
 
 @endpoint
-def restore_widgets(previous: dict) -> dict:
-    """Undoes load_layout(): all widgets back as in its "previous"."""
+def restore_widgets(previous: dict, loaded: dict | None = None) -> dict:
+    """Undoes load_layout(): all widgets back as in its "previous". With
+    "loaded" (the widgets that load produced) it only undoes while they are
+    still those: a later change is not overwritten by an old snapshot."""
     need(isinstance(previous, dict) and bool(previous), "bad_value", "previous must be the widgets from load_layout")
+    need(loaded is None or isinstance(loaded, dict), "bad_value", "loaded must be the widgets from load_layout")
 
     def mutate(cfg: dict) -> None:
+        need(loaded is None or widgets_mod.normalize(cfg["widgets"]) == widgets_mod.normalize(loaded), "conflict",
+             "The widgets changed since – not going back")
         cfg["widgets"] = widgets_mod.normalize(previous)
     cfg = config.update(mutate)
     widgets_mod.apply(cfg)

@@ -1,5 +1,6 @@
 /* The one modal dialog of the page (#dialog): open/close, "keep it?" with a
  * countdown, and a yes/no question. */
+import { optional } from "../core/api.js";
 import { $, esc } from "../core/dom.js";
 import { t, tHtml } from "../core/i18n.js";
 import { Pop } from "./popover.js";
@@ -50,6 +51,10 @@ export function closeDialog() {
 const KEEP_SECONDS = 15;
 const RING = 2 * Math.PI * 19;
 
+/* The answer is given: the backend need not put a pending screen setting back
+ * if the window closes (it does when the page never answers). */
+const settled = () => optional("clearPendingKeep").catch(() => {});
+
 /* "Keep this?" with a countdown; going back (or letting it run out) runs `undo`. */
 export function keepDialog(undo, title) {
   let left = KEEP_SECONDS;
@@ -58,7 +63,7 @@ export function keepDialog(undo, title) {
     if (ring) ring.style.strokeDashoffset = String(RING * (1 - left / KEEP_SECONDS));
     for (const id of ["#keep-n", "#keep-s"]) { const n = $(id, dialog); if (n) n.textContent = left; }
   };
-  const back = async () => { closeDialog(); if (!undo || (await undo()) !== false) toast(t("Reverted")); };
+  const back = async () => { closeDialog(); if (!undo || (await undo()) !== false) toast(t("Reverted")); settled(); };
   openDialog(`
       <div class="dlg-body">
         <h2>${esc(title || t("Keep this display setting?"))}</h2>
@@ -69,7 +74,7 @@ export function keepDialog(undo, title) {
         <button type="button" class="btn" data-d="revert">${esc(t("Revert"))}</button>
         <button type="button" class="btn primary" data-d="keep" autofocus>${esc(t("Keep"))}</button>
       </div>`, {
-    keep: () => { closeDialog(); toast(t("Saved")); },
+    keep: () => { closeDialog(); toast(t("Saved")); settled(); },
     revert: back,
   }, { onCancel: back });
   const timer = setInterval(() => {

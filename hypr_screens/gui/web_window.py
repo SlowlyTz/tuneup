@@ -15,7 +15,6 @@ api worker, so the preview runs at the feeder's own frame rate.
 import json
 import re
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -36,8 +35,14 @@ APP_URI = f"{SCHEME}://app/"
 TYPES = {".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css",
          ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg",
          ".woff2": "font/woff2", ".md": "text/plain"}
-# A change the page made itself also changes config.json: no refresh for that.
-OWN_CHANGE_SECONDS = 1.5
+
+def config_stat() -> tuple | None:
+    """Change time and size of config.json: tells our own writes from others'."""
+    try:
+        info = config.config_file().stat()
+    except OSError:
+        return None
+    return info.st_mtime_ns, info.st_size
 
 
 # Slow calls that only read (git fetch): on their own worker, so the page's
@@ -57,9 +62,9 @@ def web_file(path: str) -> Path | None:
     return target if allowed and target.is_file() else None
 
 
-def serve(request) -> None:
-    """tuneup://app/<file> and tuneup://camera/preview.jpg."""
-    uri = GLib.Uri.parse(request.get_uri(), GLib.UriFlags.NONE)
+def read_uri(text: str) -> tuple:
+    """(the bytes, the type) of a tuneup:// address, or (None, "") when there is none."""
+    uri = GLib.Uri.parse(text, GLib.UriFlags.NONE)
     host, path = uri.get_host(), uri.get_path()
     if host == "camera" and path == "/preview.jpg":
         camera.request_preview()
@@ -69,10 +74,15 @@ def serve(request) -> None:
         kind = TYPES.get(target.suffix, "application/octet-stream") if target else ""
     else:
         target, kind = None, ""
+    return (GLib.Bytes.new(target.read_bytes()), kind) if target else (None, "")
+
+
+def serve(request) -> None:
+    """tuneup://app/<file> and tuneup://camera/preview.jpg."""
     try:
-        data = GLib.Bytes.new(target.read_bytes()) if target else None
-    except OSError:
-        data = None
+        data, kind = read_uri(request.get_uri())
+    except (OSError, GLib.Error):
+        data, kind = None, ""
     if data is None:
         request.finish_error(GLib.Error.new_literal(Gio.io_error_quark(), "not found", Gio.IOErrorEnum.NOT_FOUND))
         return
@@ -115,7 +125,7 @@ class WebWindow(Adw.ApplicationWindow):
                          default_width=placement.WIDTH, default_height=placement.HEIGHT)
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="api")
         self.side_worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="api-side")
-        self.last_call = 0.0
+        self.own_stat = None  # config.json as our own last call left it
         self.refresh_source = 0
         self.closed = False
 
@@ -131,6 +141,7 @@ class WebWindow(Adw.ApplicationWindow):
         settings.set_enable_back_forward_navigation_gestures(False)
         self.view.set_background_color(self.background())
         self.view.connect("decide-policy", self.on_policy)
+        self.view.connect("web-process-terminated", self.on_web_crash)
         self.view.connect("context-menu", lambda *_args: not GLib.getenv("HYPR_SCREENS_DEBUG"))
         self.view.load_uri(APP_URI + "index.html")
         self.set_content(self.view)
@@ -173,14 +184,16 @@ class WebWindow(Adw.ApplicationWindow):
     def call(self, name: str, args: list) -> dict:
         from hypr_screens import api
 
-        self.last_call = time.monotonic()  # a slow call writes the settings long before it ends
+        before = config_stat()
         try:
             result = {"value": api.call(name, args)}
         except api.ApiError as error:
             result = {"error": error.to_json()}
         except Exception as error:  # the page shows it; the window must stay usable
             result = {"error": {"code": "internal", "message": repr(error)}}
-        self.last_call = time.monotonic()
+        after = config_stat()
+        if after != before:  # only a call that wrote: a poll must not swallow another's change
+            self.own_stat = after
         if name == "set_language" and "value" in result:
             GLib.idle_add(self.reload_language)
         return result
@@ -216,8 +229,10 @@ class WebWindow(Adw.ApplicationWindow):
         self.refresh_source = GLib.timeout_add(400, self.refresh)
 
     def refresh(self) -> bool:
+        """A change the page made itself (config.json as the last call left it)
+        needs no refresh; any other does, also while the page polls."""
         self.refresh_source = 0
-        if time.monotonic() - self.last_call > OWN_CHANGE_SECONDS:
+        if config_stat() != self.own_stat:
             self.run_js("window.hyprScreens && window.hyprScreens.refresh()")
         return False
 
@@ -230,6 +245,14 @@ class WebWindow(Adw.ApplicationWindow):
         self.view.set_background_color(self.background())
         self.run_js(f"if (window.hyprScreens) {{ window.hyprScreens.setTheme({json.dumps(colors)}); "
                     f"window.hyprScreens.setMode({json.dumps(mode)}); window.hyprScreens.refresh(); }}")
+
+    def on_web_crash(self, _view, _reason) -> None:
+        """The page's process died (crash, out of memory): its recording and
+        look preview die with it, so end them and load the page again."""
+        if self.closed:
+            return
+        threading.Thread(target=release_page_state, args=(self.worker,), daemon=True).start()
+        self.view.reload()
 
     def on_policy(self, _view, decision, kind) -> bool:
         """Only the app itself loads here; links open in the browser (also
@@ -249,18 +272,16 @@ class WebWindow(Adw.ApplicationWindow):
         (a cycle through C that Python's GC cannot see), so it is disposed by
         hand once the close went through, and its web process ended."""
         self.closed = True
-        from hypr_screens.api import shortcuts
-
-        shortcuts.release_key_capture()
         self.monitor.cancel()
         if self.refresh_source:
             GLib.source_remove(self.refresh_source)
             self.refresh_source = 0
         self.worker.shutdown(wait=False, cancel_futures=True)
         self.side_worker.shutdown(wait=False, cancel_futures=True)
-        # The page's own "revert the preview" on leaving does not get through any
-        # more: a look shown but not kept must not stay (nor the audit stay off).
-        threading.Thread(target=revert_preview, daemon=True).start()
+        # The page's own clean-up on leaving does not get through any more, so
+        # it is done here (off the main thread): the keys, a look shown but not
+        # kept, a screen setting not confirmed.
+        threading.Thread(target=release_after_close, args=(self.worker,), daemon=True).start()
         GLib.idle_add(self.dispose_closed)
         return False
 
@@ -271,11 +292,51 @@ class WebWindow(Adw.ApplicationWindow):
         return False
 
 
-def revert_preview() -> None:
-    from hypr_screens.api import appearance
+def release_key_capture() -> None:
+    from hypr_screens.api import shortcuts
+
+    try:
+        shortcuts.release_key_capture()
+    except Exception as error:  # the tray must stay up
+        print(f"tuneup: ending the key capture failed: {error!r}", flush=True)
+
+
+def release_pending() -> None:
+    """What the page had started and did not end: a look preview (the audit
+    stays off meanwhile) and a screen setting still asked "keep it?" about
+    (it goes back, as when the countdown runs out)."""
+    from hypr_screens.api import appearance, displays
 
     if appearance._preview is not None:
         try:
             appearance.revert_look()
         except Exception as error:  # the tray must stay up
             print(f"tuneup: reverting the look preview failed: {error!r}", flush=True)
+    try:
+        displays.revert_pending_keep()
+    except Exception as error:
+        print(f"tuneup: reverting the screen setting failed: {error!r}", flush=True)
+
+
+def release_page_state(worker) -> None:
+    """The page is gone or restarts: end a recording now (also a late one that
+    the worker is still starting), then the rest once the worker is idle."""
+    release_key_capture()
+
+    def rest() -> None:
+        release_key_capture()  # a call before this one may have started a recording
+        release_pending()
+    try:
+        worker.submit(rest).result()
+    except RuntimeError:  # the window closed meanwhile: release_after_close does it
+        pass
+
+
+def release_after_close(worker) -> None:
+    """After the window closed: a call still running on the (shut down) worker
+    may start a recording or a preview after the first release, so wait for it
+    and release again."""
+    release_key_capture()
+    worker.shutdown(wait=True)
+    release_key_capture()
+    release_pending()
