@@ -53,7 +53,7 @@ def run_update() -> dict:
     """Starts the update; follow it with update_status(). The window closes
     while the tray restarts and opens again at the end."""
     need(updates.read_status()["state"] != "running", "busy", "an update is running already")
-    updates.write_status(state="running", **{"from": updates.current_version(), "to": None}, log=[], error=None)
+    updates.write_status(state="running", pid=None, **{"from": updates.current_version(), "to": None}, log=[], error=None)
     try:
         detached("update", "--report", log_name=f"{brand.DIR}-update.log")
     except ApiError as error:

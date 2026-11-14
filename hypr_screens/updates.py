@@ -8,13 +8,21 @@ The settings window starts `tuneup update --report` detached (it restarts the
 tray, which closes the window) and follows its status file.
 """
 import json
+import os
 import re
 import subprocess
+import time
+from pathlib import Path
 
 from hypr_screens import brand, config
 
 GIT_SECONDS = 30
+# A pull after the fetch of check() mostly merges; but a slow line may need longer.
+PULL_SECONDS = 300
 INSTALL_SECONDS = 1800
+# "running" with no sign of life for this long (no process, no news) is dead.
+STALE_SECONDS = INSTALL_SECONDS + 120
+START_SECONDS = 60
 LOG_LINES = 40
 REASONS = ("not_git", "local_changes", "diverged", "offline")
 
@@ -94,6 +102,10 @@ def check(fetch: bool = True) -> dict:
         return {**result, "reason": "offline"}
     behind, ahead = counts(remote)
     result.update(latest=latest_version(remote), commitsBehind=behind, available=behind > 0)
+    if not behind and setup_pending():
+        # The code is new but the setup did not finish (install.sh --update failed): offer it again.
+        result.update(latest=current_version(), available=True, canUpdate=True)
+        return result
     if behind and git("status", "--porcelain", "--untracked-files=no").stdout.strip():
         result["reason"] = "local_changes"
     elif behind and ahead:
@@ -117,22 +129,64 @@ def status_file():
     return config.runtime_dir() / "update.json"
 
 
-def read_status() -> dict:
-    """The settings window's updateStatus() shape."""
+def pending_file() -> Path:
+    return config.config_dir() / "update-pending"
+
+
+def setup_pending() -> bool:
+    """The last update pulled the code but its setup (install.sh --update) did
+    not finish: check() keeps offering the update until it has."""
+    return pending_file().exists()
+
+
+def mark_setup(pending: bool) -> None:
+    try:
+        if pending:
+            pending_file().parent.mkdir(parents=True, exist_ok=True)
+            pending_file().touch()
+        else:
+            pending_file().unlink(missing_ok=True)
+    except OSError:
+        pass  # a marker that cannot be written must not stop the update
+
+
+def raw_status() -> dict:
     try:
         status = json.loads(status_file().read_text())
     except (OSError, json.JSONDecodeError):
-        status = {}
+        return {}
+    return status if isinstance(status, dict) else {}
+
+
+def is_stale(status: dict) -> bool:
+    """A "running" status whose process is gone, or that has not moved for far
+    longer than an update takes: it would block every later update."""
+    try:
+        age = time.time() - status_file().stat().st_mtime
+    except OSError:
+        return False
+    pid = status.get("pid")
+    if isinstance(pid, int) and not isinstance(pid, bool):
+        return not Path(f"/proc/{pid}").exists() or age > STALE_SECONDS
+    return age > START_SECONDS
+
+
+def read_status() -> dict:
+    """The settings window's updateStatus() shape."""
+    status = raw_status()
     idle = {"state": "idle", "from": None, "to": None, "log": [], "error": None}
-    return {**idle, **{k: v for k, v in status.items() if k in idle}} if isinstance(status, dict) else idle
+    if not status:
+        return idle
+    shown = {**idle, **{k: v for k, v in status.items() if k in idle}}
+    if shown["state"] == "running" and is_stale(status):
+        return {**shown, "state": "failed", "error": "the update was interrupted"}
+    return shown
 
 
 def write_status(**changes) -> None:
-    status = {**read_status(), **changes}
+    status = {**raw_status(), **read_status(), **changes}
     status["log"] = status["log"][-LOG_LINES:]
-    temporary = status_file().with_suffix(".tmp")
-    temporary.write_text(json.dumps(status) + "\n")
-    temporary.replace(status_file())
+    config.write_atomic(status_file(), json.dumps(status) + "\n", prefix=".update-")
 
 
 def say(line: str, report: bool) -> None:
@@ -155,7 +209,7 @@ def run(report: bool = False, runner=subprocess.run) -> int:
     status file up to date (for the settings window)."""
     before = current_version()
     if report:
-        write_status(state="running", **{"from": before, "to": None}, log=[], error=None)
+        write_status(state="running", pid=os.getpid(), **{"from": before, "to": None}, log=[], error=None)
     try:
         return update(before, report, runner)
     except (OSError, subprocess.TimeoutExpired, config.ConfigError) as error:
@@ -172,11 +226,15 @@ def update(before: str, report: bool, runner) -> int:
             write_status(state="done" if state["reason"] is None else "failed", to=before,
                          error=state["reason"])
         return 0 if state["reason"] is None else 1
-    say(f"Updating Tuneup {before} -> {state['latest']} ({state['commitsBehind']} new commits)", report)
-    pulled = git("pull", "--ff-only", "--quiet")
-    if pulled.returncode != 0:
-        return failed(pulled.stderr.strip() or "git pull failed", report)
+    if state["commitsBehind"]:
+        say(f"Updating Tuneup {before} -> {state['latest']} ({state['commitsBehind']} new commits)", report)
+        problem = pull()
+        if problem:
+            return failed(problem, report)
+    else:
+        say("Finishing the setup of the last update", report)
     remember_previous(before)
+    mark_setup(True)  # until install.sh has run through
     done = runner(["bash", str(brand.ROOT / "install.sh"), "--update"], capture_output=True, text=True,
                   timeout=INSTALL_SECONDS, check=False)
     for line in (done.stdout or "").splitlines()[-LOG_LINES:]:
@@ -184,9 +242,39 @@ def update(before: str, report: bool, runner) -> int:
     if done.returncode != 0:
         last = (done.stderr or "").strip().splitlines()
         return failed(strip_colors(last[-1]) if last else f"install.sh --update failed ({done.returncode})", report)
+    mark_setup(False)
     if report:
         write_status(state="done", to=current_version(), error=None)
     return 0
+
+
+def git_running() -> bool:
+    """Whether any git process is alive (its lock files are then not ours to remove)."""
+    for proc in Path("/proc").iterdir():
+        try:
+            if proc.name.isdigit() and (proc / "comm").read_text().strip() == "git":
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def pull() -> str:
+    """git pull --ff-only; "" when done, else why not. A timeout kills git,
+    which can leave .git/index.lock: removed if no other git is running."""
+    try:
+        pulled = git("pull", "--ff-only", "--quiet", timeout=PULL_SECONDS)
+    except subprocess.TimeoutExpired:
+        lock = brand.ROOT / ".git" / "index.lock"
+        if lock.exists() and not git_running():
+            lock.unlink(missing_ok=True)
+        return f"git pull took longer than {PULL_SECONDS} s and was stopped: try again (nothing was changed)"
+    if pulled.returncode == 0:
+        return ""
+    error = pulled.stderr.strip()
+    if "index.lock" in error:
+        return "another git is working in the checkout (or left .git/index.lock): try again in a minute"
+    return error or "git pull failed"
 
 
 def failed(error: str, report: bool) -> int:

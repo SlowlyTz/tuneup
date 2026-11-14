@@ -75,6 +75,24 @@ fi
 TUNEUP=(python3 "$REPO/tuneup")
 helper() { "${TUNEUP[@]}" installer "$@"; }
 
+# Whatever fails from here on, an update still restarts the watcher and the tray:
+# the new code is on disk already, and the old processes would write the settings
+# with old code. The failure is reported all the same and the exit code stays.
+ROOT_SCRIPT="" RESTARTED=0
+finish() {
+  local code=$?
+  trap - EXIT
+  [ -z "$ROOT_SCRIPT" ] || rm -f "$ROOT_SCRIPT"
+  if [ "$code" -ne 0 ] && [ "$UPDATE" = 1 ] && [ "$RESTARTED" = 0 ] && [ "$DRY" = 0 ]; then
+    printf '\n  %s!%s The update did not finish: starting the watcher and the tray anyway.\n' "$YELLOW" "$RESET"
+    "${TUNEUP[@]}" restart --open >/dev/null 2>&1 || true  # quiet: stderr's last line is the error shown
+  fi
+  exit "$code"
+}
+trap finish EXIT
+# The next check offers the update again until the setup has run through (see updates.py).
+[ "$UPDATE" = 0 ] || run "${TUNEUP[@]}" installer setup-pending || true
+
 # --- 1. checks ------------------------------------------------------------------------------
 step "Checking the system"
 command -v pacman >/dev/null || fail "Tuneup needs an Arch-based system (pacman)."
@@ -165,7 +183,6 @@ if [ "${#MISSING[@]}" -gt 0 ] || [ "${#ROOT_SETUPS[@]}" -gt 0 ]; then
   [ "${#MISSING[@]}" -gt 0 ] && printf '  Tuneup now installs its dependencies from the official Arch repositories\n  (pacman, nothing from the AUR): %s\n' "${MISSING[*]}"
   for what in "${ROOT_SETUPS[@]}"; do printf '  One-time setup as root: %s\n' "$what"; done
   ROOT_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/tuneup-root.XXXXXX.sh")"
-  trap 'rm -f "$ROOT_SCRIPT"' EXIT
   {
     echo "set -e"
     [ "${#MISSING[@]}" -gt 0 ] && echo "pacman -S --needed --noconfirm ${MISSING[*]}"
@@ -195,7 +212,9 @@ esac
 
 # --- 5. start it ---------------------------------------------------------------------------------
 step "Starting Tuneup"
+RESTARTED=1
 run "${TUNEUP[@]}" restart --open
+run "${TUNEUP[@]}" installer setup-done || true
 VERSION="$(helper version)"
 if [ "$UPDATE" = 1 ]; then
   printf '\n%s✓ Tuneup %s is up to date.%s\n' "$GREEN" "$VERSION" "$RESET"

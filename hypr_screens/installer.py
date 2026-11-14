@@ -8,6 +8,7 @@ place. Needs nothing but Python: it runs before the packages are installed.
   remember camera=1 cava=0 ...   remember the answers (for `install.sh --update`)
   galaxy-book                    exit 0 on a Galaxy Book with its driver loaded
   set-up camera|galaxy-book      exit 0 when that root setup is done already
+  setup-pending|setup-done       mark an update's setup as started / finished (see updates.py)
   version                        Tuneup's version
 """
 import getpass
@@ -58,6 +59,8 @@ def main(action: str, values: list[str]) -> int:
     elif action == "set-up":
         done = {"camera": camera.is_set_up, "galaxy-book": samsung.is_set_up}.get(values[0] if values else "")
         return 0 if done and done() else 1
+    elif action in ("setup-pending", "setup-done"):
+        updates.mark_setup(action == "setup-pending")
     elif action == "version":
         print(updates.current_version())
     return 0

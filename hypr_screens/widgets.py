@@ -501,6 +501,7 @@ def shell_ipc(*args: str) -> str:
         return ""
 
 
+@install.shell_edit
 def wire_shell(widgets: dict) -> list[str]:
     """Plugin linked; its service on while any widget is on (shell.json
     "plugins"); its bar widget right after the desktops while the visualizer

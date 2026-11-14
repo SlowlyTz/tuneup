@@ -1,6 +1,7 @@
 """Wiring into the system, and taking it out again: launchers, the desktop
 entry and icon, Omarchy shell plugins and the bar widgets, and Tuneup's own
 background processes (the watcher and the tray)."""
+import functools
 import json
 import os
 import shlex
@@ -10,7 +11,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from hypr_screens import brand, hypr
+from hypr_screens import brand, config, hypr
 
 REPO = brand.ROOT
 LAUNCHERS = {brand.COMMAND: REPO / brand.COMMAND, **{alias: REPO / brand.COMMAND for alias in brand.ALIASES},
@@ -77,6 +78,21 @@ def plugins_dir() -> Path:
 
 def shell_json() -> Path:
     return omarchy_dir() / "shell.json"
+
+
+def shell_locked():
+    """One editor of shell.json at a time (the watcher, the settings window, a
+    setup), across processes; hold it from reading to writing."""
+    return config.file_lock("shell.lock")
+
+
+def shell_edit(function):
+    """Runs a read-change-write of shell.json under that lock."""
+    @functools.wraps(function)
+    def locked_call(*args, **kwargs):
+        with shell_locked():
+            return function(*args, **kwargs)
+    return locked_call
 
 
 def has_omarchy_shell() -> bool:
@@ -226,6 +242,7 @@ def gui_available() -> str:
     return ""
 
 
+@shell_edit
 def use_bar_widget(ours: str = WORKSPACES_WIDGET) -> str:
     """Swap the bar's workspaces (power, logo) widget for ours; shell.json reloads itself."""
     kind = ours.rsplit(".", 1)[-1]
@@ -253,6 +270,7 @@ def use_bar_widget(ours: str = WORKSPACES_WIDGET) -> str:
     return f"replaced {replaced}"
 
 
+@shell_edit
 def restore_bar_widget(ours_id: str) -> str:
     """Put Omarchy's own widget back where ours is."""
     path = shell_json()
@@ -276,6 +294,7 @@ def widget_id(widget: object) -> str:
     return str(widget.get("id", "")) if isinstance(widget, dict) else str(widget)
 
 
+@shell_edit
 def use_taskbar() -> str:
     """The taskbar in the bar, right after the desktops (or at the end of the left)."""
     path = shell_json()
@@ -298,6 +317,7 @@ def use_taskbar() -> str:
     return "added"
 
 
+@shell_edit
 def remove_taskbar() -> str:
     path = shell_json()
     try:
@@ -329,6 +349,7 @@ def restore_power_widget() -> str:
     return restore_bar_widget(POWER_WIDGET)
 
 
+@shell_edit
 def remove_from_shell() -> list[str]:
     """Uninstalling: Omarchy's bar widgets back, our plugins out of shell.json,
     our plugin links gone (disabled first)."""
@@ -369,10 +390,9 @@ def run_quietly(command: list[str]) -> int:
 
 def write_json(path: Path, data: object) -> None:
     """In one step: the shell reloads shell.json as soon as it changes, and must
-    not read it half written."""
-    temporary = path.with_name(path.name + ".tmp")
-    temporary.write_text(json.dumps(data, indent=2) + "\n")
-    temporary.replace(path)
+    not read it half written. A symlinked file (from dotfiles) stays a symlink."""
+    with shell_locked():
+        config.write_atomic(path, json.dumps(data, indent=2) + "\n", prefix=f".{path.name}-")
 
 
 def sync_power_panel(active: bool) -> str:

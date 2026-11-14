@@ -260,45 +260,132 @@ def load() -> dict:
         return default_config()
 
 
-def save(cfg: dict) -> None:
-    """Replaced in one step (a unique temporary file, then a rename), so a
-    reader never sees half a file and two writers never share a temporary."""
-    path = config_file()
+STALE_TEMPORARY_SECONDS = 60
+
+
+def write_atomic(path: Path, text: str, prefix: str = ".write-") -> None:
+    """Replace a file in one step (a unique temporary file in the same folder,
+    then a rename), so a reader never sees half a file and two writers never
+    share a temporary. A symlink stays: the file it points to is replaced. The
+    mode of the old file is kept."""
+    path = Path(os.path.realpath(path))
     path.parent.mkdir(parents=True, exist_ok=True)
-    text = json.dumps(normalize(cfg), indent=2, sort_keys=True) + "\n"
-    fd, temporary = tempfile.mkstemp(prefix=".config-", suffix=".tmp", dir=path.parent)
+    fd, temporary = tempfile.mkstemp(prefix=prefix, suffix=".tmp", dir=path.parent)
     try:
         with os.fdopen(fd, "w") as handle:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
+        try:
+            os.chmod(temporary, path.stat().st_mode & 0o7777)
+        except OSError:
+            pass  # no old file: the temporary's own mode (0600) stays
         os.replace(temporary, path)
     except BaseException:
         Path(temporary).unlink(missing_ok=True)
         raise
 
 
+def remove_stale_temporaries(folder: Path, prefix: str) -> None:
+    """Temporaries a killed writer left behind (a minute is far more than a write takes)."""
+    for leftover in folder.glob(f"{prefix}*.tmp"):
+        try:
+            if time.time() - leftover.stat().st_mtime > STALE_TEMPORARY_SECONDS:
+                leftover.unlink()
+        except OSError:
+            pass
+
+
+def known_keys(section_name: str) -> set[str] | None:
+    """The keys of a settings section this code knows; None: not merged."""
+    from hypr_screens import look
+
+    if section_name == "look":
+        return {*look.OPTIONS, "border_colors", "border_angle", "anim_speed", "apps"}
+    base = default_config()
+    if section_name in ("camera", "samsung", "install"):
+        return set(base[section_name])
+    if section_name == "sound":
+        return set(base["sound"])
+    return None
+
+
+def widget_keys(kind: str) -> set[str]:
+    from hypr_screens import widgets
+
+    return {*widgets.DEFAULTS.get(kind, {}), "colors", "monitors", "width", "spots", "x", "y", "size",
+            "desktops", "font_family", "player", "date_pattern", "zone2"}
+
+
+def keep_unknown(new: dict, old: object) -> dict:
+    """`new` plus what the file on disk holds that this code does not know
+    (written by a newer version): a newer setting must survive an older
+    process saving. Known keys are never taken from the file, so removing a
+    setting still works. Screens and layouts are lists of the user's own
+    entries and are not merged."""
+    if not isinstance(old, dict):
+        return new
+    for key, value in old.items():
+        if key not in new and key not in default_config():
+            new[key] = value
+    for name in ("look", "camera", "samsung", "install", "sound"):
+        known, given = known_keys(name), old.get(name)
+        if isinstance(given, dict) and isinstance(new.get(name), dict):
+            new[name].update({k: v for k, v in given.items() if k not in known and k not in new[name]})
+    given = old.get("widgets")
+    if isinstance(given, dict) and isinstance(new.get("widgets"), dict):
+        for kind, widget in given.items():
+            if kind not in new["widgets"]:
+                new["widgets"][kind] = widget
+            elif isinstance(widget, dict):
+                known = widget_keys(kind)
+                new["widgets"][kind].update({k: v for k, v in widget.items()
+                                             if k not in known and k not in new["widgets"][kind]})
+    return new
+
+
+def save(cfg: dict) -> None:
+    """Replaced in one step (see write_atomic). What the file holds that this
+    code does not know is kept (keep_unknown)."""
+    with locked():
+        path = Path(os.path.realpath(config_file()))
+        try:
+            old = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            old = None
+        text = json.dumps(keep_unknown(normalize(cfg), old), indent=2, sort_keys=True) + "\n"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        remove_stale_temporaries(path.parent, ".config-")
+        write_atomic(path, text, prefix=".config-")
+
+
 _held = threading.local()
 
 
 @contextmanager
-def locked():
-    """One writer at a time, across processes (watcher, CLI, settings window).
-    Nested use in the same thread does not lock again."""
-    if getattr(_held, "depth", 0):
-        _held.depth += 1
+def file_lock(name: str):
+    """One holder at a time, across processes. Nested use in the same thread
+    does not lock again."""
+    depths = _held.__dict__.setdefault("depths", {})
+    if depths.get(name):
+        depths[name] += 1
         try:
             yield
         finally:
-            _held.depth -= 1
+            depths[name] -= 1
         return
-    with open(runtime_dir() / "config.lock", "w") as lock:
+    with open(runtime_dir() / name, "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        _held.depth = 1
+        depths[name] = 1
         try:
             yield
         finally:
-            _held.depth = 0
+            depths[name] = 0
+
+
+def locked():
+    """One writer of the settings at a time (watcher, CLI, settings window)."""
+    return file_lock("config.lock")
 
 
 def update(mutate) -> dict:
