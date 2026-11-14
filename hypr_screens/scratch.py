@@ -41,6 +41,7 @@ FLY = {"enabled": True, "speed": 3, "bezier": "easeOutQuint", "style": "slidever
 SLIDE = {**FLY, "style": "slide"}  # set inside the row by earlier versions
 SETTLE_MS = 400  # a bit longer than the flight (speed 3 = 300 ms)
 BOUNCE_MS = 60  # after a swipe has set its workspace
+PARK_RECHECK_MS = 250  # a closed row is looked at again this much later before its windows are put away
 KEPT = 5  # scratch desktops that exist while the row is open, empty or not (config scratch_kept)
 OMARCHY_SCRATCHPAD = "special:scratchpad"
 # Closed, a scratch desktop's windows wait here, so a swipe on a normal
@@ -224,18 +225,33 @@ do
   end
   local function row_open()
     for _, monitor in ipairs(hl.get_monitors()) do
-      if is_scratch(monitor.active_workspace) then return true end
+      local ws = monitor.active_workspace
+      if is_scratch(ws) then return true end
+      -- A screen that does not say what it shows (it is coming or going) may
+      -- be showing the row: not a reason to call the row closed.
+      if ws == nil and not monitor.disabled then return true end
     end
     return false
   end
-  park = function()
-    if row_open() then return end
+  local function put_away()
     keep(nil)
     for _, ws in ipairs(hl.get_workspaces()) do
       if is_scratch(ws) then
         for _, window in ipairs(hl.get_workspace_windows(ws) or {{}}) do move_window(window, "{parked}" .. ws.id) end
       end
     end
+  end
+  -- Windows are put away only when the row is closed and stays so: a screen
+  -- plugged out, or our own switch half way, can look like "closed" for a
+  -- moment, and windows hidden by mistake are lost until SUPER + S.
+  park = function()
+    S.park_gen = (S.park_gen or 0) + 1
+    local mine = S.park_gen
+    after({recheck}, function()
+      if S.park_gen ~= mine or S.off then return end
+      if S.busy ~= 0 then park() return end
+      if not row_open() then put_away() end
+    end)
   end
   local function unpark()
     for _, ws in ipairs(hl.get_workspaces()) do
@@ -252,6 +268,15 @@ do
       if id < first and (lowest == nil or id < lowest) then lowest = id end
     end
     return lowest or 1
+  end
+
+  -- Switching the scratch desktops off: no more putting away (the handlers go
+  -- until the reload that takes the keys back, which unparks first).
+  function M.stop()
+    S.off = true
+    S.park_gen = (S.park_gen or 0) + 1
+    for _, subscription in ipairs(_G.tuneup_scratch_events or {{}}) do subscription:remove() end
+    _G.tuneup_scratch_events = {{}}
   end
 
   function M.toggle()
@@ -364,6 +389,7 @@ do
     hl.on("monitor.focused", function() settle() end),
   }}
   S.anim = ""
+  S.off = false
   settle()
   tuneup_scratch = M
 end"""
@@ -373,7 +399,7 @@ def module_lua(user: dict | None = None, kept: int = KEPT) -> str:
     """kept: scratch desktops that are always there while the row is open."""
     user = user_animation() if user is None else user
     return MODULE.format(first=FIRST, settle=SETTLE_MS, user=lua_table(user), fly=lua_table(FLY),
-                         parked=PARKED, parked_pattern=PARKED.replace("-", "%-"), kept=kept, bounce=BOUNCE_MS)
+                         parked=PARKED, parked_pattern=PARKED.replace("-", "%-"), kept=kept, bounce=BOUNCE_MS, recheck=PARK_RECHECK_MS)
 
 
 def call(body: str, otherwise: str = "") -> str:
@@ -392,7 +418,10 @@ def digit_call(action: str, index: int, otherwise: str) -> str:
 
 def unpark_all() -> list[str]:
     """Scratch desktops put away while the row was closed come back as normal
-    workspaces (switching the feature off, uninstalling): nothing stays hidden."""
+    workspaces (switching the feature off, uninstalling): nothing stays hidden.
+    The Lua module stops putting windows away first, or its handlers could do
+    that again before the reload that follows."""
+    hypr.eval_lua("if tuneup_scratch and tuneup_scratch.stop then tuneup_scratch.stop() end")
     moved = []
     for client in hypr.query_list("clients"):
         name = str((client.get("workspace") or {}).get("name") or "")

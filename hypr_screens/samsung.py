@@ -13,6 +13,7 @@ the user, once, through pkexec or sudo; `teardown()` takes it back. Samsung
 control is "active" in between -- only then does the bar get the battery panel
 with the four modes (install.sync_power_panel).
 """
+import copy
 import getpass
 import json
 import os
@@ -318,7 +319,7 @@ def set_keyboard(level: int) -> None:
 # --- watcher ---------------------------------------------------------------------------
 
 
-def guard_tick(cfg: dict, enforcement=None) -> str:
+def guard_tick(cfg: dict, enforcement=None, check_ppd: bool = True) -> str:
     """One check of the watcher; returns what it did ("" for nothing).
     enforcement (the enforce module): what was put back is recorded there, and
     an item it backed off from is left alone."""
@@ -355,7 +356,7 @@ def guard_tick(cfg: dict, enforcement=None) -> str:
             tell_omarchy(cpu_profile(current))
             done.append(f"mode {current} from the keyboard")
         cpu = cpu_profile(mode)
-        active = ppd_profile()
+        active = ppd_profile() if check_ppd else ""
         if active and active != cpu and may("mode"):
             set_ppd(cpu)
             put_back("mode", f"cpu {cpu}")
@@ -370,18 +371,39 @@ def guard_change(cfg: dict, enforcement=None) -> bool:
     return json.dumps(cfg, sort_keys=True) != before
 
 
+def guard_once(enforcement, check_ppd: bool = True) -> None:
+    """One check of the watcher. The slow part (sysfs, busctl) runs on a copy,
+    outside the settings lock -- a hanging D-Bus must not block every writer;
+    only what the tick changed in the settings is saved under it."""
+    cfg = enforcement.cached_config()
+    if not settings(cfg) or not writable():
+        return
+    work = copy.deepcopy(cfg)
+    guard_tick(work, enforcement, check_ppd)
+    changes = {key: value for key, value in work.get("samsung", {}).items()
+               if cfg.get("samsung", {}).get(key) != value}
+    if changes:
+        config.update(lambda fresh: fresh.setdefault("samsung", {}).update(changes))
+
+
+# How many seconds pass between looks at power-profiles-daemon (a busctl call).
+PPD_SECONDS = 5
+
+
 def guard() -> None:
-    """Watcher thread: every second, keep the limit and the mode."""
+    """Watcher thread: every second, keep the limit and the mode (the daemon's
+    profile every PPD_SECONDS)."""
     if not present():
         return
+    from hypr_screens import enforce
+
+    tick = 0
     while True:
         try:
-            if settings(config.load()) and writable():
-                from hypr_screens import enforce
-
-                config.update(lambda cfg: guard_change(cfg, enforce))
+            guard_once(enforce, check_ppd=tick % PPD_SECONDS == 0)
         except Exception as error:  # never take the watcher down
             print(f"tuneup samsung guard: {error}", flush=True)
+        tick += 1
         time.sleep(1.0)
 
 

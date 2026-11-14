@@ -348,6 +348,18 @@ def bring_back(screens: Screens) -> None:
             hypr.dispatch(f'hl.dsp.window.move({{ workspace = "{workspace}", follow = false, window = "address:{address}" }})')
 
 
+def would_close(cfg: dict) -> bool:
+    """Unplugging now would close windows: the option says "close", the fixed
+    screen was the external one, and windows sit on its desktops."""
+    return cfg.get("unplug_windows") == "close" and last_role() == "external" and bool(left_on_fixed())
+
+
+def external_listed() -> bool:
+    """Hyprland still lists a screen that is not the laptop's -- mirrored, or
+    asleep -- so the external screen is not really gone."""
+    return any(not config.is_internal(m) and not m.get("disabled") for m in hypr.monitors(include_disabled=True))
+
+
 def undock(screens: Screens, windows: str = "fold") -> None:
     """No external screen any more: the fixed desktops' windows go where `windows`
     says ("fold", "spread", "close") -- if they were the external screen's."""

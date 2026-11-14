@@ -47,7 +47,7 @@ When the external screen is the fixed one and is unplugged or set to mirror the 
 - **Onto the laptop's current desktop** (the default): all together on the desktop the laptop shows.
 - **Spread over desktops 6–10:** its desktop 1 onto desktop 6, 2 onto 7 and so on; from its sixth desktop on all onto 10.
   Windows already there stay. When the monitor is back (or stops mirroring), the windows still on those desktops go back.
-- **Close them:** as `SUPER + W` would, so an app may still ask to save.
+- **Close them:** as `SUPER + W` would, so an app may still ask to save. Only once the screen has stayed away for 10 seconds, so a dock reconnecting does not close anything; a screen that is mirrored or asleep closes nothing, and neither does `tuneup sync`.
 
 When the laptop is the fixed screen, its own windows always stay together on the desktop it shows.
 

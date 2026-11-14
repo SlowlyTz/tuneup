@@ -468,6 +468,8 @@ def test_unplugging_can_close_the_external_screens_windows(five):
     window(model, "0x1", desktops.FIXED_WS + 1)
     window(model, "0x2", 2)
     unplug(model, "DP-3")
+    assert on(model, "0x1") == desktops.FIXED_WS + 1       # closing waits for a second look
+    engine.sync("removed", close_ok=True)
     assert on(model, "0x1") is None and on(model, "0x2") == 2
 
 

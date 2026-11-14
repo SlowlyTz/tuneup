@@ -27,7 +27,7 @@ import sys
 import time
 from pathlib import Path
 
-from hypr_screens import config
+from hypr_screens import config, enforce
 from hypr_screens.root import run_as_root
 
 PREVIEW_WIDTH, PREVIEW_FPS = 480, 10
@@ -41,7 +41,11 @@ CARD_LABEL = "Rotated Camera"
 VIDEO_NR = 42
 WIDTH, HEIGHT, FPS = 1280, 720, 30
 FRAME_BYTES = WIDTH * HEIGHT * 2  # yuyv422
-IDLE_SECONDS = 0.2
+IDLE_SECONDS = 0.4  # black frames while nobody uses the camera: 2.5 a second (each is 1.8 MB)
+# A writer that ends again at once (ffmpeg failing) is started again after
+# WRITER_RETRY_FIRST seconds, doubling each time up to WRITER_RETRY_MAX.
+WRITER_RETRY_FIRST, WRITER_RETRY_MAX = 0.5, 30.0
+WRITER_HEALTHY_SECONDS = 5.0
 RELEASE_SECONDS = 2.0
 ROTATIONS = [0, 90, 180, 270]
 MODPROBE = Path("/etc/modprobe.d/tuneup-camera.conf")
@@ -85,8 +89,12 @@ def preview_request_file() -> Path:
 
 
 def request_preview() -> None:
-    """Called by the settings window while it shows the preview."""
-    preview_request_file().touch()
+    """Called by the settings window while it shows the preview; best effort
+    (a runtime dir that cannot be written must not fail the preview request)."""
+    try:
+        preview_request_file().touch()
+    except OSError:
+        pass
 
 
 def preview_requested() -> bool:
@@ -206,6 +214,9 @@ class Feeder:
         self.started = 0.0
         self.busy_until = 0.0  # the real camera is taken by another app: wait before trying again
         self.black = black_frame()
+        self.writer_started = 0.0
+        self.writer_retry_at = 0.0
+        self.writer_failures = 0
 
     def stop_writer(self) -> None:
         if self.writer is not None:
@@ -221,8 +232,24 @@ class Feeder:
             self.writer = None
 
     def start_writer(self) -> None:
+        self.writer_started = time.monotonic()
         self.writer = subprocess.Popen(writer_command(self.virtual), stdin=subprocess.PIPE,
                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def keep_writer(self) -> bool:
+        """The writer runs (started when there is none); False while a writer
+        that keeps ending is left alone for a growing pause."""
+        now = time.monotonic()
+        if self.writer is not None and self.writer.poll() is not None:
+            self.writer_failures = self.writer_failures + 1 if now - self.writer_started < WRITER_HEALTHY_SECONDS else 0
+            delay = min(WRITER_RETRY_MAX, WRITER_RETRY_FIRST * 2 ** max(0, self.writer_failures - 1))
+            self.writer_retry_at = now + delay
+            self.stop_writer()
+        if self.writer is None:
+            if now < self.writer_retry_at:
+                return False
+            self.start_writer()
+        return True
 
     def start_reader(self) -> None:
         self.started = time.monotonic()
@@ -243,6 +270,8 @@ class Feeder:
         return {os.getpid(), *(p.pid for p in (self.writer, self.reader) if p is not None)}
 
     def write(self, frame: bytes) -> bool:
+        if self.writer is None:
+            return False
         try:
             self.writer.stdin.write(frame)
             self.writer.stdin.flush()
@@ -271,6 +300,15 @@ class Feeder:
         return b"".join(chunks)
 
     def run(self) -> None:
+        """Feeds until the virtual camera goes away. Whatever ends it (even an
+        error), no ffmpeg is left behind: the real camera's LED would stay on."""
+        try:
+            self.loop()
+        finally:
+            self.stop_reader()
+            self.stop_writer()
+
+    def loop(self) -> None:
         checked = 0.0
         on = False
         while True:
@@ -285,7 +323,7 @@ class Feeder:
                     self.stop_writer()
                     write_status("off")
                     return
-                cfg = config.load()
+                cfg = enforce.cached_config()
                 on = enabled(cfg)
                 if not on:
                     # Nothing feeds it: apps cannot pick it until it is on again.
@@ -312,10 +350,10 @@ class Feeder:
                     write_status("busy" if in_use and now < self.busy_until else "idle", len(users))
             if not on:
                 continue
-            if self.writer is None or self.writer.poll() is not None:
-                self.start_writer()
+            writing = self.keep_writer()
             if self.reader is None:
-                self.write(self.black)
+                if writing:
+                    self.write(self.black)
                 time.sleep(IDLE_SECONDS)
                 continue
             frame = self.read_frame(timeout=1.0)

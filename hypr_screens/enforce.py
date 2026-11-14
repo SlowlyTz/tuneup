@@ -53,6 +53,22 @@ WHAT = {
 NEVER_BACK_OFF = {"force_mute"}
 
 _threads = threading.Lock()
+_cache: dict = {"key": None, "cfg": None}
+
+
+def cached_config() -> dict:
+    """config.load() for the guards' once-a-second looks: the file is read and
+    normalized again only when it changed (inode, time, size). Read-only: the
+    same dict comes back each time (copy it before changing anything)."""
+    try:
+        info = config.config_file().stat()
+        key = (str(config.config_file()), info.st_ino, info.st_mtime_ns, info.st_size, id(config.load))
+    except OSError:
+        return config.load()
+    if _cache["key"] != key:
+        loaded = config.load()
+        _cache.update(key=key, cfg=loaded)
+    return _cache["cfg"]
 
 
 def status_file():
@@ -75,6 +91,28 @@ def load_status() -> dict:
     status = empty_status()
     if isinstance(raw, dict):
         status.update({key: raw[key] for key in status if isinstance(raw.get(key), type(status[key]))})
+    return clean_status(status)
+
+
+def number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def clean_status(status: dict) -> dict:
+    """Entries of the wrong shape (a hand-edited or half-written file) are
+    dropped: one broken entry must not make every later record() fail -- the
+    guards would stop putting things back."""
+    status["fixes"] = [f for f in status["fixes"] if isinstance(f, dict) and number(f.get("time"))
+                       and all(isinstance(f.get(key), str) for key in ("area", "what", "detail"))]
+    status["history"] = {key: [t for t in times if number(t)] for key, times in status["history"].items()
+                         if isinstance(times, list)}
+    status["backoff"] = {key: entry for key, entry in status["backoff"].items()
+                         if isinstance(entry, dict) and number(entry.get("until", 0))
+                         and number(entry.get("level", 0))}
+    if not number(status["heartbeat"]):
+        status["heartbeat"] = 0.0
+    if not isinstance(status["pid"], int) or isinstance(status["pid"], bool):
+        status["pid"] = 0
     return status
 
 

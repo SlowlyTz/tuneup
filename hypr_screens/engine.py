@@ -2,10 +2,17 @@
 from hypr_screens import apply, config, desktops, hypr
 
 
-def sync(event: str = "") -> list[str]:
+# What sync() reports when unplugging would close windows and waits for a
+# second look (see place_desktops): the watcher comes back after a longer pause.
+CLOSE_PENDING = "close pending"
+
+
+def sync(event: str = "", close_ok: bool = False) -> list[str]:
     """Record connected screens, apply their settings, arrange desktops.
 
     event: "added" (a monitor was plugged in), "removed", "reload" or "".
+    close_ok: closing windows (the "close" option) is allowed now; without it,
+    CLOSE_PENDING is reported instead -- closing cannot be undone.
     """
     with apply.locked("sync"):
         monitors = hypr.monitors(include_disabled=True)
@@ -13,16 +20,25 @@ def sync(event: str = "") -> list[str]:
         done = apply.apply(cfg)
         if "reload" in done:
             desktops.mark_rules(False)  # a reload drops the workspace rules too
-        return done + place_desktops(cfg, docking=event == "added")
+        return done + place_desktops(cfg, docking=event == "added", close_ok=close_ok)
 
 
-def place_desktops(cfg: dict, docking: bool = False) -> list[str]:
+def place_desktops(cfg: dict, docking: bool = False, close_ok: bool = False) -> list[str]:
     """The fixed desktop and desktops 1-10 where the role wants them; ["reload",
-    ...] when rules pinning them to a screen had to go (call it under the sync lock)."""
+    ...] when rules pinning them to a screen had to go (call it under the sync lock).
+    Windows are only closed (option "close") with close_ok, after a look that
+    shows the external screen is really gone -- not mirrored or asleep."""
     screens = desktops.resolve(cfg)
     if not screens.monitors:
         return []  # Hyprland did not answer (busy setting up a screen): not "all unplugged"
+    if not screens.panel and screens.external:
+        return []  # lid closed: the external screen is all there is, its desktops stay where they are
     if not screens.external:
+        if desktops.would_close(cfg):
+            if desktops.external_listed():
+                return []  # mirrored or asleep, not unplugged
+            if not close_ok:
+                return [CLOSE_PENDING]
         # The rules pinning desktops stay until a reload; harmless while
         # their screen is away, and replaced when it comes back.
         desktops.undock(screens, cfg["unplug_windows"])

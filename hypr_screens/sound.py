@@ -17,9 +17,14 @@ import sys
 import time
 
 from hypr_screens import config
+from hypr_screens import enforce as enforcement
 from hypr_screens.i18n import t
 
 GUARD_SECONDS = 1.0
+# Events never bring a second check sooner than this after the last one: our
+# own pactl calls cause events, and an app that keeps setting its volume would
+# otherwise start a pactl storm. A change inside the gap is checked at its end.
+MIN_GAP_SECONDS = 0.4
 PACTL_SECONDS = 5
 VOLUME_MAX = 100
 KINDS = ("sink", "source")
@@ -311,7 +316,7 @@ def silence_commands(entries: dict[str, dict], kind: str, nodes: list[dict], car
 def enforce(cfg: dict | None = None, report=None) -> int:
     """Silence force-muted devices that are not; returns how many calls it took.
     report(labels) hears which devices had to be silenced."""
-    entries = forced(cfg if cfg is not None else config.load())
+    entries = forced(cfg if cfg is not None else enforcement.cached_config())
     if not entries:
         return 0
     cards = pactl_list("cards")
@@ -328,9 +333,11 @@ def enforce(cfg: dict | None = None, report=None) -> int:
 
 
 def report_silenced(labels: list[str]) -> None:
-    from hypr_screens import enforce as enforcement
-
-    enforcement.record("sound", "force_mute", ", ".join(labels))
+    """Note what was silenced; a status file that cannot be written must not stop the guard."""
+    try:
+        enforcement.record("sound", "force_mute", ", ".join(labels))
+    except Exception as error:
+        print(f"tuneup sound guard: cannot record: {error!r}", file=sys.stderr, flush=True)
 
 
 def set_forced(cfg: dict, device: dict, on: bool) -> None:
@@ -362,6 +369,15 @@ def relevant(line: bytes) -> bool:
     return any(marker in line for marker in (b" on sink #", b" on source #", b" on card #", b" on server"))
 
 
+def check() -> None:
+    """One look at the devices; a failure ends only this look (the next comes
+    in a second) -- not the `pactl subscribe` it ran under."""
+    try:
+        enforce(report=report_silenced)
+    except Exception as error:
+        print(f"tuneup sound guard: {error!r}", file=sys.stderr, flush=True)
+
+
 def guard() -> None:
     """Keep force-muted devices silent: on every device change, and every second
     as a safety net. Restarts `pactl subscribe` when PipeWire restarts."""
@@ -371,19 +387,21 @@ def guard() -> None:
                                   stderr=subprocess.DEVNULL) as events:
                 try:
                     fd = events.stdout.fileno()
-                    enforce(report=report_silenced)
+                    check()
                     last = time.monotonic()
+                    wanted = False  # an event came in the gap after the last look
                     while True:
-                        ready, _, _ = select.select([fd], [], [], GUARD_SECONDS)
-                        due = time.monotonic() - last >= GUARD_SECONDS
+                        wait = (MIN_GAP_SECONDS if wanted else GUARD_SECONDS) - (time.monotonic() - last)
+                        ready, _, _ = select.select([fd], [], [], max(0.0, wait))
                         if ready:
                             chunk = os.read(fd, 65536)
                             if not chunk:
                                 break
-                            due = due or any(relevant(line) for line in chunk.splitlines())
-                        if due:
-                            enforce(report=report_silenced)
-                            last = time.monotonic()
+                            wanted = wanted or any(relevant(line) for line in chunk.splitlines())
+                        now = time.monotonic()
+                        if now - last >= GUARD_SECONDS or (wanted and now - last >= MIN_GAP_SECONDS):
+                            check()
+                            last, wanted = time.monotonic(), False
                 finally:
                     events.terminate()  # else leaving the block waits for pactl's next event
         except Exception as error:  # never take the watcher down
