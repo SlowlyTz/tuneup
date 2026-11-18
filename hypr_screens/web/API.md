@@ -476,6 +476,32 @@ Starts `tuneup uninstall --yes [--keep-settings]` detached; it stops the tray,
 so the app is gone right after. The system packages stay. `bad_value` if
 `keepSettings` is not a boolean.
 
+## Plugins (new)
+
+Tuneup's own plugins, from the `plugins/` folder of the checkout
+(`hypr_screens/plugins.py`). Each is
+
+```js
+{ id: "music", name, description, icon, version,     // texts in the chosen language
+  installed: false,
+  settings: [{ key, type: "bool" | "enum" | "int", label, description, default,
+               options?: [{ value, label }], min?, max? }],
+  values: { key: value },                             // every setting, saved or default
+  checks: [{ id, label, ok, text }] }                 // optional extras it found (an app it talks to)
+```
+
+- `plugins()` → the list (by name). Runs the checks each time (a few ms).
+- `installPlugin(id)` → the plugin: linked into the Omarchy shell and put in
+  the bar at once (where the plugin says), its checks run again.
+- `removePlugin(id)` → the plugin: out of the bar and the shell; its settings
+  are kept for a later install.
+- `setPluginSetting(id, key, value)` → the plugin; written onto its bar entry
+  too, where the widget reads it.
+
+Unknown plugin or setting, or a value the setting does not allow: `bad_value`.
+`tuneup setup` (every update) wires installed plugins again; `tuneup plugin
+list|install|remove ID` does the same from the terminal.
+
 ## General
 
 - `language()` → `{code: "de", items: [{code: "en", name: "English"}, {code: "de", name: "Deutsch"}, …]}`

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from hypr_screens import brand, config, i18n, updates
 from hypr_screens import theme as theme_mod
+from hypr_screens import plugins as plugins_mod
 from hypr_screens import widgets as widgets_mod
 from hypr_screens.api.core import ApiError, endpoint, need
 
@@ -33,6 +34,7 @@ def set_language(code: str) -> dict:
     cfg = config.update(lambda fresh: fresh.__setitem__("language", code))
     i18n.set_language(code)
     widgets_mod.export(cfg)  # the widgets' own texts and date format
+    plugins_mod.refresh_bar(cfg)  # the plugins' widgets speak it too
     return language_view(code)
 
 

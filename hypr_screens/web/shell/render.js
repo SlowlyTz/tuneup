@@ -15,13 +15,14 @@ import { pageHome } from "../pages/home.js";
 import { pageKeys } from "../pages/keys/page.js";
 import { lookDirty, renderApplyBar } from "../pages/look/draft.js";
 import { pageLook } from "../pages/look/page.js";
+import { pagePlugins } from "../pages/plugins.js";
 import { pagePower } from "../pages/power.js";
 import { pageScreens } from "../pages/screens/page.js";
 import { pageSound } from "../pages/sound.js";
 import { pageWidgets } from "../pages/widgets/page.js";
 import { afterJump, searchTexts } from "./search.js";
 
-const PAGE_HTML = { home: pageHome, screens: pageScreens, keys: pageKeys, look: pageLook, widgets: pageWidgets, sound: pageSound, camera: pageCamera, power: pagePower, general: pageGeneral };
+const PAGE_HTML = { home: pageHome, screens: pageScreens, keys: pageKeys, look: pageLook, widgets: pageWidgets, sound: pageSound, camera: pageCamera, power: pagePower, plugins: pagePlugins, general: pageGeneral };
 const main = $("#main"), page = $("#page");
 let lastRoute = "";
 

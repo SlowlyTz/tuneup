@@ -13,7 +13,7 @@ monitor settings are back.
 import shutil
 import sys
 
-from hypr_screens import brand, camera, config, desktops, hypr, install, keybinds, migrate, root, samsung, scratch
+from hypr_screens import brand, camera, config, desktops, hypr, install, keybinds, migrate, plugins, root, samsung, scratch
 
 MINIMIZED = "special:minimized"
 # What minimizer.py leaves on a minimized window (its TILED_TAG, SHRUNK_TAG and
@@ -136,6 +136,7 @@ def run(keep_settings: bool = False, graphical: bool = False) -> list[str]:
     if not complete:
         raise Incomplete(done)
     done += lua_files()
+    done += plugins.remove_all(config.load())
     done += install.remove_from_shell()
     done += [f"{name}: {result}" for name, result in install.remove_launchers().items()]
     done += install.remove_desktop_entry()

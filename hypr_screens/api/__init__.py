@@ -19,7 +19,7 @@ they differ from the old mock are in hypr_screens/web/API.md; web/mock.js
 returns the same shapes.
 """
 from hypr_screens.api import (appearance, audio, desktop_widgets, displays, enforcing, galaxy_book,  # noqa: F401
-                              general, maintenance, shortcuts, webcam)
+                              general, maintenance, plugins, shortcuts, webcam)
 from hypr_screens.api.core import METHODS, ApiError, call, endpoint  # noqa: F401
 
 globals().update(METHODS)

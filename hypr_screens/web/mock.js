@@ -119,6 +119,18 @@
   };
 
   const db = clone(FIXTURE);
+  db.plugins = [{
+    id: "music", name: "Music", version: "1.0.0", icon: "music", installed: false,
+    description: "Control your music from the bar.",
+    settings: [
+      { key: "player", type: "enum", label: "Preferred player", description: "", default: "auto",
+        options: [{ value: "auto", label: "Automatic" }, { value: "slowtunes", label: "SlowTunes" }, { value: "spotify", label: "Spotify" }] },
+      { key: "timeRemaining", type: "bool", label: "Show the time left", description: "", default: false },
+    ],
+    values: { player: "auto", timeRemaining: false },
+    checks: [{ id: "slowtunes", label: "SlowTunes", ok: false, text: "Likes and \"Up next\" come with the SlowTunes app." }],
+  }];
+  const plugin = (id) => { const p = db.plugins.find((x) => x.id === id); need(p, "bad_value", `unknown plugin: ${id}`); return p; };
   db.lookShown = null; /* a preview: the look on screen but not saved */
   db.forceBefore = {};
   db.layoutStore = {}; /* name -> widgets as saved */
@@ -641,6 +653,18 @@
     },
     translations: () => reply(translationTable(db.language.code)),
     about: () => reply(db.about),
+    /* Plugins (one sample, as plugins/music would show it) */
+    plugins: () => reply(db.plugins),
+    async installPlugin(id) { const p = plugin(id); p.installed = true; return reply(p); },
+    async removePlugin(id) { const p = plugin(id); p.installed = false; return reply(p); },
+    async setPluginSetting(id, key, value) {
+      const p = plugin(id);
+      const spec = p.settings.find((x) => x.key === key);
+      need(spec, "bad_value", `${id} has no setting ${key}`);
+      need(spec.type !== "enum" || spec.options.some((o) => o.value === value), "bad_value", `bad value for ${key}`);
+      p.values[key] = value;
+      return reply(p);
+    },
     async openGuide() { return reply({ ok: true }); },
     async openConfigFolder() { return reply({ ok: true }); },
     theme: () => reply(db.theme),

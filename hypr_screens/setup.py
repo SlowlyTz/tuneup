@@ -9,13 +9,14 @@ every update; existing settings are kept.
 5. the scratch desktops in place of Omarchy's scratchpad: SUPER + SHIFT + S is
    taken only if nothing of the user's is on it (decided once), and windows
    left in the scratchpad move to the first scratch desktop
-6. the Omarchy shell plugins: the window list, the bar widgets, the desktop widgets
+6. the Omarchy shell plugins: the window list, the bar widgets, the desktop widgets,
+   and the plugins from plugins/ that were installed on the Plugins page
 7. the desktop entry and the icon
 """
 import time
 from pathlib import Path
 
-from hypr_screens import apply, brand, config, hypr, install, keybinds, migrate, samsung, scratch, widgets
+from hypr_screens import apply, brand, config, hypr, install, keybinds, migrate, plugins, samsung, scratch, widgets
 
 
 def lua(cfg: dict, moved: bool) -> list[str]:
@@ -65,13 +66,14 @@ def shell(cfg: dict) -> list[str]:
     if not install.has_omarchy_shell():
         return ["no omarchy-shell: no window list and no bar widgets; everything else works"]
     done = [f"removed old {plugin}" for plugin in install.remove_retired_plugins()]
-    plugins = ["hypr-minimizer.picker", install.WORKSPACES_WIDGET, install.DOCK_WIDGET, install.TASKBAR_WIDGET]
-    done += [f"{plugin}: {result}" for plugin, result in install.install_plugins(plugins).items()]
+    ours = ["hypr-minimizer.picker", install.WORKSPACES_WIDGET, install.DOCK_WIDGET, install.TASKBAR_WIDGET]
+    done += [f"{plugin}: {result}" for plugin, result in install.install_plugins(ours).items()]
     if cfg["desktop_keys"]:
         done.append(f"bar: {install.use_bar_widget()}")
     done += install.sync_bar(cfg)
     done += [f"widgets: {result}" for result in widgets.wire_shell(cfg["widgets"])]
     done.append(f"battery panel: {install.sync_power_panel(samsung.active())}")
+    done += [f"plugin {line}" for line in plugins.sync(cfg)]
     return done
 
 

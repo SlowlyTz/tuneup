@@ -78,6 +78,7 @@ const ICON = {
   cycle: '<path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9"/><path d="M18.5 3.5v3.8h-3.8M5.5 20.5v-3.8h3.8"/>',
   temp: '<path d="M10 14.5V5a2 2 0 0 1 4 0v9.5a3.5 3.5 0 1 1-4 0z"/><path d="M12 9v7"/>',
   usb: '<path d="M12 3v14M12 3l-2 2.5M12 3l2 2.5M8 10v2l4 2.5M16 8v3l-4 2.5"/><circle cx="12" cy="19" r="2"/>',
+  plugin: '<path d="M9 4h3a2 2 0 0 1 4 0h2a2 2 0 0 1 2 2v3a2 2 0 0 1 0 4v4a2 2 0 0 1-2 2h-4a2 2 0 0 0-4 0H6a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V6a2 2 0 0 1 2-2z"/>',
   music: '<path d="M9 18V6l11-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
   minus: '<path d="M5 12h14"/>',
   edit: '<path d="M4.5 19.5h4L19 9a2.1 2.1 0 0 0-3-3L5.5 16.5z"/><path d="m14 8 3 3"/>',

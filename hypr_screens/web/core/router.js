@@ -13,6 +13,7 @@ const PAGES = [
   { id: "sound", label: () => t("Sound"), icon: "speaker", needs: ["sound"] },
   { id: "camera", label: () => t("Camera"), icon: "camera", needs: ["camera"] },
   { id: "power", label: () => t("Battery & power"), icon: "battery", needs: ["samsung"], when: () => S.samsung && S.samsung.available },
+  { id: "plugins", label: () => t("Plugins"), icon: "plugin", needs: ["plugins"] },
   { id: "general", label: () => t("General"), icon: "sliders", needs: ["general"] },
 ];
 export const pageOf = (id) => PAGES.find((p) => p.id === id);

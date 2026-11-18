@@ -15,6 +15,7 @@ export const UI = {
   busy: 0,            // changes on their way to the backend
   pressed: false,     // a pointer is down (no live refresh while dragging)
   camBusy: false, samBusy: false, cavaBusy: false,
+  pluginBusy: null,   // the plugin being installed or removed
 };
 
 /* Only the look's draft survives a reload while it is being previewed. */
@@ -33,6 +34,7 @@ const LOADERS = {
   camera: [async () => { S.camera = await api.camera(); }, () => S.camera],
   samsung: [async () => { S.samsung = await api.samsung(); }, () => S.samsung],
   widgets: [async () => { [S.widgets, S.layouts] = [await api.widgets(), await api.layouts()]; }, () => S.widgets],
+  plugins: [async () => { S.plugins = await api.plugins(); }, () => S.plugins],
   general: [async () => { [S.lang, S.about] = [await api.language(), await api.about()]; }, () => S.lang],
   /* Optional: an older backend has no enforcer; then its card is not shown. */
   enforcement: [async () => { S.enforcement = await enforcement(); }, () => true],

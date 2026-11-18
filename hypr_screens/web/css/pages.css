@@ -340,3 +340,6 @@
 .kvs { display: grid; gap: 4px; margin-top: 4px; }
 .kv { display: grid; grid-template-columns: minmax(150px, max-content) 1fr; gap: var(--s3); }
 .kv .mono { color: var(--text); }
+
+/* Plugins */
+.plugin-list { display: flex; flex-direction: column; gap: var(--s3); }

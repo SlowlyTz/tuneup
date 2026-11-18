@@ -9,6 +9,7 @@ screen as Hyprland's own config has it.
 import fcntl
 import json
 import os
+import re
 import tempfile
 import threading
 import time
@@ -123,6 +124,8 @@ def default_config() -> dict:
         "camera": {"rotation": 0, "enabled": True},
         "widgets": {},
         "widget_layouts": [],
+        # Tuneup's own plugins (plugins.py): {id: {"installed": bool, "settings": {key: value}}}.
+        "plugins": {},
         # The version whose welcome was seen (None: not yet, a fresh install).
         "seen_version": None,
         # What the installer was asked to set up (None: not asked); --update keeps it.
@@ -186,6 +189,22 @@ def normalize_camera(raw: dict, camera: dict) -> None:
         camera["enabled"] = given["enabled"]
 
 
+def normalize_plugins(raw: dict) -> dict:
+    """Per plugin id: installed or not, and its settings as plain values (each
+    plugin checks them against its own schema, see plugins.py)."""
+    found = {}
+    for plugin_id, entry in section(raw, "plugins").items():
+        if not (isinstance(plugin_id, str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}", plugin_id) and isinstance(entry, dict)):
+            continue
+        settings = entry.get("settings") if isinstance(entry.get("settings"), dict) else {}
+        found[plugin_id] = {
+            "installed": entry.get("installed") is True,
+            "settings": {key: value for key, value in settings.items()
+                         if isinstance(key, str) and isinstance(value, (bool, int, str)) and len(str(value)) <= 200},
+        }
+    return found
+
+
 def normalize(raw: object) -> dict:
     """The settings with every part checked; what is not valid gets its default."""
     from hypr_screens import look, widgets  # local: both import config
@@ -223,6 +242,7 @@ def normalize(raw: object) -> dict:
     normalize_camera(raw, cfg["camera"])
     cfg["widgets"] = widgets.normalize(raw.get("widgets"))
     cfg["widget_layouts"] = widgets.normalize_layouts(raw.get("widget_layouts"))
+    cfg["plugins"] = normalize_plugins(raw)
     if isinstance(raw.get("seen_version"), str) and raw["seen_version"]:
         cfg["seen_version"] = raw["seen_version"][:40]
     cfg["install"].update({key: value for key, value in section(raw, "install").items()

@@ -66,6 +66,8 @@ function fixedEntries() {
     { id: "power.usb", r: "power", t: t("USB charging while the laptop is off"), exp: "pow-adv", syn: t("usb charge phone") },
     { id: "power.lid", r: "power", t: t("Switch on when the lid opens"), exp: "pow-adv", syn: t("lid open switch on") },
     { id: "power.off", r: "power", t: t("Switch off the Samsung control"), exp: "pow-adv", syn: t("samsung off disable") },
+    { id: "plugins.list", r: "plugins", t: t("Plugins"), syn: t("plugin add install extension music player") },
+    ...(S.plugins || []).map((p) => ({ id: `plugins.${p.id}`, r: "plugins", t: p.name, d: t("Plugins"), syn: p.description })),
     { id: "general.lang", r: "general", t: t("Language"), syn: "language english deutsch español français italiano" },
     ...(S.enforcement ? [{ id: "general.enforce", r: "general", t: t("Keep my settings"), syn: t("enforce protect put back other apps") }] : []),
     { id: "general.guide", r: "general", t: t("Open the guide"), syn: t("help docs manual") },

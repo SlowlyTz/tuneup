@@ -226,6 +226,10 @@ def build_parser() -> argparse.ArgumentParser:
                                          "scratch_shift_s", "scratch_kept", "scratch_swipe", *config.SWITCHES])
     option.add_argument("value", nargs="?", default="next")
 
+    plugin = sub.add_parser("plugin", help="Tuneup's plugins (plugins/): list, install ID, remove ID")
+    plugin.add_argument("action", choices=["list", "install", "remove"])
+    plugin.add_argument("id", nargs="?")
+
     for name, text in (
         ("switch", "show desktop N (1-10)"),
         ("move", "move the active window to desktop N and follow"),
@@ -468,12 +472,38 @@ def option_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def plugin_command(args: argparse.Namespace) -> int:
+    from hypr_screens import brand, config, plugins
+
+    if args.action == "list":
+        cfg = config.load()
+        for item in plugins.catalog():
+            mark = "installed" if plugins.state(cfg, item["id"]).get("installed") else "-"
+            print(f"  {item['id']:<16} {mark:<10} {item['name']}: {item['description']}")
+        return 0
+    if not args.id:
+        print(f"{brand.COMMAND} plugin {args.action}: which plugin? (see `{brand.COMMAND} plugin list`)", file=sys.stderr)
+        return 2
+    try:
+        if args.action == "install":
+            done, checks = plugins.install_plugin(args.id)
+            done += [f"{c['label']}: {c['text'] or ('ok' if c['ok'] else 'missing')}" for c in checks]
+        else:
+            done = plugins.remove_plugin(args.id)
+    except plugins.PluginError as error:
+        print(f"{brand.COMMAND} plugin: {error}", file=sys.stderr)
+        return 1
+    for line in done:
+        print(f"  {line}")
+    return 0
+
+
 HANDLERS = {
     "watch": watch_command, "apply": apply_command, "state": state_command, "status": status_command,
     "enforce": enforce_command, "camera": camera_command, "widgets": widgets_command, "power": power,
     "samsung": samsung_command, "list": list_command, "set": set_command, "when": when_command,
     "favorite": favorite_command, "forget": forget_command, "swap": swap_command, "bind": bind_command,
-    "option": option_command,
+    "option": option_command, "plugin": plugin_command,
 }
 
 
