@@ -49,6 +49,7 @@ Rest the pointer on the Omarchy logo in the bar for a moment and a dock fades in
 - The dock stays while the pointer is on the logo or the dock, and goes a moment after it left.
 - Left click on the logo still opens the Omarchy menu, right click a terminal.
 - A full-screen window hides the bar, and with it the dock.
+- Windows on a special workspace of their own (web apps opened as flyouts from the bar, say) are not in the dock; minimized windows and the scratch desktops are.
 - Off in Tuneup under **Widgets → In the bar**, or `tuneup option dock off`: the Omarchy logo button is back.
 
 ## Taskbar

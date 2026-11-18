@@ -154,8 +154,13 @@ PanelWindow {
       var toplevel = toplevels[i]
       var workspace = toplevel.workspace
       if (!workspace || !toplevel.address) continue
+      // Other special workspaces hold windows with a place of their own, such as
+      // web apps opened as flyouts from the bar: they stay out of the dock.
+      var workspaceName = String(workspace.name || "")
+      if (workspaceName.indexOf("special:") === 0 && workspaceName !== dock.minimizedName
+          && workspaceName.indexOf(dock.scratchParked) !== 0) continue
       var id = dock.appId(toplevel)
-      var isHidden = String(workspace.name || "") === dock.minimizedName
+      var isHidden = workspaceName === dock.minimizedName
       var into = isHidden ? hidden : open
       // A window without an app id is its own group, not one with every other such window.
       var key = (isHidden ? "min:" : "") + (id ? id.toLowerCase() : "window:" + String(toplevel.address))
