@@ -10,6 +10,11 @@ plugin.json:
   bar:       {"section": "right", "before": ["slowly.agents", ...]} -- the bar
              widget goes in front of the first of these found in that section,
              else at the start of it
+  replaces:  ["omarchy.monitor", ...] (optional) -- built-in widgets the plugin
+             stands in for: installing puts it exactly where the first of these
+             sits in the bar and takes that one out (bar.before is then only
+             the fallback); removing the plugin puts the first one back on the
+             plugin's spot, unless one of them is in the bar again by then
   settings:  [{"key", "type": "bool" | "enum" | "int", "label", "default",
                "options": [{"value", "label"}] (enum), "min", "max" (int)}]
              -- kept in the settings and written onto the widget's entry in
@@ -68,6 +73,7 @@ def read_manifest(path: Path) -> dict | None:
         "icon": str(data.get("icon") or "plugin"), "version": str(data.get("version") or ""),
         "bar": {"section": str(bar.get("section") or "right"),
                 "before": [str(b) for b in bar.get("before") or [] if isinstance(b, str)]},
+        "replaces": [str(r) for r in data.get("replaces") or [] if isinstance(r, str) and r],
         "settings": settings, "checks": checks,
         "translations": data.get("translations") if isinstance(data.get("translations"), dict) else {},
     }
@@ -165,8 +171,9 @@ def link_path(plugin: dict) -> Path:
 
 @install.shell_edit
 def put_in_bar(plugin: dict, values: dict) -> str:
-    """The widget's entry in the bar, with the settings on it; in front of the
-    first of bar.before in its section, else at the start of that section."""
+    """The widget's entry in the bar, with the settings on it: on the spot of
+    the first widget it replaces that is in the bar (which goes), else in front
+    of the first of bar.before in its section, else at the start of that section."""
     path = install.shell_json()
     try:
         cfg = json.loads(path.read_text())
@@ -182,6 +189,14 @@ def put_in_bar(plugin: dict, values: dict) -> str:
             section[at] = {**(section[at] if isinstance(section[at], dict) else {}), **wanted}
             install.write_json(path, cfg)
             return "updated"
+    for replaced in plugin.get("replaces") or []:
+        for section in (s for s in layout.values() if isinstance(s, list)):
+            at = next((i for i, w in enumerate(section) if install.widget_id(w) == replaced), None)
+            if at is not None:
+                section[at] = wanted
+                section[:] = [w for i, w in enumerate(section) if i == at or install.widget_id(w) != replaced]
+                install.write_json(path, cfg)
+                return f"added in place of {replaced}"
     section = layout.setdefault(plugin["bar"]["section"], [])
     ids = [install.widget_id(w) for w in section]
     at = next((ids.index(b) for b in plugin["bar"]["before"] if b in ids), 0)
@@ -191,22 +206,33 @@ def put_in_bar(plugin: dict, values: dict) -> str:
 
 
 @install.shell_edit
-def take_from_bar(shell_id: str) -> str:
+def take_from_bar(shell_id: str, restore: list[str] | tuple = ()) -> str:
+    """The widget out of the bar; with restore (the plugin's "replaces"), the
+    first of those back on its spot unless one of them is in the bar already."""
     path = install.shell_json()
     try:
         cfg = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):
         return "no shell.json"
     layout = (cfg.get("bar") or {}).get("layout") or {}
-    removed = False
-    for section in layout.values():
-        if isinstance(section, list) and any(install.widget_id(w) == shell_id for w in section):
-            section[:] = [w for w in section if install.widget_id(w) != shell_id]
-            removed = True
-    if not removed:
+    sections = [s for s in layout.values() if isinstance(s, list)]
+    present = {install.widget_id(w) for s in sections for w in s}
+    back = restore[0] if restore and not present.intersection(restore) else ""
+    found = False
+    for section in sections:
+        at = next((i for i, w in enumerate(section) if install.widget_id(w) == shell_id), None)
+        if at is None:
+            continue
+        if back and not found:
+            section[at] = {"id": back}
+        else:
+            section.pop(at)
+        section[:] = [w for w in section if install.widget_id(w) != shell_id]
+        found = True
+    if not found:
         return "ok"
     install.write_json(path, cfg)
-    return "removed"
+    return f"removed, {back} back" if back else "removed"
 
 
 def wire(plugin: dict, values: dict) -> list[str]:
@@ -216,8 +242,8 @@ def wire(plugin: dict, values: dict) -> list[str]:
     return done
 
 
-def unwire(plugin_id: str, shell_id: str) -> list[str]:
-    done = [f"bar: {take_from_bar(shell_id)}"]
+def unwire(plugin_id: str, shell_id: str, restore: list[str] | tuple = ()) -> list[str]:
+    done = [f"bar: {take_from_bar(shell_id, restore)}"]
     path = install.plugins_dir() / shell_id
     if path.is_symlink() and (path.resolve().is_relative_to(folder().resolve()) or install.ours(path)):
         path.unlink()
@@ -252,7 +278,7 @@ def remove_plugin(plugin_id: str) -> list[str]:
     """Out of the bar and the shell; its settings are kept for a later install."""
     plugin = manifest(plugin_id)
     set_state(plugin_id, installed=False)
-    return unwire(plugin_id, plugin["shellId"])
+    return unwire(plugin_id, plugin["shellId"], plugin["replaces"])
 
 
 def set_setting(plugin_id: str, key: str, value: object) -> dict:
@@ -293,7 +319,7 @@ def remove_all(cfg: dict) -> list[str]:
     done = []
     for plugin in catalog():
         if state(cfg, plugin["id"]).get("installed") or link_path(plugin).is_symlink():
-            done += [f"{plugin['id']}: {line}" for line in unwire(plugin["id"], plugin["shellId"])]
+            done += [f"{plugin['id']}: {line}" for line in unwire(plugin["id"], plugin["shellId"], plugin["replaces"])]
     return done
 
 

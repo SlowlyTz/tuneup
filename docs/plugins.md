@@ -34,11 +34,23 @@ It works with every player that speaks MPRIS. **SlowTunes** (the desktop app) gi
 
 Settings: **Preferred player** (shown first when several play) and **Show the time left**.
 
+## Display
+
+Takes the place of Omarchy's display icon (the monitor) in the bar; removing the plugin puts Omarchy's back on the same spot. The panel is Omarchy's: brightness, text size and scale work as before, and the shortcut for the display panel opens this one. Instead of Omarchy's list of displays it shows your **screens**:
+
+- every connected screen: laptop or monitor, the name Tuneup knows it by, the connector and resolution
+- how they are used, at a glance: extended, mirrored, laptop only
+- for each external screen a switch **Extend | Mirror** (mirror shows the laptop's picture); Tuneup keeps the choice for that screen, like `tuneup set "HP 32f" mirror on`
+- **Screen settings in Tuneup** opens the settings window
+
+The keys work as everywhere in the panel: j/k from row to row, h/l picks Extend or Mirror, Enter applies it.
+
 ## Write a plugin
 
 A folder `plugins/<id>/`:
 
 - `plugin.json`: name, description, icon, version, where it goes in the bar, its settings and checks (see the top of `hypr_screens/plugins.py` for every field)
+- optional `"replaces": ["omarchy.monitor"]`: built-in widgets the plugin stands in for. Installing puts it exactly where the first of them sits and takes that one out of the bar; removing the plugin (or Tuneup) puts it back on that spot
 - `shell/`: an Omarchy shell plugin (`manifest.json` and its QML). Installing links this folder to `~/.config/omarchy/plugins/<its id>`.
 
 The settings are written onto the widget's entry in `shell.json`; the widget reads them with `setting("key", default)`. Tuneup also writes `language` there, so the widget can speak the language set in the app.

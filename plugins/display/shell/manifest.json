@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "tuneup.display",
+  "name": "Display (Tuneup)",
+  "version": "1.0.0",
+  "author": "SlowlyTz",
+  "description": "Omarchy's display panel with Tuneup's screens: extend or mirror each one",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Display (Tuneup)",
+    "description": "Brightness, text size, scale and your screens: extended or mirrored",
+    "category": "System",
+    "allowMultiple": false
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.monitor"
+  }
+}

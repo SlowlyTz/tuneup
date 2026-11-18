@@ -142,3 +142,77 @@ def test_the_settings_file_keeps_only_plain_plugin_values():
     cfg = config.normalize({"plugins": {"music": {"installed": True, "settings": {"a": 1, "b": {"x": 1}}},
                                         "Bad Id": {"installed": True}}})
     assert cfg["plugins"] == {"music": {"installed": True, "settings": {"a": 1}}}
+
+
+@pytest.fixture()
+def replacing(shell):
+    """A second plugin that stands in for Omarchy's display panel."""
+    folder = shell / "plugins" / "display"
+    (folder / "shell").mkdir(parents=True)
+    (folder / "shell" / "manifest.json").write_text(json.dumps({"id": "tuneup.display"}))
+    (folder / "plugin.json").write_text(json.dumps({
+        "id": "display", "name": "Display", "replaces": ["omarchy.monitor"],
+        "bar": {"section": "right", "before": ["omarchy.power"]}}))
+    install.shell_json().write_text(json.dumps({"bar": {"layout": {"right": [
+        {"id": "omarchy.network"}, {"id": "omarchy.monitor"}, {"id": "omarchy.power", "showPercentage": True}]}}}))
+    return shell
+
+
+def test_a_replacing_plugin_takes_the_spot_of_the_widget_it_replaces(replacing):
+    assert plugins.manifest("display")["replaces"] == ["omarchy.monitor"]
+    api.install_plugin("display")
+    assert right_ids() == ["omarchy.network", "tuneup.display", "omarchy.power"]
+    api.install_plugin("display")  # again (as `tuneup setup` does): nothing moves, nothing comes back
+    assert right_ids() == ["omarchy.network", "tuneup.display", "omarchy.power"]
+
+
+def test_removing_a_replacing_plugin_puts_the_replaced_widget_back_on_its_spot(replacing):
+    api.install_plugin("display")
+    layout = json.loads(install.shell_json().read_text())
+    layout["bar"]["layout"]["right"].append({"id": "omarchy.tray"})  # moved around meanwhile
+    layout["bar"]["layout"]["right"].insert(0, layout["bar"]["layout"]["right"].pop(1))
+    install.shell_json().write_text(json.dumps(layout))
+    api.remove_plugin("display")
+    assert right_ids() == ["omarchy.monitor", "omarchy.network", "omarchy.power", "omarchy.tray"]
+    assert json.loads(install.shell_json().read_text())["bar"]["layout"]["right"][2] == {
+        "id": "omarchy.power", "showPercentage": True}
+
+
+def test_without_the_replaced_widget_it_goes_where_bar_before_says(replacing):
+    install.shell_json().write_text(json.dumps({"bar": {"layout": {"right": [
+        {"id": "omarchy.network"}, {"id": "omarchy.power"}]}}}))
+    api.install_plugin("display")
+    assert right_ids() == ["omarchy.network", "tuneup.display", "omarchy.power"]
+
+
+def test_the_replaced_widget_is_not_put_back_twice(replacing):
+    api.install_plugin("display")
+    layout = json.loads(install.shell_json().read_text())
+    layout["bar"]["layout"]["right"].append({"id": "omarchy.monitor"})  # the user put it back by hand
+    install.shell_json().write_text(json.dumps(layout))
+    api.remove_plugin("display")
+    assert right_ids() == ["omarchy.network", "omarchy.power", "omarchy.monitor"]
+
+
+def test_uninstalling_restores_the_replaced_widget(replacing):
+    api.install_plugin("display")
+    plugins.remove_all(config.load())
+    assert right_ids() == ["omarchy.network", "omarchy.monitor", "omarchy.power"]
+
+
+def test_a_plugin_that_replaces_nothing_restores_nothing(shell):
+    api.install_plugin("music")
+    api.remove_plugin("music")
+    assert right_ids() == ["omarchy.tray", "slowly.agents", "omarchy.audio"]
+
+
+def test_the_display_plugin_in_the_checkout_is_complete():
+    plugin = next(p for p in plugins.catalog() if p["id"] == "display")
+    assert plugin["shellId"] == "tuneup.display" and plugin["replaces"] == ["omarchy.monitor"]
+    assert plugin["icon"] == "monitor"
+    for language in ("de", "es", "fr", "it"):
+        assert plugins.text(plugin, plugin["name"], language) != plugin["name"]
+        assert plugins.text(plugin, plugin["description"], language) != plugin["description"]
+    shell_dir = plugin["path"] / "shell"
+    assert {"Panel.qml", "Model.js", "Texts.js", "manifest.json"} <= {p.name for p in shell_dir.iterdir()}
+    assert json.loads((shell_dir / "manifest.json").read_text())["omarchy"]["clonedFrom"] == "omarchy.monitor"

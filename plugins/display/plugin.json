@@ -1,0 +1,34 @@
+{
+  "id": "display",
+  "name": "Display",
+  "description": "Omarchy's display panel, with your screens: extend or mirror them from the bar.",
+  "icon": "monitor",
+  "version": "1.0.0",
+  "replaces": [
+    "omarchy.monitor"
+  ],
+  "bar": {
+    "section": "right",
+    "before": [
+      "omarchy.power"
+    ]
+  },
+  "translations": {
+    "de": {
+      "Display": "Anzeige",
+      "Omarchy's display panel, with your screens: extend or mirror them from the bar.": "Omarchys Anzeige-Panel mit deinen Bildschirmen: erweitern oder spiegeln direkt aus der Bar."
+    },
+    "es": {
+      "Display": "Pantalla",
+      "Omarchy's display panel, with your screens: extend or mirror them from the bar.": "El panel de pantalla de Omarchy con tus pantallas: extiéndelas o duplícalas desde la barra."
+    },
+    "fr": {
+      "Display": "Affichage",
+      "Omarchy's display panel, with your screens: extend or mirror them from the bar.": "Le panneau d’affichage d’Omarchy avec tes écrans : étends-les ou duplique-les depuis la barre."
+    },
+    "it": {
+      "Display": "Schermo",
+      "Omarchy's display panel, with your screens: extend or mirror them from the bar.": "Il pannello schermo di Omarchy con i tuoi schermi: estendili o duplicali dalla barra."
+    }
+  }
+}
