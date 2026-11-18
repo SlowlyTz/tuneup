@@ -128,3 +128,10 @@ function sourceName(player, windows) {
   }
   return found.length === 1 ? found[0] : own
 }
+
+// Jumps to `seconds`. Web apps on WebKit (SlowTunes) refuse MPRIS SetPosition
+// ("not available now") and take Seek's offset as the position itself.
+function seekTo(player, seconds) {
+  if ((player.dbusName || "").indexOf(".org.webkit.") >= 0) player.seek(seconds)
+  else player.position = seconds
+}

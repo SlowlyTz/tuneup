@@ -373,7 +373,7 @@ BarWidget {
           step: 1
           value: root.position
           enabled: !!root.player && root.player.canSeek
-          onReleased: function(value) { if (root.player && root.player.canSeek) root.player.position = value }
+          onReleased: function(value) { if (root.player && root.player.canSeek) Texts.seekTo(root.player, value) }
         }
         Item {
           width: parent.width
