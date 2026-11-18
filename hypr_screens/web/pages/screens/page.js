@@ -70,6 +70,17 @@ function tileSize(s) {
   return s.hypr.scale && s.hypr.scale !== 1 ? `${res(m.w, m.h)} · ${pct(Math.round(s.hypr.scale * 100))}` : res(m.w, m.h);
 }
 
+/* "3 days ago": when an unplugged screen was last connected. */
+function seenAgo(s) {
+  if (s.connected || !s.lastSeen) return "";
+  const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(`${s.lastSeen}T00:00`)) / 86400000);
+  if (!(days >= 0)) return "";
+  const rtf = new Intl.RelativeTimeFormat(loc(), { numeric: "auto" });
+  if (days >= 365) return rtf.format(-Math.round(days / 365), "year");
+  if (days >= 60) return rtf.format(-Math.round(days / 30), "month");
+  return rtf.format(-days, "day");
+}
+
 function arrangeCard(sel, cs) {
   const fx = S.fixed || {};
   const mirrored = mirrors();
@@ -85,12 +96,16 @@ function arrangeCard(sel, cs) {
         ${fixed ? `<span class="pill fixed-badge">${ic("pin")}${esc(t("Own desktops"))}</span>` : ""}
         ${s.laptop && mirrored.length ? `<span class="pill fixed-badge">${ic("mirror")}${esc(t("Mirrored"))}</span>` : ""}</button>`;
   }).join("");
-  /* Screens without a place on the desk, as small buttons: mirrors, then the unplugged ones. */
-  const chips = (head, list, small) => (list.length ? `<div class="known"><span class="known-h">${esc(head)}</span>${list.map((s) => {
+  /* Screens without a place on the desk, as a grid of cards: mirrors, then the unplugged ones. */
+  const chips = (head, list, small) => (list.length ? `<div class="known"><div class="known-h"><span>${esc(head)}</span><span class="known-n">${list.length}</span></div><div class="known-grid">${list.map((s) => {
     const m = s.modes.find((x) => x.preferred) || s.modes[0] || { w: 16, h: 9 };
-    const h = Math.round((26 * m.h) / m.w);
-    return `<button type="button" class="kscr${s.id === sel.id ? " sel" : ""}" aria-pressed="${s.id === sel.id}" ${reg(`known-${s.id}`, { click: () => { UI.sel = s.id; render(); } })}><span class="mini" style="width:26px;height:${h}px"></span><span><b>${esc(sname(s))}</b><small>${small(s, m)}</small></span>${s.favorite ? `<span title="${esc(t("Favorite"))}">${ic("star", "xs")}</span>` : ""}</button>`;
-  }).join("")}</div>` : "");
+    const tall = m.h > m.w;
+    const w = tall ? Math.round((34 * m.w) / m.h) : 44, h = tall ? 34 : Math.round((44 * m.h) / m.w);
+    const info = [small(s, m), seenAgo(s)].filter(Boolean).join(" · ");
+    return `<button type="button" class="kscr${s.id === sel.id ? " sel" : ""}" aria-pressed="${s.id === sel.id}" title="${esc(s.description || sname(s))}" ${reg(`known-${s.id}`, { click: () => { UI.sel = s.id; render(); } })}>
+        <span class="kscr-pic"><span class="kscr-screen" style="width:${w}px;height:${h}px"></span><span class="kscr-stand"></span></span>
+        <span class="kscr-txt"><b>${esc(sname(s))}</b><small>${info}</small></span>${s.favorite ? `<span class="kscr-fav" title="${esc(t("Favorite"))}">${ic("star", "xs")}</span>` : ""}</button>`;
+  }).join("")}</div></div>` : "");
   const strip = chips(t("Mirrors the laptop"), mirrored, (s) => (s.hypr ? res(parseMode(s.hypr.mode).w, parseMode(s.hypr.mode).h) : ""))
     + chips(t("Known screens"), S.screens.filter((s) => !s.connected), (s, m) => (m.w ? res(m.w, m.h) : ""));
   return `<div class="card arr-card" data-sid="screens.arrange">
