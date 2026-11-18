@@ -223,6 +223,31 @@ BarWidget {
       anchors.fill: parent
       spacing: Style.space(10)
 
+      // More than one player: pick the one shown, at the top.
+      Flow {
+        visible: root.shownPlayers.length > 1
+        width: parent.width
+        spacing: Style.space(4)
+
+        Repeater {
+          model: root.shownPlayers
+
+          Button {
+            required property var modelData
+            text: root.nameOf(modelData) || "?"
+            iconText: modelData.isPlaying ? "󰏤" : "󰐊"
+            foreground: root.bar.foreground
+            bordered: true
+            selected: modelData === root.player
+            onClicked: root.chosen = modelData
+          }
+        }
+      }
+      PanelSeparator {
+        visible: root.shownPlayers.length > 1
+        foreground: root.bar.foreground
+      }
+
       // Nothing plays.
       Column {
         visible: !root.hasMedia
@@ -374,6 +399,7 @@ BarWidget {
         LayoutMirroring.childrenInherit: true
 
         Button {
+          anchors.verticalCenter: parent.verticalCenter
           visible: !!root.player && root.player.shuffleSupported
           iconText: "󰒟"
           tooltipText: root.tr("Shuffle")
@@ -383,6 +409,7 @@ BarWidget {
           onClicked: root.player.shuffle = !root.player.shuffle
         }
         Button {
+          anchors.verticalCenter: parent.verticalCenter
           iconText: "󰒮"
           tooltipText: root.tr("Previous")
           foreground: root.bar.foreground
@@ -391,6 +418,7 @@ BarWidget {
           onClicked: root.player.previous()
         }
         Button {
+          anchors.verticalCenter: parent.verticalCenter
           iconText: root.playing ? "󰏤" : "󰐊"
           tooltipText: root.playing ? root.tr("Pause") : root.tr("Play")
           foreground: root.bar.foreground
@@ -401,6 +429,7 @@ BarWidget {
           onClicked: root.player.togglePlaying()
         }
         Button {
+          anchors.verticalCenter: parent.verticalCenter
           iconText: "󰒭"
           tooltipText: root.tr("Next")
           foreground: root.bar.foreground
@@ -409,6 +438,7 @@ BarWidget {
           onClicked: root.player.next()
         }
         Button {
+          anchors.verticalCenter: parent.verticalCenter
           visible: !!root.player && root.player.loopSupported
           iconText: root.player && root.player.loopState === MprisLoopState.Track ? "󰑘" : "󰑖"
           tooltipText: root.tr("Repeat")
@@ -422,6 +452,7 @@ BarWidget {
           }
         }
         Button {
+          anchors.verticalCenter: parent.verticalCenter
           visible: root.showLike
           iconText: root.tunes && root.tunes.liked ? "󰋑" : "󰋕"
           tooltipText: root.tunes && root.tunes.liked ? root.tr("Liked") : root.tr("Like")
@@ -455,14 +486,13 @@ BarWidget {
         Repeater {
           model: root.queue
 
-          BorderSurface {
+          CursorSurface {
             id: queueRow
             required property var modelData
             width: queueList.width
             height: Style.space(40)
-            radius: Style.spacing.labelGap
-            color: queueMouse.containsMouse ? Style.normalFillFor(root.bar.foreground, Commons.Color.accent) : "transparent"
-            borderSpec: Border.none()
+            hasCursor: queueMouse.containsMouse
+            foreground: root.bar.foreground
 
             Row {
               anchors.fill: parent
@@ -517,31 +547,6 @@ BarWidget {
               cursorShape: Qt.PointingHandCursor
               onClicked: root.playFromQueue(queueRow.modelData)
             }
-          }
-        }
-      }
-
-      // More than one player: pick the one shown.
-      PanelSeparator {
-        visible: root.shownPlayers.length > 1
-        foreground: root.bar.foreground
-      }
-      Flow {
-        visible: root.shownPlayers.length > 1
-        width: parent.width
-        spacing: Style.space(4)
-
-        Repeater {
-          model: root.shownPlayers
-
-          Button {
-            required property var modelData
-            text: root.nameOf(modelData) || "?"
-            iconText: modelData.isPlaying ? "󰏤" : "󰐊"
-            foreground: root.bar.foreground
-            bordered: true
-            selected: modelData === root.player
-            onClicked: root.chosen = modelData
           }
         }
       }
