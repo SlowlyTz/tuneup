@@ -15,6 +15,7 @@ Tuneup is the settings app Omarchy is missing: screens and desktops, window look
 | scratch desktops on SUPER + S (several, on every screen) | [scratch.md](scratch.md) |
 | minimize, restore or peek at windows | [minimizer.md](minimizer.md) |
 | change a shortcut | [keys.md](keys.md) |
+| add extras like music control to the bar, or write one | [plugins.md](plugins.md) |
 | understand why Tuneup puts settings back | [keep-settings.md](keep-settings.md) |
 | use charge limit and performance modes on a Galaxy Book | [samsung.md](samsung.md) |
 | fix something | [troubleshooting.md](troubleshooting.md) |

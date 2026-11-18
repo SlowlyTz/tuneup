@@ -1,0 +1,110 @@
+{
+  "id": "music",
+  "name": "Music",
+  "description": "Control your music from the bar.",
+  "icon": "music",
+  "version": "1.0.0",
+  "bar": {
+    "section": "right",
+    "before": [
+      "slowly.agents",
+      "omarchy.agents"
+    ]
+  },
+  "settings": [
+    {
+      "key": "player",
+      "type": "enum",
+      "label": "Preferred player",
+      "description": "Shown first when several play",
+      "default": "auto",
+      "options": [
+        {
+          "value": "auto",
+          "label": "Automatic"
+        },
+        {
+          "value": "slowtunes",
+          "label": "SlowTunes"
+        },
+        {
+          "value": "spotify",
+          "label": "Spotify"
+        }
+      ]
+    },
+    {
+      "key": "timeRemaining",
+      "type": "bool",
+      "label": "Show the time left",
+      "description": "Instead of the song's length",
+      "default": false
+    }
+  ],
+  "checks": [
+    {
+      "id": "slowtunes",
+      "label": "SlowTunes",
+      "command": [
+        "./check-slowtunes"
+      ],
+      "ok": "Like songs and see what plays next.",
+      "missing": "Likes and \"Up next\" come with the SlowTunes app.",
+      "texts": {
+        "ready": "Like songs and see what plays next.",
+        "installed": "Likes and \"Up next\" appear while an up-to-date SlowTunes runs.",
+        "missing": "Likes and \"Up next\" come with the SlowTunes app."
+      }
+    }
+  ],
+  "translations": {
+    "de": {
+      "Music": "Musik",
+      "Preferred player": "Bevorzugter Player",
+      "Shown first when several play": "Wird zuerst gezeigt, wenn mehrere laufen",
+      "Automatic": "Automatisch",
+      "Show the time left": "Restzeit zeigen",
+      "Instead of the song's length": "Statt der Länge des Songs",
+      "Control your music from the bar.": "Steuere deine Musik direkt aus der Bar.",
+      "Like songs and see what plays next.": "Songs liken und sehen, was als Nächstes läuft.",
+      "Likes and \"Up next\" appear while an up-to-date SlowTunes runs.": "Likes und „Als Nächstes“ gibt es, solange eine aktuelle SlowTunes-Version läuft.",
+      "Likes and \"Up next\" come with the SlowTunes app.": "Likes und „Als Nächstes“ gibt es mit der SlowTunes-App."
+    },
+    "es": {
+      "Music": "Música",
+      "Preferred player": "Reproductor preferido",
+      "Shown first when several play": "Se muestra primero si suenan varios",
+      "Automatic": "Automático",
+      "Show the time left": "Mostrar el tiempo restante",
+      "Instead of the song's length": "En lugar de la duración de la canción",
+      "Control your music from the bar.": "Controla tu música desde la barra.",
+      "Like songs and see what plays next.": "Dale «me gusta» a canciones y mira lo que sigue.",
+      "Likes and \"Up next\" appear while an up-to-date SlowTunes runs.": "Los «me gusta» y «A continuación» aparecen mientras se ejecute un SlowTunes actualizado.",
+      "Likes and \"Up next\" come with the SlowTunes app.": "Los «me gusta» y «A continuación» llegan con la app SlowTunes."
+    },
+    "fr": {
+      "Music": "Musique",
+      "Preferred player": "Lecteur préféré",
+      "Shown first when several play": "Affiché en premier si plusieurs jouent",
+      "Automatic": "Automatique",
+      "Show the time left": "Afficher le temps restant",
+      "Instead of the song's length": "Au lieu de la durée du morceau",
+      "Control your music from the bar.": "Contrôle ta musique depuis la barre.",
+      "Like songs and see what plays next.": "Aime des morceaux et vois ce qui suit.",
+      "Likes and \"Up next\" appear while an up-to-date SlowTunes runs.": "Les « j’aime » et « À suivre » apparaissent tant qu’un SlowTunes à jour tourne.",
+      "Likes and \"Up next\" come with the SlowTunes app.": "Les « j’aime » et « À suivre » viennent avec l’app SlowTunes."
+    },
+    "it": {
+      "Music": "Musica",
+      "Preferred player": "Lettore preferito",
+      "Shown first when several play": "Mostrato per primo se ne suonano diversi",
+      "Automatic": "Automatico",
+      "Show the time left": "Mostra il tempo rimanente",
+      "Instead of the song's length": "Invece della durata del brano",
+      "Control your music from the bar.": "Controlla la tua musica dalla barra.",
+      "Like songs and see what plays next.": "Metti «mi piace» ai brani e guarda cosa viene dopo.",
+      "Likes and \"Up next\" appear while an up-to-date SlowTunes runs.": "I «mi piace» e «Prossimi brani» compaiono finché è in esecuzione uno SlowTunes aggiornato.",
+      "Likes and \"Up next\" come with the SlowTunes app.": "I «mi piace» e «Prossimi brani» arrivano con l’app SlowTunes."
+    }
+  }
+}

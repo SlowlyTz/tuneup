@@ -1,0 +1,24 @@
+#!/bin/sh
+# Can SlowTunes give the music plugin its likes and queue? Prints one word:
+#   ready      the desktop app runs with its control interface (0.12.10 or newer)
+#   installed  the app is there but not running, or too old for the interface
+#   missing    no SlowTunes desktop app
+# Exit 0 only for "ready".
+control="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/slowtunes/control.json"
+if [ -r "$control" ]; then
+  pid=$(sed -n 's/.*"pid": *\([0-9][0-9]*\).*/\1/p' "$control")
+  if [ -n "$pid" ] && [ -d "/proc/$pid" ]; then
+    echo ready
+    exit 0
+  fi
+fi
+for app in "$HOME/Applications/SlowTunes.AppImage" "$HOME/Applications/slowtunes.AppImage"; do
+  [ -e "$app" ] && { echo installed; exit 1; }
+done
+if command -v slowtunes >/dev/null 2>&1 \
+  || ls "$HOME/.local/share/applications/"*[Ss]low[Tt]unes*.desktop /usr/share/applications/*[Ss]low[Tt]unes*.desktop >/dev/null 2>&1; then
+  echo installed
+  exit 1
+fi
+echo missing
+exit 1

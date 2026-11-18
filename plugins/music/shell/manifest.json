@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "tuneup.music",
+  "name": "Music (Tuneup)",
+  "version": "1.0.0",
+  "author": "SlowlyTz",
+  "description": "Now playing in the bar: cover, progress, skip; likes and the queue for SlowTunes",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Music (Tuneup)",
+    "description": "Control what plays: Spotify, SlowTunes, the browser",
+    "category": "Media",
+    "allowMultiple": false
+  }
+}
