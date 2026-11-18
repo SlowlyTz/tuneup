@@ -70,6 +70,14 @@ BarWidget {
   property bool popupOpen: false
   function close() { popupOpen = false }
 
+  // The bar lays its own pointer area over every widget (for dragging) and
+  // shows the hand cursor only over widgets that answer triggerPress; a left
+  // click then arrives here instead of at the MouseArea below.
+  function triggerPress(button) {
+    if (root.bar) root.bar.hideTooltip(root)
+    root.popupOpen = !root.popupOpen
+  }
+
   implicitWidth: barSize
   implicitHeight: barSize
 
