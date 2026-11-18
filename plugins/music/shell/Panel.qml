@@ -12,6 +12,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import Quickshell.Services.Mpris
 import qs.Ui
 import qs.Commons
@@ -54,6 +55,15 @@ BarWidget {
   readonly property bool hasMedia: !!player && !!(player.trackTitle || player.trackArtist)
   readonly property bool playing: !!player && !!player.isPlaying
   readonly property bool isSlowtunes: Texts.appOf(player) === "slowtunes"
+
+  // The windows (pid, title) for naming what plays: a browser player is named
+  // after its site ("SoundCloud", not "Helium"). Read again when the panel opens.
+  readonly property var windows: Hyprland.toplevels.values.map(function(t) {
+    var ipc = t.lastIpcObject || {}
+    return { pid: Number(ipc.pid || 0), title: String(t.title || ipc.title || "") }
+  })
+  function nameOf(p) { return Texts.sourceName(p, root.windows) }
+  onPopupOpenChanged: if (popupOpen) Hyprland.refreshToplevels()
 
   // --- the bar --------------------------------------------------------------
 
@@ -305,13 +315,13 @@ BarWidget {
           }
           Text {
             textFormat: Text.PlainText
-            text: root.player ? (root.player.identity || "") : ""
+            text: root.player ? root.nameOf(root.player) : ""
             color: Qt.darker(root.bar.foreground, 1.9)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
             elide: Text.ElideRight
             width: parent.width
-            visible: text !== "" && root.shownPlayers.length > 1
+            visible: text !== ""
           }
         }
       }
@@ -526,7 +536,7 @@ BarWidget {
 
           Button {
             required property var modelData
-            text: modelData.identity || modelData.desktopEntry || "?"
+            text: root.nameOf(modelData) || "?"
             iconText: modelData.isPlaying ? "󰏤" : "󰐊"
             foreground: root.bar.foreground
             bordered: true

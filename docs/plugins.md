@@ -25,6 +25,7 @@ A note in the bar, always there, bright while music plays. A click opens the pan
 - cover, title, artist, album
 - the progress: click or drag to jump
 - previous, play/pause, next; shuffle and repeat when the player has them
+- where it plays: the app, or for a browser the site (SoundCloud as a web app or a tab shows "SoundCloud", not the browser's name)
 - with several players (SlowTunes, Spotify, a browser tab): a button for each, to pick the one shown
 
 In the bar: middle click plays or pauses, the wheel skips.
