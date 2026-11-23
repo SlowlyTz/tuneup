@@ -3,6 +3,8 @@
 Tuneup replaces Omarchy's scratchpad with a row of scratch desktops: normal
 desktops (workspaces 201 and up) that fly in from below like the scratchpad
 did, but you can have several, swipe between them and move windows onto them.
+Their ids belong to no screen: when Omarchy (which gives every monitor workspaces of its own) renumbers an
+open scratch desktop into a monitor's block on a reload, Tuneup gives it its id back at once.
 
 | Key | Does |
 |---|---|

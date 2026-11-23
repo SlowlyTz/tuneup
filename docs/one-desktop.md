@@ -2,7 +2,7 @@
 
 With an external monitor connected:
 
-- **One screen has desktops of its own** (here: the fixed screen): it always shows the same desktop (workspace `99`, shown as `1` in the bar). This is good for chat, music or a dashboard.
+- **One screen has desktops of its own** (here: the fixed screen): it always shows the same desktop (shown as `1` in the bar). This is good for chat, music or a dashboard.
 - **The other screen has desktops 1–10.** `SUPER + 1…0` only switch that one.
 
 This is for **one** external monitor. Without one, everything is normal Hyprland.
@@ -21,8 +21,15 @@ The canvas on the Screens page marks the fixed screen with a pin.
 ## More than one desktop on the fixed screen
 
 **Number of own desktops** (Screens page, below the picture) gives it up to 10 desktops of its own
-(workspaces `99`, `100`, … shown as `1`, `2`, … in its bar). The two screens stay apart: desktops 1–10 never
+(shown as `1`, `2`, … in its bar). The two screens stay apart: desktops 1–10 never
 appear on the fixed screen, its own desktops never on the other one.
+
+Which workspace ids they are depends on Omarchy. Since Omarchy gives every monitor workspaces of its own
+(a block of ten ids per monitor: the laptop `1`–`10`, the next monitor `11`–`20`, …), each screen's desktops
+use the ids of its block, so Omarchy never renumbers them on a reload or when a monitor comes or goes. With an
+older Omarchy, desktops 1–10 are workspaces `1`–`10` and the fixed screen's are `99`, `100`, …. Tuneup writes
+the ids in use to `$XDG_RUNTIME_DIR/tuneup/desktops.json` and moves windows along when they change (a swap,
+the first start after the Omarchy update).
 
 With more than one, `SUPER + 1…0` switch the desktops of the screen you are on (`SUPER + SHIFT + 1…0` move the
 window there), swiping moves between them, and a click on a tile in either bar switches that screen.

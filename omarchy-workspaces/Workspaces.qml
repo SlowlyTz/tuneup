@@ -2,16 +2,22 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
 // Tuneup's workspace indicator.
 //
 // With an external monitor attached, one screen -- laptop or external -- keeps
-// its own desktops (workspace 99 and up, shown as 1, 2, ...; a single "1" by
-// default); desktops 1-10 live on the other one. Without one, it behaves like
-// the stock widget. Each bar highlights the workspace active on *its own*
-// screen, not the globally focused one.
+// its own desktops (shown as 1, 2, ...; a single "1" by default); desktops
+// 1-10 live on the other one. Without one, it behaves like the stock widget.
+// Each bar highlights the workspace active on *its own* screen, not the
+// globally focused one.
+//
+// The ids come from Tuneup (desktops.json in its runtime folder): with
+// Omarchy's workspaces per monitor every screen's desktops are the ids of its
+// block (block b: b*10+1 ... b*10+10); with an older Omarchy desktops 1-10
+// are workspaces 1-10 and the fixed screen's are 99 and up.
 //
 // A screen showing a scratch desktop (workspace 201 and up, SUPER + S) shows
 // only the scratch desktops -- those that exist (Tuneup keeps the first ones
@@ -24,15 +30,41 @@ BarWidget {
 
   // The laptop's own panel (hypr_screens/config.py INTERNAL_PREFIXES).
   function isPanel(name) { return /^(eDP|LVDS|DSI)/.test(name) }
-  readonly property int fixedWorkspace: 99
-  // ids of the fixed screen's desktops: 99 up to 108 (Tuneup's fixed_desktops option)
-  readonly property int fixedLast: 108
+  // What Tuneup uses now (hypr_screens/desktops.py save_layout).
+  readonly property string runtimeDir: Quickshell.env("XDG_RUNTIME_DIR") || ""
+  property var layout: null
+  FileView {
+    path: root.runtimeDir ? root.runtimeDir + "/tuneup/desktops.json" : ""
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      try { root.layout = JSON.parse(text()) } catch (e) { root.layout = null }
+    }
+    onLoadFailed: root.layout = null
+  }
+  readonly property bool omarchy: !!(root.layout && root.layout.omarchy)
 
-  // Tuneup's scratch desktops (hypr_screens/scratch.py FIRST), shared by all screens.
+  // The fixed screen's desktops: its desktop 1 and the nine ids after it
+  // (Tuneup's fixed_desktops option); 99 up to 108 without Omarchy's blocks.
+  readonly property int fixedWorkspace: root.layout && root.layout.fixed_first ? root.layout.fixed_first
+                                        : (root.omarchy ? -1000 : 99)
+  readonly property int fixedLast: root.fixedWorkspace + 9
+
+  // Tuneup's scratch desktops (hypr_screens/scratch.py FIRST), shared by all
+  // screens; ids from 9001 are only on their way to another id.
   readonly property int scratchFirst: 201
+  readonly property int scratchEnd: 9001
 
   function isFixed(id) { return id >= root.fixedWorkspace && id <= root.fixedLast }
-  function isScratch(id) { return id >= root.scratchFirst }
+  function isScratch(id) { return id >= root.scratchFirst && id < root.scratchEnd }
+
+  // This screen's desktop 1: the first id of its block, or 1.
+  readonly property int deskFirst: {
+    var blocks = root.layout && root.layout.blocks
+    var block = blocks ? blocks[root.screenName] : undefined
+    return root.omarchy && block !== undefined ? block * 10 + 1 : 1
+  }
 
   // The output this particular bar instance lives on.
   readonly property string screenName: {
@@ -50,6 +82,7 @@ BarWidget {
 
   // The fixed screen is whichever one shows one of the fixed desktops.
   readonly property bool pinned: root.docked && root.isFixed(root.activeWorkspace)
+                                 && (!root.omarchy || root.layout.fixed_monitor === root.screenName)
   // This screen shows a scratch desktop: the bar shows the scratch row.
   readonly property bool scratch: root.isScratch(root.activeWorkspace)
 
@@ -107,12 +140,13 @@ BarWidget {
       return fixed
     }
 
-    var ids = [1, 2, 3, 4, 5]
+    var first = root.deskFirst
+    var ids = [first, first + 1, first + 2, first + 3, first + 4]
     var values = Hyprland.workspaces.values
 
     for (var i = 0; i < values.length; i++) {
       var id = values[i].id
-      if (id > 0 && id <= 10 && ids.indexOf(id) === -1) ids.push(id)
+      if (id >= first && id < first + 10 && ids.indexOf(id) === -1) ids.push(id)
     }
 
     ids.sort(function(left, right) { return left - right })
@@ -125,7 +159,8 @@ BarWidget {
       return n === 10 ? "0" : String(n)
     }
     if (root.isFixed(id)) return String(id - root.fixedWorkspace + 1)
-    return id === 10 ? "0" : String(id)
+    var slot = id - root.deskFirst + 1
+    return slot === 10 ? "0" : String(slot)
   }
 
   // Go through Tuneup so desktops stay on the right screen; a scratch desktop
@@ -141,7 +176,14 @@ BarWidget {
       root.bar.run("tuneup switch --fixed " + Util.shellQuote(String(id - root.fixedWorkspace + 1)))
       return
     }
-    root.bar.run("tuneup switch --desk " + Util.shellQuote(String(id)))
+    var slot = String(id - root.deskFirst + 1)
+    if (root.omarchy && !(root.layout && root.layout.role)) {
+      // every screen has its own desktops (Omarchy's): this bar's screen
+      root.bar.run("hyprctl dispatch " + Util.shellQuote(
+        "o.workspaces.focus(" + slot + ", " + JSON.stringify(root.screenName) + ")"))
+      return
+    }
+    root.bar.run("tuneup switch --desk " + Util.shellQuote(slot))
   }
 
   readonly property real trailingGap: root.vertical ? 0 : Style.spaceReal(1.5)

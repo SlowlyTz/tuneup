@@ -27,7 +27,7 @@ import threading
 import time
 from pathlib import Path
 
-from hypr_screens import apply, camera, config, drift, engine, enforce, install, samsung, sound, widgets
+from hypr_screens import apply, camera, config, desktops, drift, engine, enforce, install, samsung, sound, widgets
 
 SETTLE_SECONDS = 1.0
 # A screen that is gone for good, before windows are closed for it (a dock
@@ -166,6 +166,9 @@ class Watcher:
         if found:
             self.pending |= found
             self.quiet_at = now + SETTLE_SECONDS
+        if "changeworkspaceid" in names(lines):
+            if message := safe(lambda: desktops.renumbered(lines), "renumbered desktops"):
+                log(message)
         if names(lines) & DRIFT_EVENTS:
             self.next_audit = min(self.next_audit, now + AUDIT_SOON_SECONDS)
 

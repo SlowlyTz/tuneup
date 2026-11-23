@@ -47,6 +47,7 @@ def place_desktops(cfg: dict, docking: bool = False, close_ok: bool = False) -> 
     else:
         desktops.remember_role(None)
         desktops.fold_fixed(screens)
+        desktops.save_layout(screens)
         if desktops.rules_marked() and len(screens.monitors) > 1:
             # Workspace rules pinning desktops to one screen only go away
             # with a reload; the monitor settings are applied again after.

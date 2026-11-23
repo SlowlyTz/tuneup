@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
 
@@ -22,10 +23,23 @@ PanelWindow {
   readonly property bool showing: wanted && dock.groups.length + dock.minimized.length > 0
   readonly property bool hovered: showing && (cardHover.hovered || listHover.hovered || hintHover.hovered)
 
-  // hypr_screens: the external screen's own desktops (shown as 1, 2, ...) and
+  // hypr_screens: the fixed screen's own desktops (shown as 1, 2, ...) and
   // the scratch desktops (201 and up while open, parked as special workspaces while closed).
-  readonly property int fixedFirst: 99
-  readonly property int fixedLast: 108
+  // The ids come from Tuneup's desktops.json: with Omarchy's workspaces per
+  // monitor every screen's desktops lie in its block of ten (shown as 1-10).
+  property var desktopIds: null
+  FileView {
+    path: (Quickshell.env("XDG_RUNTIME_DIR") || "") + "/tuneup/desktops.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: { try { dock.desktopIds = JSON.parse(text()) } catch (e) { dock.desktopIds = null } }
+    onLoadFailed: dock.desktopIds = null
+  }
+  readonly property bool blocks: !!(dock.desktopIds && dock.desktopIds.omarchy)
+  readonly property int fixedFirst: dock.desktopIds && dock.desktopIds.fixed_first ? dock.desktopIds.fixed_first
+                                    : (dock.blocks ? -1000 : 99)
+  readonly property int fixedLast: dock.fixedFirst + 9
   readonly property int scratchFirst: 201
   readonly property string scratchParked: "special:tuneup-scratch-"
   readonly property string minimizedName: "special:minimized"
@@ -136,8 +150,9 @@ PanelWindow {
     var id = workspace ? workspace.id : 0
     var name = workspace ? String(workspace.name || "") : ""
     if (name.indexOf(dock.scratchParked) === 0) return "S" + (Number(name.slice(dock.scratchParked.length)) - dock.scratchFirst + 1)
-    if (id >= dock.scratchFirst) return "S" + (id - dock.scratchFirst + 1)
+    if (id >= dock.scratchFirst && id < 9001) return "S" + (id - dock.scratchFirst + 1)
     if (id >= dock.fixedFirst && id <= dock.fixedLast) return String(id - dock.fixedFirst + 1)
+    if (dock.blocks && id > 0) return String((id - 1) % 10 + 1)
     return id > 0 ? String(id) : ""
   }
 

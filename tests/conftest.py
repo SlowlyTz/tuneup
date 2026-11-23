@@ -17,6 +17,8 @@ def private_runtime_dir(tmp_path, monkeypatch):
     for name, folder in (("XDG_CONFIG_HOME", ".config"), ("XDG_DATA_HOME", ".local/share"),
                          ("XDG_STATE_HOME", ".local/state")):
         monkeypatch.setenv(name, str(tmp_path / "home" / folder))
+    # Omarchy without its workspaces per monitor (an older one), unless a test adds them.
+    monkeypatch.setenv("OMARCHY_PATH", str(tmp_path / "omarchy"))
 
 
 @pytest.fixture(autouse=True)

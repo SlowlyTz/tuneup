@@ -17,7 +17,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from hypr_screens import brand, config, desktops, hypr, install, look, scratch
+from hypr_screens import blocks, brand, config, desktops, hypr, install, look, scratch
 
 RECORD_SUBMAP = "hypr-screens-record"
 # The settings window (brand.APP_ID, its size).
@@ -259,6 +259,9 @@ def digit_lines(cfg: dict) -> list[str]:
             combo = f"{mods} + code:{code}"
             if cfg.get("desktop_keys"):
                 otherwise = f"hl.dsp.exec_cmd({lua_quote(f'{brand.command()} {command} {index}')})"
+            elif blocks.available():
+                # Omarchy's workspaces per monitor: desktop n of the focused screen
+                otherwise = desktops.OMARCHY_ACTIONS[command].format(n=index)
             else:
                 otherwise = OMARCHY_DIGITS[command].format(n=index)
             action = scratch.digit_call(command, index, otherwise) if scratch.enabled(cfg) else otherwise
@@ -374,17 +377,26 @@ def render(cfg: dict, runtime: bool = False, fresh: bool = True) -> str:
             f"hl.window_rule({{ match = {{ class = {lua_quote(SETTINGS_CLASS)} }}, "
             f"float = true, size = {{ {SETTINGS_SIZE[0]}, {SETTINGS_SIZE[1]} }}, center = true }})",
             "",
-            "-- Swiping never creates desktops on the fixed screen (the one showing desktop "
-            f"{desktops.FIXED_WS}",
-            "-- and up): with one desktop it does nothing, with several it moves between its own",
+            "-- Swiping never creates desktops on the fixed screen (the one showing its own",
+            "-- desktops): with one desktop it does nothing, with several it moves between its own",
             "-- (they are kept as persistent workspaces), so creating is off while it has the focus.",
+            "-- Their ids change with the screens (Omarchy's blocks): Tuneup writes them to a file.",
+            f"local desktops_file = {lua_quote(str(desktops.layout_file()))}",
+            "local function fixed_ids()",
+            '  local file = io.open(desktops_file, "r")',
+            "  if not file then return nil end",
+            '  local text = file:read("a") or ""',
+            "  file:close()",
+            '  local first = tonumber(text:match(\'"fixed_first": *(%d+)\'))',
+            '  return first, first and first + (tonumber(text:match(\'"fixed_count": *(%d+)\')) or 1)',
+            "end",
             'local swipe_creates = hl.get_config("gestures.workspace_swipe_create_new")',
             "swipe_creates = swipe_creates == true or swipe_creates == 1",
             "local swipe_blocked = false",
             "local function guard_swipe()",
             "  local workspace = hl.get_active_workspace()",
-            f"  local blocked = workspace ~= nil and workspace.id >= {desktops.FIXED_WS} "
-            f"and workspace.id < {desktops.FIXED_WS + desktops.fixed_count(cfg)}",
+            "  local first, after = fixed_ids()",
+            "  local blocked = workspace ~= nil and first ~= nil and workspace.id >= first and workspace.id < after",
             "  if blocked == swipe_blocked then return end",
             "  swipe_blocked = blocked",
             "  hl.config({ gestures = { workspace_swipe_create_new = swipe_creates and not blocked } })",

@@ -83,6 +83,26 @@ Item {
     onFileChanged: reload()
     onLoaded: if (!root.tuneupSettings) root.parseSettings(text())
   }
+  // Tuneup's desktop ids now (hypr_screens/desktops.py save_layout): with
+  // Omarchy's workspaces per monitor every screen's desktops lie in its block.
+  property var desktopIds: null
+  FileView {
+    path: (Quickshell.env("XDG_RUNTIME_DIR") || "") + "/tuneup/desktops.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: { try { root.desktopIds = JSON.parse(text()) } catch (e) { root.desktopIds = null } }
+    onLoadFailed: root.desktopIds = null
+  }
+  // A desktop as the widget rules name it: 1-10, or 99 for any of the fixed screen's.
+  function deskNumber(monitor, id) {
+    var ids = root.desktopIds
+    if (!ids || !ids.omarchy) return id >= 99 && id <= 108 ? 99 : id
+    if (ids.fixed_first && monitor && monitor.name === ids.fixed_monitor
+        && id >= ids.fixed_first && id < ids.fixed_first + 10) return 99
+    return id > 0 ? (id - 1) % 10 + 1 : id
+  }
+
   function reloadSettings() {
     settingsFile.reload()
     legacySettingsFile.reload()
@@ -450,7 +470,7 @@ Item {
     if (w.hide_on_battery && UPower.onBattery) return false
     var monitor = screen ? Hyprland.monitorFor(screen) : null
     var workspace = monitor ? monitor.activeWorkspace : null
-    var desk = workspace ? (workspace.id >= 99 && workspace.id <= 108 ? 99 : workspace.id) : 0
+    var desk = workspace ? root.deskNumber(monitor, workspace.id) : 0
     if (w.desktops && w.desktops.length && (!workspace || w.desktops.indexOf(desk) < 0)) return false
     if (w.only_empty && workspace && workspace.toplevels && workspace.toplevels.values.length > 0) return false
     return true

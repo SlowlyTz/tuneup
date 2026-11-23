@@ -267,7 +267,10 @@ do
     for _, id in ipairs(workspaces_on(monitor)) do
       if id < first and (lowest == nil or id < lowest) then lowest = id end
     end
-    return lowest or 1
+    if lowest then return lowest end
+    -- none: its desktop 1 (Omarchy's per-monitor workspaces: the first of its block)
+    local ok, id = pcall(function() return o.workspaces.workspace_id(monitor, 1) end)
+    return ok and id or 1
   end
 
   -- Switching the scratch desktops off: no more putting away (the handlers go
