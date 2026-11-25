@@ -14,6 +14,10 @@ import qs.Commons
 //
 // Clicking does not close it: it goes only when the pointer leaves it.
 //
+// A right click on an app offers to quit it: the app's process ends (as on
+// SIGTERM, so it may still ask to save) when no other app's window belongs to
+// it; otherwise -- a web app in a browser's process -- its windows close.
+//
 // The layer stays mapped and only fades: mapping it each time would play
 // Hyprland's layer animation instead of the fade. Hidden, it takes no input.
 PanelWindow {
@@ -21,7 +25,8 @@ PanelWindow {
 
   property bool wanted: false
   readonly property bool showing: wanted && dock.groups.length + dock.minimized.length > 0
-  readonly property bool hovered: showing && (cardHover.hovered || listHover.hovered || hintHover.hovered)
+  readonly property bool hovered: showing && (cardHover.hovered || listHover.hovered || hintHover.hovered
+                                              || menuHover.hovered)
 
   // hypr_screens: the fixed screen's own desktops (shown as 1, 2, ...) and
   // the scratch desktops (201 and up while open, parked as special workspaces while closed).
@@ -64,6 +69,9 @@ PanelWindow {
   property string openKey: ""
   // The app under the pointer: a lone window shows its title beside it.
   property string hoverKey: ""
+  // The app whose menu (right click) is open.
+  property string menuKey: ""
+  readonly property string quitText: Qt.locale().name.indexOf("de") === 0 ? "Beenden" : "Quit"
 
   color: "transparent"
   anchors { top: true; left: true }
@@ -81,6 +89,7 @@ PanelWindow {
     item: dock.showing ? card : null
     Region { item: dock.showing && list.visible ? list : null }
     Region { item: dock.showing && hint.visible ? hint : null }
+    Region { item: dock.showing && menu.visible ? menu : null }
   }
 
   // Kept a moment after it is no longer wanted, for the fade-out.
@@ -116,6 +125,7 @@ PanelWindow {
     } else {
       dock.openKey = ""
       dock.hoverKey = ""
+      dock.menuKey = ""
       rest.restart()
     }
   }
@@ -186,7 +196,9 @@ PanelWindow {
       }
       var group = into[key]
       var isHere = !isHidden && workspace.id === here
+      var ipc = toplevel.lastIpcObject
       group.windows.push({ address: "0x" + String(toplevel.address).replace(/^0x/, ""), title: String(toplevel.title || group.name),
+                           pid: ipc && ipc.pid ? Number(ipc.pid) : 0, app: id ? id.toLowerCase() : "",
                            desktop: isHidden ? "" : dock.label(workspace), here: isHere, order: dock.order(workspace) })
       group.here = group.here || isHere
       group.order = Math.min(group.order, isHidden ? 0 : dock.order(workspace))
@@ -235,6 +247,32 @@ PanelWindow {
   function fetch(address) {
     if (dock.here <= 0) return
     Quickshell.execDetached(["hypr-minimizer", "toggle", address, String(dock.here)])
+  }
+
+  // Quit an app: its process, when that holds only this app's windows; else
+  // its windows close (as SUPER + W would).
+  function quit(group) {
+    dock.menuKey = ""
+    if (!group) return
+    // Processes that also hold another app's window (a browser's web apps).
+    var mine = group.windows.length ? group.windows[0].app : ""
+    var others = {}
+    var all = Hyprland.toplevels.values
+    for (var i = 0; i < all.length; i++) {
+      var ipc = all[i].lastIpcObject
+      var app = String(dock.appId(all[i]) || "").toLowerCase()
+      if (ipc && ipc.pid && (!mine || app !== mine)) others[Number(ipc.pid)] = true
+    }
+    var ended = {}
+    group.windows.forEach(function(window) {
+      if (window.pid && !others[window.pid]) {
+        if (!ended[window.pid]) Quickshell.execDetached(["kill", "-TERM", String(window.pid)])
+        ended[window.pid] = true
+      } else {
+        Quickshell.execDetached(["hyprctl", "dispatch",
+          'hl.dsp.window.close({ window = "address:' + window.address + '" })'])
+      }
+    })
   }
 
   function clicked(group) {
@@ -308,18 +346,28 @@ PanelWindow {
     MouseArea {
       id: tileArea
       anchors.fill: parent
-      acceptedButtons: Qt.LeftButton
+      acceptedButtons: Qt.LeftButton | Qt.RightButton
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onContainsMouseChanged: {
         if (containsMouse) {
+          if (dock.menuKey && dock.menuKey !== tile.group.key) dock.menuKey = ""
+          if (dock.menuKey) return
           dock.hoverKey = tile.group.key
           // Several windows: list them right away. The list stays while the
           // pointer crosses over to it, until it rests on another app.
           dock.openKey = tile.group.windows.length > 1 ? tile.group.key : ""
         } else if (dock.hoverKey === tile.group.key) dock.hoverKey = ""
       }
-      onClicked: dock.clicked(tile.group)
+      onClicked: function(mouse) {
+        if (mouse.button === Qt.RightButton) {
+          dock.openKey = ""
+          dock.menuKey = dock.menuKey === tile.group.key ? "" : tile.group.key
+          return
+        }
+        dock.menuKey = ""
+        dock.clicked(tile.group)
+      }
     }
   }
 
@@ -373,7 +421,7 @@ PanelWindow {
   }
 
   // The title of the lone window under the pointer, and where it is.
-  readonly property var hintGroup: dock.openKey ? null : dock.groupByKey(dock.hoverKey)
+  readonly property var hintGroup: dock.openKey || dock.menuKey ? null : dock.groupByKey(dock.hoverKey)
   readonly property Item hintTile: dock.hintGroup ? dock.tileFor(dock.hintGroup.key) : null
 
   Surface {
@@ -501,6 +549,47 @@ PanelWindow {
             onClicked: dock.fetch(row.modelData.address)
           }
         }
+      }
+    }
+  }
+
+  // The menu of the app right-clicked: quit it.
+  readonly property var menuGroup: dock.groupByKey(dock.menuKey)
+  readonly property Item menuTile: dock.menuGroup ? dock.tileFor(dock.menuGroup.key) : null
+
+  Surface {
+    id: menu
+    visible: dock.showing && dock.menuTile !== null
+    x: card.x + card.width + dock.gap
+    y: dock.menuTile ? Math.max(0, card.y + column.y + dock.menuTile.y + (dock.menuTile.height - height) / 2) : 0
+    width: Math.max(Style.space(140), quitLabel.implicitWidth + Style.space(32)) + dock.pad * 2
+    height: quitRow.height + dock.pad * 2
+
+    HoverHandler { id: menuHover }
+
+    Rectangle {
+      id: quitRow
+      x: dock.pad
+      y: dock.pad
+      width: menu.width - dock.pad * 2
+      height: quitLabel.implicitHeight + Style.space(16)
+      radius: dock.radius - dock.pad
+      color: quitArea.containsMouse ? dock.lit : "transparent"
+      Text {
+        id: quitLabel
+        anchors { left: parent.left; leftMargin: Style.space(16); verticalCenter: parent.verticalCenter }
+        text: dock.quitText
+        color: Color.menu.text
+        font.family: Style.font.menuFamily
+        font.pixelSize: Style.font.body
+      }
+      MouseArea {
+        id: quitArea
+        anchors.fill: parent
+        acceptedButtons: Qt.LeftButton
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: dock.quit(dock.menuGroup)
       }
     }
   }

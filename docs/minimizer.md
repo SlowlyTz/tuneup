@@ -45,6 +45,7 @@ Keyboard only (the mouse does nothing inside it; clicking outside closes it).
 Rest the pointer on the Omarchy logo in the bar for a moment and a dock fades in on the left: one icon per app with open windows, in the order of their desktops (the small number shows where), minimized ones paler below a line. A dot marks an app with a window on this desktop.
 
 - Click an icon to bring the window to this desktop, in front; click a window here that nothing covers to minimize it, whether it has the focus or not. An app with several windows shows how many; a click lists them, and a click on one brings it.
+- Right click an icon for **Quit**: the app ends as it would on its own quit (it may still ask to save). An app whose process also runs other apps' windows, such as a web app in the browser, only has its windows closed.
 - A window brought this way always lands in front. Where other windows float, a tiled one would end up behind them, so it floats too, in the middle of the screen.
 - The dock stays while the pointer is on the logo or the dock, and goes a moment after it left.
 - Left click on the logo still opens the Omarchy menu, right click a terminal.
