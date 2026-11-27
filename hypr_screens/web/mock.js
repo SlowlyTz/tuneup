@@ -119,6 +119,15 @@
   };
 
   const db = clone(FIXTURE);
+  /* App to desktop: the launcher's apps and where some of them start. */
+  db.installed = [
+    { id: "discord", name: "Discord", icon: null, classes: ["discord"] },
+    { id: "chrome-hnpfjngllnobngcgfapefoaidbinmjnm-Default", name: "WhatsApp Web", icon: null, classes: ["chrome-hnpfjngllnobngcgfapefoaidbinmjnm-default"] },
+    { id: "obsidian", name: "Obsidian", icon: null, classes: ["obsidian"] },
+    { id: "spotify", name: "Spotify", icon: null, classes: ["spotify"] },
+    { id: "signal", name: "Signal", icon: null, classes: ["signal"] },
+  ];
+  db.appDesktops = { "scratch:1": [{ id: "chrome-hnpfjngllnobngcgfapefoaidbinmjnm-Default", mode: "float" }, { id: "discord", mode: "tile" }] };
   db.plugins = [{
     id: "music", name: "Music", version: "1.0.0", icon: "music", installed: false,
     description: "Control your music from the bar.",
@@ -398,6 +407,28 @@
       f.swapped = !f.swapped;
       changed();
       return reply(f);
+    },
+
+    /* App to desktop */
+    appDesktopsState() {
+      const desktops = {};
+      for (const [key, apps] of Object.entries(db.appDesktops)) {
+        desktops[key] = apps.map((a) => ({ ...db.installed.find((x) => x.id === a.id), mode: a.mode, installed: true }));
+      }
+      return reply({ scratch: true, max: 5, desktops });
+    },
+    installedApps: () => reply(db.installed.map(({ id, name, icon }) => ({ id, name, icon }))),
+    async setAppDesktop(desktop, apps) {
+      need(/^(scratch|desk):([1-9]|10)$/.test(desktop), "bad_value", `unknown desktop: ${desktop}`);
+      need(Array.isArray(apps) && apps.length <= 5, "bad_value", "apps must be a list of at most 5");
+      for (const a of apps) need(db.installed.some((x) => x.id === a.id), "bad_value", `no such app: ${a.id}`);
+      const ids = apps.map((a) => a.id);
+      for (const key of Object.keys(db.appDesktops)) {
+        db.appDesktops[key] = db.appDesktops[key].filter((a) => !ids.includes(a.id));
+        if (!db.appDesktops[key].length) delete db.appDesktops[key];
+      }
+      if (apps.length) db.appDesktops[desktop] = apps.map((a) => ({ id: a.id, mode: a.mode || "tile" }));
+      return this.appDesktopsState();
     },
 
     /* Keys */

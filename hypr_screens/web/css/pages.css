@@ -355,3 +355,48 @@
 
 /* Plugins */
 .plugin-list { display: flex; flex-direction: column; gap: var(--s3); }
+
+/* ---------- App to desktop ---------- */
+.ad-list { display: flex; flex-direction: column; gap: var(--s1); }
+.ad-desk {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card);
+  box-shadow: var(--shadow-card); padding: var(--s2) var(--s4);
+}
+.ad-desk.used { padding-bottom: var(--s3); }
+.ad-desk.off { opacity: .55; }
+.ad-head { display: flex; align-items: center; gap: var(--s3); min-height: 36px; }
+.ad-head b { font-weight: 400; flex: 1; min-width: 0; }
+.ad-desk:not(.used) .ad-head b { color: var(--text-2); }
+.ad-num {
+  flex: none; min-width: 28px; height: 24px; padding: 0 6px; border-radius: 6px; display: grid; place-items: center;
+  font-size: 12px; font-weight: 600; background: var(--ctl-hover); color: var(--text-2);
+}
+.ad-desk.used .ad-num { background: var(--accent-soft); color: var(--accent); }
+.ad-count { color: var(--text-2); font-size: 12px; }
+.ad-apps { display: flex; flex-wrap: wrap; gap: var(--s2); margin: var(--s2) 0 0 calc(28px + var(--s3)); }
+.ad-app {
+  position: relative; width: 48px; height: 48px; display: grid; place-items: center; padding: 0; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--ctl-sunken); color: inherit;
+  transition: border-color var(--t-fast), background var(--t-fast), transform var(--t-fast);
+}
+.ad-app:hover { background: var(--card-hover); border-color: var(--line-strong); transform: translateY(-1px); }
+.ad-app[aria-expanded="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.ad-app .app-ic { width: 30px; height: 30px; object-fit: contain; }
+.ad-app.gone .app-ic { opacity: .4; filter: grayscale(1); }
+.ad-mark {
+  position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 6px; display: grid; place-items: center;
+  background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 2px var(--card);
+}
+.ad-mark .i { width: 11px; height: 11px; }
+@media (max-width: 899px) { .ad-apps { margin-left: 0; } }
+.ad-find { width: 220px; }
+.ad-fold {
+  display: flex; align-items: baseline; gap: var(--s2); width: 100%; margin: 0 0 var(--s2) 0; padding: 2px;
+  background: none; border: 0; color: inherit; text-align: left; cursor: pointer; border-radius: 6px;
+}
+.ad-fold:hover h2 { color: var(--accent); }
+.ad-fold h2 { font-size: 14px; font-weight: 600; }
+.ad-fold .sub { color: var(--text-2); font-size: 12px; }
+.ad-fold .exp-chev { align-self: center; transition: transform var(--t-fast); }
+.ad-sec[data-open="false"] .exp-chev { transform: rotate(-90deg); }
+.opt img.app-ic { width: 20px; height: 20px; object-fit: contain; flex: none; }

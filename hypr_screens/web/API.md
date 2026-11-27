@@ -194,6 +194,30 @@ the desktops), `minimize_animation` (a minimized window shrinks into its center)
 reloads) and `no_warps` (the pointer does not jump to windows; off reloads).
 `options` holds them as well.
 
+## App to desktop (new)
+
+Apps that always start on one desktop (hypr_screens/app_desktops.py): up to 5 per
+scratch desktop (`scratch:1` … `scratch:10`) and per desktop 1–10 (`desk:1` … `desk:10`).
+
+### `appDesktopsState()`
+
+```
+{scratch: bool,          // the scratch desktops are on (their apps only start there then)
+ max: 5,
+ desktops: {"scratch:1": [{id, name, icon, mode: "tile" | "float", installed: bool}], ...}}
+```
+
+`id` is the desktop entry's id, `icon` a `data:` URL or null. Desktops without apps are left out.
+
+### `installedApps()` → `[{id, name, icon}]`
+
+Every app of the launcher, by name.
+
+### `setAppDesktop(desktop, apps)` → `appDesktopsState()`
+
+`apps`: `[{id, mode}]`, at most 5, each once. An app given here leaves the desktop it was on.
+`bad_value` for an unknown desktop or app, more than 5 apps or a bad mode.
+
 ## Window look
 
 ### `look()`

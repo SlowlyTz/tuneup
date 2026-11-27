@@ -29,6 +29,7 @@ export function takeLook(look) {
 const LOADERS = {
   screens: [async () => { [S.screens, S.fixed] = [await api.screens(), await api.fixedStatus()]; }, () => S.screens],
   keys: [async () => { S.keys = await api.keys(); }, () => S.keys],
+  apps: [async () => { [S.apps, S.installed] = [await api.appDesktopsState(), await api.installedApps()]; }, () => S.apps],
   look: [async () => { takeLook(await api.look()); }, () => S.look],
   sound: [async () => { S.sound = await api.soundState(); }, () => S.sound],
   camera: [async () => { S.camera = await api.camera(); }, () => S.camera],

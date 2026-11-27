@@ -116,6 +116,8 @@ def default_config() -> dict:
         "resize_swipe": True,
         # The pointer stays where it is when a window opens, gets focus or comes back.
         "no_warps": False,
+        # App to desktop (app_desktops.py): {"scratch:1" | "desk:3": [{id, name, classes, mode}]}.
+        "app_desktops": {},
         "screens": {},
         "sound": {"force_mute": {}},
         "samsung": {"limit": None, "mode": None, "full_once": False},
@@ -207,7 +209,7 @@ def normalize_plugins(raw: dict) -> dict:
 
 def normalize(raw: object) -> dict:
     """The settings with every part checked; what is not valid gets its default."""
-    from hypr_screens import look, widgets  # local: both import config
+    from hypr_screens import app_desktops, look, widgets  # local: they import config
 
     cfg = default_config()
     if not isinstance(raw, dict):
@@ -233,6 +235,7 @@ def normalize(raw: object) -> dict:
     kept = raw.get("scratch_kept")
     if isinstance(kept, int) and not isinstance(kept, bool) and 1 <= kept <= 10:
         cfg["scratch_kept"] = kept
+    cfg["app_desktops"] = app_desktops.normalize(raw.get("app_desktops"))
     cfg["screens"] = normalize_screens(raw)
     cfg["sound"]["force_mute"] = normalize_force_mute(raw)
     normalize_samsung(raw, cfg["samsung"])

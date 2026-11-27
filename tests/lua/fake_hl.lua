@@ -146,6 +146,13 @@ local function dispatch(d)
         end
       end
     end
+  elseif d.op == "float" or d.op == "resize" or d.op == "center" then
+    for _, w in ipairs(fake.windows) do
+      if "address:" .. w.address == d.args.window then
+        if d.op == "float" then w.floating = d.args.action == "on" end
+        table.insert(fake.log, d.op .. " " .. w.name .. (d.op == "float" and (" " .. d.args.action) or ""))
+      end
+    end
   elseif d.op == "exec" then
     table.insert(fake.log, "exec " .. d.args)
   end
@@ -184,16 +191,23 @@ function fake.swipe(direction)
   end
 end
 
-function fake.run_timers()
-  while #fake.timers > 0 do
-    local pending = fake.timers
-    fake.timers = {}
-    for _, fn in ipairs(pending) do fn() end
+-- One step of time: the timers set so far (not the ones they set) that are
+-- due within `ms` (all of them without it); the others keep waiting.
+function fake.run_round(ms)
+  local pending = fake.timers
+  fake.timers = {}
+  for _, timer in ipairs(pending) do
+    if ms == nil or (timer.ms or 0) <= ms then timer.fn() else table.insert(fake.timers, timer) end
   end
 end
 
-function fake.open_window(name)
-  local window = { name = name, address = "0x" .. name, workspace = fake.focused().active_workspace }
+function fake.run_timers()
+  while #fake.timers > 0 do fake.run_round() end
+end
+
+function fake.open_window(name, class)
+  local window = { name = name, address = "0x" .. name, workspace = fake.focused().active_workspace,
+                   class = class or name, floating = false }
   table.insert(fake.windows, window)
   fake.active_window = window
   return window
@@ -203,12 +217,17 @@ hl = {
   dsp = {
     focus = function(args) return { op = "focus", args = args } end,
     exec_cmd = function(cmd) return { op = "exec", args = cmd } end,
-    window = { move = function(args) return { op = "move", args = args } end },
+    window = {
+      move = function(args) return { op = "move", args = args } end,
+      float = function(args) return { op = "float", args = args } end,
+      resize = function(args) return { op = "resize", args = args } end,
+      center = function(args) return { op = "center", args = args } end,
+    },
     workspace = { move = function(args) return { op = "wsmove", args = args } end },
   },
   dispatch = dispatch,
   animation = function(spec) fake.animation = spec end,
-  timer = function(fn, _) table.insert(fake.timers, fn) end,
+  timer = function(fn, opts) table.insert(fake.timers, { fn = fn, ms = opts and opts.timeout }) end,
   on = function(event, fn)
     fake.handlers[event] = fake.handlers[event] or {}
     local sub = { fn = fn }
@@ -220,6 +239,8 @@ hl = {
   end,
   get_active_monitor = function() return fake.focused() end,
   get_active_window = function() return fake.active_window end,
+  get_windows = function() return fake.windows end,
+  exec_cmd = function(cmd) table.insert(fake.log, "exec " .. cmd) end,
   get_workspaces = function()
     local list = {}
     for _, id in ipairs(sorted_ids()) do table.insert(list, fake.workspaces[id]) end

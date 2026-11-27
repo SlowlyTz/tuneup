@@ -8,6 +8,7 @@ const PAGES = [
   { id: "home", label: () => t("Home"), icon: "home", needs: ["screens", "sound", "samsung", "widgets"], core: ["screens"] },
   { id: "screens", label: () => t("Screens"), icon: "monitor", needs: ["screens", "keys"] },
   { id: "keys", label: () => t("Keyboard"), icon: "keyboard", needs: ["keys"] },
+  { id: "apps", label: () => t("App to desktop"), icon: "desktops", needs: ["apps"] },
   { id: "look", label: () => t("Windows"), icon: "window", needs: ["look", "keys"] },
   { id: "widgets", label: () => t("Widgets"), icon: "widgets", needs: ["widgets", "screens", "keys"], core: ["widgets"] },
   { id: "sound", label: () => t("Sound"), icon: "speaker", needs: ["sound"] },

@@ -13,6 +13,7 @@ Tuneup is the settings app Omarchy is missing: screens and desktops, window look
 | control sound per device and app, force mute | [sound.md](sound.md) |
 | turn the camera picture for every app | [camera.md](camera.md) |
 | scratch desktops on SUPER + S (several, on every screen) | [scratch.md](scratch.md) |
+| make an app always start on its own desktop | [app-desktops.md](app-desktops.md) |
 | minimize, restore or peek at windows | [minimizer.md](minimizer.md) |
 | change a shortcut | [keys.md](keys.md) |
 | add extras like music control to the bar, or write one | [plugins.md](plugins.md) |

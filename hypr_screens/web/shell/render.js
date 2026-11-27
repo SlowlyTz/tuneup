@@ -9,6 +9,7 @@ import { beginRender, k, on, setRenderer, takeHooks } from "../core/view.js";
 import { ic } from "../ui/icons.js";
 import { emptyState, ph } from "../ui/layout.js";
 import { Pop } from "../ui/popover.js";
+import { pageApps } from "../pages/apps.js";
 import { pageCamera } from "../pages/camera.js";
 import { GLOBAL_HANDLERS, pageGeneral } from "../pages/general.js";
 import { pageHome } from "../pages/home.js";
@@ -22,7 +23,7 @@ import { pageSound } from "../pages/sound.js";
 import { pageWidgets } from "../pages/widgets/page.js";
 import { afterJump, searchTexts } from "./search.js";
 
-const PAGE_HTML = { home: pageHome, screens: pageScreens, keys: pageKeys, look: pageLook, widgets: pageWidgets, sound: pageSound, camera: pageCamera, power: pagePower, plugins: pagePlugins, general: pageGeneral };
+const PAGE_HTML = { home: pageHome, screens: pageScreens, keys: pageKeys, apps: pageApps, look: pageLook, widgets: pageWidgets, sound: pageSound, camera: pageCamera, power: pagePower, plugins: pagePlugins, general: pageGeneral };
 const main = $("#main"), page = $("#page");
 let lastRoute = "";
 

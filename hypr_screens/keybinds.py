@@ -17,7 +17,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from hypr_screens import blocks, brand, config, desktops, hypr, install, look, scratch
+from hypr_screens import app_desktops, blocks, brand, config, desktops, hypr, install, look, scratch
 
 RECORD_SUBMAP = "hypr-screens-record"
 # The settings window (brand.APP_ID, its size).
@@ -355,6 +355,7 @@ def render(cfg: dict, runtime: bool = False, fresh: bool = True) -> str:
         lines += ["", scratch.module_lua(kept=cfg.get("scratch_kept", scratch.KEPT))]
         for combo, body, label in scratch.binds(cfg):
             lines += lua_bind_line(combo, scratch.call(body), label)
+    lines += ["", app_desktops.module_lua(cfg)]
     if cfg.get("no_warps"):
         lines += ["", "-- The pointer stays where it is when a window opens, gets focus or comes back.",
                   "hl.config({ cursor = { no_warps = true } })"]
