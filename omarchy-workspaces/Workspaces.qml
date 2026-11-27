@@ -100,6 +100,21 @@ BarWidget {
     return fallback
   }
 
+  // Quickshell credits every workspace switch to the monitor it believes is
+  // focused (the event doesn't say which one switched), so a scratch desktop
+  // opened while it is wrong about that never reaches this screen's bar; a
+  // moved or renumbered workspace is only learned by asking too. So each of
+  // these asks Hyprland for the truth.
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      var name = event ? String(event.name) : ""
+      if (name !== "workspacev2" && name !== "moveworkspacev2" && name !== "changeworkspaceid") return
+      Hyprland.refreshMonitors()
+      Hyprland.refreshWorkspaces()
+    }
+  }
+
   function workspaceById(id) {
     var values = Hyprland.workspaces.values
     for (var i = 0; i < values.length; i++) {
